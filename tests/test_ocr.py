@@ -21,4 +21,5 @@ def test_post_process():
     """
     Test the post_process function.
     """
-    assert post_process("…") == "..."
+    assert post_process("…") == "．．．"
+    assert post_process("・・") == "．．"
