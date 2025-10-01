@@ -4,7 +4,8 @@ from pathlib import Path
 import cv2
 import pandas as pd
 from tqdm import tqdm
-
+import sys
+sys.path.append("J:/Applications/manga-ocr/")
 from manga_ocr_dev.env import MANGA109_ROOT
 
 

@@ -5,6 +5,8 @@ from PIL import ImageDraw, ImageFont
 from fontTools.ttLib import TTFont
 from tqdm.contrib.concurrent import process_map
 
+import sys
+sys.path.append("J:/Applications/manga-ocr/")
 from manga_ocr_dev.env import ASSETS_PATH, FONTS_ROOT
 
 vocab = pd.read_csv(ASSETS_PATH / "vocab.csv").char.values
@@ -12,8 +14,11 @@ vocab = pd.read_csv(ASSETS_PATH / "vocab.csv").char.values
 
 def has_glyph(font, glyph):
     for table in font["cmap"].tables:
-        if ord(glyph) in table.cmap.keys():
-            return True
+        try:
+            if ord(glyph) in table.cmap.keys():
+                return True
+        except:
+            return False
     return False
 
 

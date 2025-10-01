@@ -12,7 +12,9 @@ from manga_ocr_dev.synthetic_data_generator.utils import get_background_df
 
 class Renderer:
     def __init__(self):
-        self.hti = Html2Image()
+        # self.hti = Html2Image(browser="edge", temp_path="J:/temp")
+        self.hti = Html2Image(temp_path="J:/temp")
+        
         self.background_df = get_background_df(BACKGROUND_DIR)
         self.max_size = 600
 
@@ -129,7 +131,7 @@ class Renderer:
             )
 
             t = [
-                A.ElasticTransform(alpha=alpha, sigma=sigma, alpha_affine=0, p=0.8),
+                A.ElasticTransform(alpha=alpha, sigma=sigma, p=0.8),
             ]
             bubble = A.Compose(t)(image=bubble)["image"]
 
@@ -149,13 +151,26 @@ class Renderer:
         html = f"<html><body>\n{lines_str}\n</body></html>"
         return html
 
+def min_or_zero(array):
+    return np.min(array) if array.size > 0 else 0
+
+def max_or_zero(array, default=0):
+    return np.max(array) if array.size > 0 else default
 
 def crop_by_alpha(img, margin):
     y, x = np.where(img[:, :, 3] > 0)
     ymin = y.min()
     ymax = y.max()
     xmin = x.min()
-    xmax = x.max()
+    xmax = x.max()  
+#    ymin = min_or_zero(y)
+#    ymax = max_or_zero(y)
+#    xmin = min_or_zero(x)
+#    xmax = max_or_zero(x)
+    
+#    if ymin >= ymax or xmin >= xmax:
+#        return np.zeros_like(img)  
+    
     img = img[ymin:ymax, xmin:xmax]
     img = np.pad(img, ((margin, margin), (margin, margin), (0, 0)))
     return img

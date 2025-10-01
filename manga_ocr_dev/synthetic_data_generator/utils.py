@@ -25,20 +25,37 @@ def get_background_df(background_dir):
 
 
 def is_kanji(ch):
-    return "CJK UNIFIED IDEOGRAPH" in unicodedata.name(ch)
-
+    try:
+        if len(str(ch)) > 1:
+            return False
+        return "CJK UNIFIED IDEOGRAPH" in unicodedata.name(ch)
+    except:
+        return False
 
 def is_hiragana(ch):
-    return "HIRAGANA" in unicodedata.name(ch)
+    try:
+        if len(str(ch)) > 1:
+            return False
+        return "HIRAGANA" in unicodedata.name(ch)
+    except:
+        return False
 
 
 def is_katakana(ch):
-    return "KATAKANA" in unicodedata.name(ch)
-
+    try:
+        if len(str(ch)) > 1:
+            return False
+        return "KATAKANA" in unicodedata.name(ch)
+    except:
+        return False
 
 def is_ascii(ch):
-    return ord(ch) < 128
-
+    try:
+        if len(str(ch)) > 1:
+            return False
+        return ord(ch) < 128
+    except:
+        return False
 
 def get_charsets(vocab_path=None):
     if vocab_path is None:

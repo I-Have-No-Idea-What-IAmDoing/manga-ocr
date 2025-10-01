@@ -138,3 +138,14 @@ dmypy.json
 cython_debug/
 
 .idea/
+
+# Virtual environment
+.venv/
+
+# Lock file (consider including for applications, ignoring for libraries)
+uv.lock
+
+
+assets/
+manga_ocr_dev/env.py
+manga_ocr_dev/data/background/
