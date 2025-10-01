@@ -159,18 +159,14 @@ def max_or_zero(array, default=0):
 
 def crop_by_alpha(img, margin):
     y, x = np.where(img[:, :, 3] > 0)
-    ymin = y.min()
-    ymax = y.max()
-    xmin = x.min()
-    xmax = x.max()  
-#    ymin = min_or_zero(y)
-#    ymax = max_or_zero(y)
-#    xmin = min_or_zero(x)
-#    xmax = max_or_zero(x)
-    
-#    if ymin >= ymax or xmin >= xmax:
-#        return np.zeros_like(img)  
-    
+    ymin = min_or_zero(y)
+    ymax = max_or_zero(y, default=img.shape[0])
+    xmin = min_or_zero(x)
+    xmax = max_or_zero(x, default=img.shape[1])
+
+    if ymin >= ymax or xmin >= xmax:
+        return np.zeros((margin * 2, margin * 2, 4), dtype=img.dtype)
+
     img = img[ymin:ymax, xmin:xmax]
     img = np.pad(img, ((margin, margin), (margin, margin), (0, 0)))
     return img
