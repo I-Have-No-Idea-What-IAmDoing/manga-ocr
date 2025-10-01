@@ -57,8 +57,8 @@ class MangaOcr:
 
 def post_process(text):
     text = "".join(text.split())
-    text = text.replace("…", "...")
     text = re.sub("[・.]{2,}", lambda x: (x.end() - x.start()) * ".", text)
     text = jaconv.h2z(text, ascii=True, digit=True)
+    text = text.replace("…", "...")
 
     return text
