@@ -5,11 +5,9 @@ from PIL import ImageDraw, ImageFont
 from fontTools.ttLib import TTFont
 from tqdm.contrib.concurrent import process_map
 
-import sys
-sys.path.append("J:/Applications/manga-ocr/")
 from manga_ocr_dev.env import ASSETS_PATH, FONTS_ROOT
 
-vocab = pd.read_csv(ASSETS_PATH / "vocab.csv").char.values
+vocab = None
 
 
 def has_glyph(font, glyph):
@@ -37,6 +35,9 @@ def process(font_path):
     Returns:
         str: A string containing all the supported characters found in the font.
     """
+    global vocab
+    if vocab is None:
+        vocab = pd.read_csv(ASSETS_PATH / "vocab.csv").char.values
 
     try:
         font_path = str(font_path)

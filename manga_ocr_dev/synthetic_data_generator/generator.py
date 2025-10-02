@@ -216,8 +216,6 @@ class SyntheticDataGenerator:
         """
         if vocab is None:
             vocab = self.vocab
-        else:
-            vocab = list(vocab)
 
         processed = ""
         kanji_group = ""
@@ -263,16 +261,15 @@ class SyntheticDataGenerator:
 
     def is_font_supporting_text(self, font_path, text):
         """Checks if a given font supports all characters in a text.
-
         Args:
             font_path (str): The path to the font file.
             text (str): The text to check.
-
         Returns:
             bool: True if the font supports all characters in the text,
             False otherwise.
         """
-        chars = self.font_map[font_path]
+        font_path_abs = str(FONTS_ROOT / font_path)
+        chars = self.font_map[font_path_abs]
         for c in text:
             if c.isspace():
                 continue
@@ -282,10 +279,8 @@ class SyntheticDataGenerator:
 
     def get_font_labels_prob(self):
         """Gets the font labels and their sampling probabilities.
-
         The probabilities are based on predefined weights for 'common',
         'regular', and 'special' font labels.
-
         Returns:
             tuple: A tuple containing:
                 - list: A list of unique font labels present in the fonts
@@ -305,27 +300,22 @@ class SyntheticDataGenerator:
 
     def get_random_font(self, text=None):
         """Selects a random font.
-
         If text is provided, it attempts to select a font that supports all
         characters in the text. If no such font is found, it falls back to
         selecting from fonts that have a large number of characters.
-
         Args:
             text (str, optional): The text for which to find a supporting
                 font. Defaults to None.
-
         Returns:
             str: The path to the selected font file.
         """
         label = np.random.choice(self.font_labels, p=self.font_p)
         df = self.fonts_df[self.fonts_df.label == label]
-
         if text is None:
-            return df.sample(1).iloc[0].font_path
-
+            return str(FONTS_ROOT / df.sample(1).iloc[0].font_path)
         valid_mask = df.font_path.apply(lambda x: self.is_font_supporting_text(x, text))
         if not valid_mask.any():
             # if text contains characters not supported by any font, just pick some of the more capable fonts
+            df = self.fonts_df
             valid_mask = df.num_chars >= 4000
-
         return str(FONTS_ROOT / df[valid_mask].sample(1).iloc[0].font_path)
