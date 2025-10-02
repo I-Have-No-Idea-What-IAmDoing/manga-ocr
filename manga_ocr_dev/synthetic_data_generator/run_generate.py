@@ -4,10 +4,6 @@ import traceback
 from functools import partial
 from pathlib import Path
 
-# Add the project root to the Python path
-project_root = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(project_root))
-
 import cv2
 import fire
 import pandas as pd
@@ -21,18 +17,18 @@ OUT_DIR = None
 
 
 def f(args, generator):
-    """Processes a single data sample, generating and saving an image.
+    """A worker function for processing a single data sample.
 
-    This function is designed to be used as a worker in a parallel processing
-    setup. It takes a tuple of arguments and a `SyntheticDataGenerator`
-    instance, generates an image from text, saves it to a file, and returns
-    metadata about the generated sample.
+    This function is designed to be used in a parallel processing setup, such
+    as with `thread_map`. It takes a tuple of arguments and a
+    `SyntheticDataGenerator` instance, generates an image from text, saves it
+    to a file, and returns metadata about the generated sample.
 
     Args:
         args (tuple[int, str, str, str]): A tuple containing the index, source,
             ID, and text for the data sample.
-        generator (SyntheticDataGenerator): An instance of the
-            `SyntheticDataGenerator` class used to generate the image.
+        generator (SyntheticDataGenerator): An initialized instance of the
+            `SyntheticDataGenerator` class to be used for image generation.
 
     Returns:
         tuple[str, str, str, bool, str]: A tuple containing metadata about the
@@ -55,29 +51,31 @@ def f(args, generator):
 
 
 def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
-    """Generates a package of synthetic data.
+    """Generates a package of synthetic data, including images and metadata.
 
-    This function orchestrates the generation of a data package, which
-    consists of rendered images and a metadata CSV file. It reads lines of
-    text from a source CSV, adds a specified number of random text samples,
-    and then uses a pool of workers to generate an image for each line.
+    This function orchestrates the generation of a complete data package. It
+    reads lines of text from a source CSV file, adds a specified number of
+    randomly generated text samples, and then uses a pool of worker threads
+    to generate a styled image for each line of text.
 
     The generated images are saved in a subdirectory of
-    `DATA_SYNTHETIC_ROOT/img`, and the metadata is saved to
-    `DATA_SYNTHETIC_ROOT/meta`.
+    `DATA_SYNTHETIC_ROOT/img`, and the corresponding metadata (including the
+    ground truth text) is saved to a CSV file in `DATA_SYNTHETIC_ROOT/meta`.
 
     Args:
-        package (int, optional): The number of the data package to generate.
-            This is used to determine the input and output file paths.
+        package (int, optional): The numerical ID of the data package to
+            generate. This is used to determine the input and output file
+            paths (e.g., package `0` corresponds to `lines/0000.csv`).
             Defaults to 0.
-        n_random (int, optional): The number of samples with random text to
-            generate and add to the package. Defaults to 10000.
-        n_limit (int, optional): If specified, limits the total number of
-            generated samples. This is useful for debugging. Defaults to None.
+        n_random (int, optional): The number of samples with randomly
+            generated text to create and add to the package. Defaults to 10000.
+        n_limit (int | None, optional): If specified, limits the total number
+            of generated samples to this value. This is useful for quick tests
+            and debugging. Defaults to None.
         max_workers (int, optional): The maximum number of worker threads to
-            use for parallel processing. Defaults to 14.
+            use for parallel image generation. Defaults to 14.
         cdp_port (int, optional): The port for the Chrome DevTools Protocol,
-            used by the renderer. Defaults to 9222.
+            which is used by the underlying renderer. Defaults to 9222.
     """
 
     package = f"{package:04d}"

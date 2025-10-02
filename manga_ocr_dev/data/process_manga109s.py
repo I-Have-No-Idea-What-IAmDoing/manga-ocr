@@ -4,23 +4,25 @@ from pathlib import Path
 import cv2
 import pandas as pd
 from tqdm import tqdm
-import sys
-sys.path.append("J:/Applications/manga-ocr/")
+
 from manga_ocr_dev.env import MANGA109_ROOT
 
 
 def get_books():
-    """Retrieves the list of books from the Manga109 dataset.
+    """Retrieves and structures the list of books from the Manga109 dataset.
 
-    This function reads the 'books.txt' file from the Manga109 dataset root
+    This function reads the `books.txt` file from the Manga109 dataset's root
     directory to get the list of book titles. It then constructs the full paths
-    to the corresponding annotation XML files and image directories for each book.
+    to the corresponding annotation XML files and image directories for each
+    book, organizing them into a pandas DataFrame.
 
     Returns:
-        pd.DataFrame: A DataFrame with columns 'book', 'annotations', and
-        'images', where 'book' is the book title, 'annotations' is the path
-        to the XML annotation file, and 'images' is the path to the image
-        directory.
+        pd.DataFrame: A DataFrame with the following columns:
+            - `book`: The title of the manga book.
+            - `annotations`: The full path to the XML annotation file for the
+              book.
+            - `images`: The full path to the directory containing the images
+              for the book.
     """
     root = MANGA109_ROOT / "Manga109s_released_2021_02_28"
     books = (root / "books.txt").read_text().splitlines()
@@ -36,15 +38,16 @@ def get_books():
 
 
 def export_frames():
-    """Parses XML annotations to extract and export frame-level information.
+    """Parses XML annotations to extract and save frame-level information.
 
     This function iterates through each book in the Manga109 dataset, parsing
-    the XML annotation files to extract information about the frames on each
-    page. The extracted data includes page index, dimensions, and frame
-    coordinates.
+    its XML annotation file to extract information about the comic frames on
+    each page. The extracted data includes the book title, page index, page
+    dimensions, and the coordinates of each frame.
 
-    The collected data is compiled into a pandas DataFrame and saved as
-    'frames.csv' in the `MANGA109_ROOT` directory.
+    The collected data is compiled into a single pandas DataFrame and saved as
+    `frames.csv` in the `MANGA109_ROOT` directory, making it available for
+    other processing scripts.
     """
     books = get_books()
 
@@ -73,16 +76,17 @@ def export_frames():
 
 
 def export_crops():
-    """Extracts and saves text bounding box crops and their metadata.
+    """Extracts text bounding box crops and their metadata from Manga109.
 
-    This function processes each book's annotation file from the Manga109
-    dataset to extract text-level information, including bounding box
-    coordinates and text content.
+    This function processes the annotation files for each book in the Manga109
+    dataset to extract text-level information, including the bounding box
+    coordinates and the transcribed text.
 
-    The extracted data is split into training and testing sets (90/10 split),
-    and the metadata is saved to 'data.csv' in the `MANGA109_ROOT` directory.
-    Cropped images of each text box, with a 10-pixel margin, are saved as
-    PNG files in the `MANGA109_ROOT/crops` directory.
+    The extracted metadata is split into training and testing sets (a 90/10
+    split) and saved to `data.csv` in the `MANGA109_ROOT` directory.
+    Additionally, cropped images of each text box, with a 10-pixel margin,
+    are saved as PNG files in the `MANGA109_ROOT/crops` directory. These
+    crops serve as the real-world data for training the OCR model.
     """
     crops_root = MANGA109_ROOT / "crops"
     crops_root.mkdir(parents=True, exist_ok=True)

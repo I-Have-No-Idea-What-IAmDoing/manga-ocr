@@ -11,6 +11,22 @@ vocab = None
 
 
 def has_glyph(font, glyph):
+    """Checks if a font has a glyph for a specific character.
+
+    This function iterates through the color map (cmap) tables of a `TTFont`
+    object to determine if a glyph for the given character exists. This is a
+    more reliable way to check for character support than just trying to
+    render the character.
+
+    Args:
+        font (TTFont): An instance of a `fontTools.ttLib.TTFont` object.
+        glyph (str): The character to check for. Must be a single character
+            string.
+
+    Returns:
+        bool: True if a glyph for the character is found in any of the font's
+        cmap tables, False otherwise.
+    """
     for table in font["cmap"].tables:
         try:
             if ord(glyph) in table.cmap.keys():
@@ -21,19 +37,19 @@ def has_glyph(font, glyph):
 
 
 def process(font_path):
-    """Determines the list of supported characters for a given font.
+    """Determines the set of supported characters for a given font file.
 
     This function checks for the presence of a glyph for each character in a
-    predefined vocabulary and then attempts to render the character to ensure
-    it's not a blank or placeholder glyph. This is not always perfect as some
-    fonts may render unsupported characters as placeholder shapes (e.g.,
-    rectangles).
+    predefined vocabulary. It then attempts to render the character to ensure
+    it's not a blank or placeholder glyph, as some fonts may render
+    unsupported characters as placeholder shapes (e.g., rectangles).
 
     Args:
-        font_path (str or Path): The path to the font file.
+        font_path (str or Path): The path to the font file to be processed.
 
     Returns:
-        str: A string containing all the supported characters found in the font.
+        str: A string containing all the supported characters found in the
+        font, concatenated together.
     """
     global vocab
     if vocab is None:
@@ -67,15 +83,16 @@ def process(font_path):
 
 
 def main():
-    """Scans all fonts in the `FONTS_ROOT` directory to generate a metadata CSV.
+    """Scans all fonts in a directory and generates a font metadata CSV file.
 
     This function finds all supported font files (e.g., .ttf, .otf) in the
     `FONTS_ROOT` directory, processes them in parallel to determine which
-    characters they support, and then saves this information to 'fonts.csv'
-    in the `ASSETS_PATH` directory.
+    characters they support, and then saves this information to `fonts.csv` in
+    the `ASSETS_PATH` directory.
 
     The output CSV contains the font path, the list of supported characters,
-    the number of supported characters, and a default 'regular' label.
+    the total number of supported characters, and a default 'regular' label,
+    which can be manually updated later.
     """
     path_in = FONTS_ROOT
     out_path = ASSETS_PATH / "fonts.csv"
