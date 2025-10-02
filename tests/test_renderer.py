@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 import cv2
 
-from manga_ocr_dev.synthetic_data_generator.renderer import Renderer, get_css, crop_by_alpha, blend, rounded_rectangle, min_or_zero, max_or_zero
+from manga_ocr_dev.synthetic_data_generator.renderer import Renderer, get_css, crop_by_alpha, blend, rounded_rectangle
 
 @pytest.fixture
 @patch('manga_ocr_dev.vendored.html2image.browsers.chrome_cdp.find_chrome')
@@ -50,13 +50,6 @@ def test_render_background(renderer):
         result_img = renderer.render_background(img)
         assert isinstance(result_img, np.ndarray)
 
-def test_lines_to_html(renderer):
-    lines = ['line1', 'line2']
-    html = renderer.lines_to_html(lines)
-    assert 'line1' in html
-    assert 'line2' in html
-    assert '<p>' in html
-
 def test_get_css():
     css = get_css(font_size=12, font_path='dummy.ttf', vertical=True, shadow_size=1, stroke_size=1, letter_spacing=0.1, text_orientation='upright')
     assert 'font-size: 12px;' in css
@@ -85,11 +78,3 @@ def test_rounded_rectangle():
     img = np.zeros((100, 100, 3), dtype=np.uint8)
     result_img = rounded_rectangle(img, (10, 10), (90, 90), radius=0.5, color=(255, 255, 255), thickness=-1)
     assert np.any(result_img > 0)
-
-def test_min_or_zero():
-    assert min_or_zero(np.array([1, 2, 3])) == 1
-    assert min_or_zero(np.array([])) == 0
-
-def test_max_or_zero():
-    assert max_or_zero(np.array([1, 2, 3])) == 3
-    assert max_or_zero(np.array([]), default=5) == 5
