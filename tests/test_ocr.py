@@ -33,7 +33,7 @@ def test_ocr_invalid_input():
     """
     mocr = MangaOcr()
     with pytest.raises(ValueError, match="img_or_path must be a path or PIL.Image"):
-        mocr(123)
+        mocr(object())
 
 
 def test_post_process():

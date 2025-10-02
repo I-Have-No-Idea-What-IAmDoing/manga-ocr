@@ -233,3 +233,35 @@ def test_run_wayland_installed(mock_grabclipboard, mock_mocr, mock_set_clipboard
             run(read_from="clipboard", write_to="clipboard")
 
     mock_set_clipboard.assert_called_once_with("wl-clipboard")
+
+
+@patch("manga_ocr.run.MangaOcr")
+@patch("PIL.ImageGrab.grabclipboard")
+@patch("time.sleep")
+@patch("loguru.logger.warning")
+def test_run_clipboard_oserror_no_image(mock_logger_warning, mock_sleep, mock_grabclipboard, mock_mocr):
+    """
+    Tests that the run function handles 'cannot identify image file' error gracefully.
+    """
+    mock_grabclipboard.side_effect = [OSError("cannot identify image file"), KeyboardInterrupt]
+
+    with pytest.raises(KeyboardInterrupt):
+        run(read_from="clipboard", write_to="clipboard", verbose=False)
+
+    mock_logger_warning.assert_not_called()
+
+
+@patch("manga_ocr.run.MangaOcr")
+@patch("PIL.ImageGrab.grabclipboard")
+@patch("time.sleep")
+@patch("loguru.logger.warning")
+def test_run_clipboard_oserror_no_png(mock_logger_warning, mock_sleep, mock_grabclipboard, mock_mocr):
+    """
+    Tests that the run function handles 'target image/png not available' error gracefully.
+    """
+    mock_grabclipboard.side_effect = [OSError("target image/png not available"), KeyboardInterrupt]
+
+    with pytest.raises(KeyboardInterrupt):
+        run(read_from="clipboard", write_to="clipboard", verbose=False)
+
+    mock_logger_warning.assert_not_called()
