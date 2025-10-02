@@ -84,8 +84,8 @@ class Renderer:
         with self.lock:
             img, params = self.render_text(lines, override_css_params)
         img = self.render_background(img)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         img = A.LongestMaxSize(self.max_size)(image=img)["image"]
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         return img, params
 
     def render_text(self, lines, override_css_params=None):
