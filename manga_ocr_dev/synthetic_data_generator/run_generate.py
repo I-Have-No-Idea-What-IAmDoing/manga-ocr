@@ -1,3 +1,4 @@
+import os
 import traceback
 from functools import partial
 from pathlib import Path
@@ -58,7 +59,8 @@ def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
     OUT_DIR = DATA_SYNTHETIC_ROOT / "img" / package
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    with Renderer(cdp_port=cdp_port) as renderer:
+    browser_executable = os.environ.get('CHROME_EXECUTABLE_PATH')
+    with Renderer(cdp_port=cdp_port, browser_executable=browser_executable) as renderer:
         generator = SyntheticDataGenerator(renderer=renderer)
         f_with_generator = partial(f, generator=generator)
         data = thread_map(f_with_generator, args, max_workers=max_workers, desc=f"Processing package {package}")
@@ -71,4 +73,3 @@ def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
 
 if __name__ == "__main__":
     fire.Fire(run)
-

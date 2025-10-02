@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
 from manga_ocr_dev.synthetic_data_generator.renderer import Renderer
@@ -10,7 +11,8 @@ def test_synthetic_data_generator():
     Tests that the synthetic data generator can successfully produce an image-text pair
     and correctly filters characters not present in the font.
     """
-    browser_executable = '/home/jules/.cache/ms-playwright/chromium-1181/chrome-linux/chrome'
+    browser_executable = os.environ.get('CHROME_EXECUTABLE_PATH', '/home/jules/.cache/ms-playwright/chromium-1181/chrome-linux/chrome')
+    os.environ['CHROME_EXECUTABLE_PATH'] = browser_executable
     dummy_font_path = str(FONTS_ROOT / 'dummy_font.ttf')
 
     # Get the character set for the dummy font

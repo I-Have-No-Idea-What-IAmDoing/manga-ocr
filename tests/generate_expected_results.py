@@ -9,14 +9,6 @@ TEST_DATA_ROOT = Path(__file__).parent / "data"
 
 
 def generate_expected_results():
-    """
-    Generates expected OCR results for the test images and saves them to a JSON file.
-
-    This function initializes the MangaOcr model, processes each image in the
-    test data directory, and saves the OCR output along with the image filename
-    to 'expected_results.json'. This JSON file is then used by the test suite
-    to verify the model's performance.
-    """
     mocr = MangaOcr()
 
     results = []

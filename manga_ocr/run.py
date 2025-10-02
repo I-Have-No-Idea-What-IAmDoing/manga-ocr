@@ -13,37 +13,16 @@ from manga_ocr import MangaOcr
 
 
 def are_images_identical(img1, img2):
-    """
-    Checks if two images are identical.
-
-    Args:
-        img1 (Image.Image or None): The first image.
-        img2 (Image.Image or None): The second image.
-
-    Returns:
-        bool: True if the images are identical, False otherwise.
-    """
     if None in (img1, img2):
         return img1 == img2
 
-    img1 = np.array(img1.convert("RGB"))
-    img2 = np.array(img2.convert("RGB"))
+    img1 = np.array(img1)
+    img2 = np.array(img2)
 
     return (img1.shape == img2.shape) and (img1 == img2).all()
 
 
 def process_and_write_results(mocr, img_or_path, write_to):
-    """
-    Processes an image with MangaOcr and writes the result.
-
-    Args:
-        mocr (MangaOcr): The MangaOcr instance.
-        img_or_path (str or Path or Image.Image): The image to process.
-        write_to (str): Where to write the result, either "clipboard" or a file path.
-
-    Raises:
-        ValueError: If `write_to` is not "clipboard" or a path to a .txt file.
-    """
     t0 = time.time()
     text = mocr(img_or_path)
     t1 = time.time()
@@ -62,15 +41,6 @@ def process_and_write_results(mocr, img_or_path, write_to):
 
 
 def get_path_key(path):
-    """
-    Gets a key for a path, consisting of the path and its modification time.
-
-    Args:
-        path (Path): The path to get the key for.
-
-    Returns:
-        tuple: A tuple containing the path and its modification time.
-    """
     return path, path.lstat().st_mtime
 
 
@@ -83,25 +53,15 @@ def run(
     verbose=False,
 ):
     """
-    Run OCR in the background, waiting for new images to appear either in the system clipboard or a directory.
-    Recognized text can be either saved to the system clipboard or appended to a text file.
+    Run OCR in the background, waiting for new images to appear either in system clipboard, or a directory.
+    Recognized texts can be either saved to system clipboard, or appended to a text file.
 
-    Args:
-        read_from (str, optional): Specifies where to read input images from.
-            Can be either "clipboard" or a path to a directory. Defaults to "clipboard".
-        write_to (str, optional): Specifies where to save recognized texts to.
-            Can be either "clipboard" or a path to a text file. Defaults to "clipboard".
-        pretrained_model_name_or_path (str, optional): Path to a trained model,
-            either local or from the Hugging Face model hub. Defaults to "kha-white/manga-ocr-base".
-        force_cpu (bool, optional): If True, forces the use of the CPU even if a GPU is available.
-            Defaults to False.
-        verbose (bool, optional): If True, unhides all warnings. Defaults to False.
-        delay_secs (float, optional): How often to check for new images, in seconds.
-            Defaults to 0.1.
-
-    Raises:
-        NotImplementedError: If the system is using Wayland and wl-clipboard is not installed.
-        ValueError: If `read_from` is not "clipboard" or a valid directory path.
+    :param read_from: Specifies where to read input images from. Can be either "clipboard", or a path to a directory.
+    :param write_to: Specifies where to save recognized texts to. Can be either "clipboard", or a path to a text file.
+    :param pretrained_model_name_or_path: Path to a trained model, either local or from Transformers' model hub.
+    :param force_cpu: If True, OCR will use CPU even if GPU is available.
+    :param verbose: If True, unhides all warnings.
+    :param delay_secs: How often to check for new images, in seconds.
     """
 
     mocr = MangaOcr(pretrained_model_name_or_path, force_cpu)

@@ -10,12 +10,6 @@ from manga_ocr_dev.env import MANGA109_ROOT, DATA_SYNTHETIC_ROOT
 
 
 class MangaDataset(Dataset):
-    """
-    A PyTorch Dataset for loading manga images and their corresponding text for OCR training.
-
-    This dataset combines synthetically generated text images with real manga crops
-    from the Manga109 dataset. It handles data loading, augmentation, and preprocessing.
-    """
     def __init__(
         self,
         processor,
@@ -25,19 +19,6 @@ class MangaDataset(Dataset):
         augment=False,
         skip_packages=None,
     ):
-        """
-        Initializes the MangaDataset.
-
-        Args:
-            processor: The processor for feature extraction and tokenization.
-            split (str): The dataset split to use, typically 'train' or 'test'.
-            max_target_length (int): The maximum length for tokenized text sequences.
-            limit_size (int, optional): If specified, limits the dataset to this number of samples.
-                Defaults to None.
-            augment (bool, optional): Whether to apply data augmentation. Defaults to False.
-            skip_packages (set, optional): A set of package numbers to skip when loading
-                synthetic data. Defaults to None.
-        """
         self.processor = processor
         self.max_target_length = max_target_length
 
@@ -83,24 +64,9 @@ class MangaDataset(Dataset):
         self.transform_medium, self.transform_heavy = self.get_transforms()
 
     def __len__(self):
-        """Returns the total number of samples in the dataset."""
         return len(self.data)
 
     def __getitem__(self, idx):
-        """
-        Retrieves a sample from the dataset at the given index.
-
-        This method fetches an image and its corresponding text, applies augmentations
-        if enabled, and then preprocesses the image and tokenizes the text to prepare
-        it for the model.
-
-        Args:
-            idx (int): The index of the sample to retrieve.
-
-        Returns:
-            dict: A dictionary containing the preprocessed 'pixel_values' of the image
-                  and the 'labels' (tokenized text).
-        """
         sample = self.data.loc[idx]
         text = sample.text
 
@@ -138,19 +104,6 @@ class MangaDataset(Dataset):
 
     @staticmethod
     def read_image(processor, path, transform=None):
-        """
-        Reads an image from a given path, applies transformations, and extracts pixel values.
-
-        Args:
-            processor: The processor for feature extraction.
-            path (str or Path): The path to the image file.
-            transform (albumentations.Compose, optional): An Albumentations transform pipeline
-                to apply to the image. Defaults to None, in which case the image is only
-                converted to grayscale.
-
-        Returns:
-            torch.Tensor: The preprocessed pixel values of the image.
-        """
         img = cv2.imread(str(path))
 
         if transform is None:
@@ -163,13 +116,6 @@ class MangaDataset(Dataset):
 
     @staticmethod
     def get_transforms():
-        """
-        Defines and returns the medium and heavy augmentation pipelines.
-
-        Returns:
-            tuple: A tuple containing two Albumentations Compose objects:
-                   (transform_medium, transform_heavy).
-        """
         t_medium = A.Compose(
             [
                 A.Rotate(5, border_mode=cv2.BORDER_REPLICATE, p=0.2),

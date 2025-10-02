@@ -9,27 +9,10 @@ from transformers import ViTImageProcessor, AutoTokenizer, VisionEncoderDecoderM
 
 
 class MangaOcrModel(VisionEncoderDecoderModel, GenerationMixin):
-    """
-    A custom VisionEncoderDecoderModel that also inherits from GenerationMixin.
-    """
     pass
 
 class MangaOcr:
-    """
-    A class for performing OCR on manga images.
-    """
     def __init__(self, pretrained_model_name_or_path="kha-white/manga-ocr-base", force_cpu=False):
-        """
-        Initializes the MangaOcr model.
-
-        Args:
-            pretrained_model_name_or_path (str, optional): The path to the pretrained model.
-                Defaults to "kha-white/manga-ocr-base".
-            force_cpu (bool, optional): Whether to force the use of CPU. Defaults to False.
-
-        Raises:
-            FileNotFoundError: If the example image is not found.
-        """
         logger.info(f"Loading OCR model from {pretrained_model_name_or_path}")
         self.processor = ViTImageProcessor.from_pretrained(pretrained_model_name_or_path)
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path)
@@ -52,18 +35,6 @@ class MangaOcr:
         logger.info("OCR ready")
 
     def __call__(self, img_or_path):
-        """
-        Performs OCR on the given image.
-
-        Args:
-            img_or_path (str or Path or Image.Image): The path to the image or the image itself.
-
-        Returns:
-            str: The recognized text.
-
-        Raises:
-            ValueError: If img_or_path is not a path or PIL.Image.
-        """
         if isinstance(img_or_path, str) or isinstance(img_or_path, Path):
             img = Image.open(img_or_path)
         elif isinstance(img_or_path, Image.Image):
@@ -80,29 +51,11 @@ class MangaOcr:
         return x
 
     def _preprocess(self, img):
-        """
-        Preprocesses the image before feeding it to the model.
-
-        Args:
-            img (Image.Image): The image to preprocess.
-
-        Returns:
-            torch.Tensor: The preprocessed image.
-        """
         pixel_values = self.processor(img, return_tensors="pt").pixel_values
         return pixel_values.squeeze()
 
 
 def post_process(text):
-    """
-    Post-processes the recognized text.
-
-    Args:
-        text (str): The text to post-process.
-
-    Returns:
-        str: The post-processed text.
-    """
     text = "".join(text.split())
     text = re.sub("[・.]{2,}", lambda x: (x.end() - x.start()) * ".", text)
     text = text.replace("…", "...")

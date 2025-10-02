@@ -1,7 +1,3 @@
-"""
-This file defines the environment variables and paths used in the development scripts.
-"""
-
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent.parent

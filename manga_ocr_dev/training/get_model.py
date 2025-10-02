@@ -10,37 +10,15 @@ from transformers import (
 
 
 class TrOCRProcessorCustom:
-    """
-    A custom processor class that bypasses the type checks of the base class.
-
-    This class is a wrapper around a feature extractor and a tokenizer,
-    and is used to combine them into a single processor object.
-    """
+    """The only point of this class is to bypass type checks of base class."""
 
     def __init__(self, feature_extractor, tokenizer):
-        """
-        Initializes the TrOCRProcessorCustom.
-
-        Args:
-            feature_extractor: The feature extractor to use for image processing.
-            tokenizer: The tokenizer to use for text processing.
-        """
         self.feature_extractor = feature_extractor
         self.tokenizer = tokenizer
         self.current_processor = self.feature_extractor
 
 
 def get_processor(encoder_name, decoder_name):
-    """
-    Initializes and returns a custom processor.
-
-    Args:
-        encoder_name (str): The name or path of the pre-trained encoder model.
-        decoder_name (str): The name or path of the pre-trained decoder model.
-
-    Returns:
-        TrOCRProcessorCustom: A custom processor instance.
-    """
     feature_extractor = AutoImageProcessor.from_pretrained(encoder_name, use_fast=True)
     tokenizer = AutoTokenizer.from_pretrained(decoder_name)
     processor = TrOCRProcessorCustom(feature_extractor, tokenizer)
@@ -48,24 +26,6 @@ def get_processor(encoder_name, decoder_name):
 
 
 def get_model(encoder_name, decoder_name, max_length, num_decoder_layers=None):
-    """
-    Constructs and returns a VisionEncoderDecoderModel for OCR, along with its processor.
-
-    This function sets up the encoder and decoder from pretrained models,
-    configures them for an encoder-decoder architecture, and initializes
-    the VisionEncoderDecoderModel. It also sets up special tokens and
-    beam search parameters for generation.
-
-    Args:
-        encoder_name (str): The name or path of the pre-trained encoder model.
-        decoder_name (str): The name or path of the pre-trained decoder model.
-        max_length (int): The maximum length for the generated text sequences.
-        num_decoder_layers (int, optional): If specified, truncates the decoder
-            to this number of layers. Defaults to None.
-
-    Returns:
-        tuple: A tuple containing the configured VisionEncoderDecoderModel and its processor.
-    """
     encoder_config = AutoConfig.from_pretrained(encoder_name)
     encoder_config.is_decoder = False
     encoder_config.add_cross_attention = False
