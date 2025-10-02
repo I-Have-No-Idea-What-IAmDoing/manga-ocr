@@ -13,13 +13,13 @@ from manga_ocr_dev.synthetic_data_generator.utils import (
 
 
 class SyntheticDataGenerator:
-    def __init__(self):
+    def __init__(self, renderer=None):
         self.vocab, self.hiragana, self.katakana = get_charsets()
         self.len_to_p = pd.read_csv(ASSETS_PATH / "len_to_p.csv")
         self.parser = budoux.load_default_japanese_parser()
         self.fonts_df, self.font_map = get_font_meta()
         self.font_labels, self.font_p = self.get_font_labels_prob()
-        self.renderer = Renderer()
+        self.renderer = renderer if renderer else Renderer()
 
     def process(self, text=None, override_css_params=None):
         """

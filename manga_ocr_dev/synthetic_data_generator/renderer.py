@@ -1,5 +1,7 @@
 import os
 import uuid
+import threading
+import time
 
 import albumentations as A
 import cv2
@@ -11,15 +13,30 @@ from manga_ocr_dev.synthetic_data_generator.utils import get_background_df
 
 
 class Renderer:
-    def __init__(self):
-        # self.hti = Html2Image(browser="edge", temp_path="J:/temp")
-        self.hti = Html2Image(temp_path="J:/temp")
-        
+    def __init__(self, cdp_port=9222):
+        self.hti = Html2Image(
+            browser='chrome-cdp',
+            browser_cdp_port=cdp_port,
+            browser_executable='/home/jules/.cache/ms-playwright/chromium-1181/chrome-linux/chrome',
+            temp_path="/tmp/html2image",
+            custom_flags=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote', '--ozone-platform=headless']
+        )
+        self.lock = threading.Lock()
+
         self.background_df = get_background_df(BACKGROUND_DIR)
         self.max_size = 600
 
+    def __enter__(self):
+        self.hti.__enter__()
+        time.sleep(5)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.hti.__exit__(exc_type, exc_val, exc_tb)
+
     def render(self, lines, override_css_params=None):
-        img, params = self.render_text(lines, override_css_params)
+        with self.lock:
+            img, params = self.render_text(lines, override_css_params)
         img = self.render_background(img)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         img = A.LongestMaxSize(self.max_size)(image=img)["image"]

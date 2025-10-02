@@ -1,9 +1,10 @@
 from pathlib import Path
 
-ASSETS_PATH = Path(__file__).parent.parent / "assets"
+ROOT_DIR = Path(__file__).parent.parent
 
-FONTS_ROOT = Path("I:/AzurePCDocuments/Downloads/Non Download 2/Font/JP_Font/").expanduser()
-DATA_SYNTHETIC_ROOT = Path("J:/Applications/manga-ocr/assets/").expanduser()
-BACKGROUND_DIR = Path("J:/Applications/manga-ocr/manga_ocr_dev/data/background").expanduser()
-MANGA109_ROOT = Path("J:/Applications/manga-ocr/assets/").expanduser()
-TRAIN_ROOT = Path("J:/Applications/manga-ocr/manga_ocr_dev/out").expanduser()
+ASSETS_PATH = ROOT_DIR / "assets"
+FONTS_ROOT = ROOT_DIR / "fonts"
+DATA_SYNTHETIC_ROOT = ROOT_DIR / "assets"
+BACKGROUND_DIR = ROOT_DIR / "tmp" / "backgrounds"
+MANGA109_ROOT = ROOT_DIR / "assets"
+TRAIN_ROOT = ROOT_DIR / "out"
