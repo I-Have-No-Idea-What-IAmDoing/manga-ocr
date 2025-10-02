@@ -208,8 +208,17 @@ class Renderer:
         """
         draw_bubble = np.random.random() < 0.7
 
-        m0 = int(min(img.shape[:2]) * 0.3)
-        img = crop_by_alpha(img, m0)
+        # Crop the image to its content without any margin
+        img = crop_by_alpha(img, margin=0)
+
+        # If the image is empty or very small, return a small black image to
+        # prevent downstream errors
+        if min(img.shape[:2]) < 10:
+            return np.zeros((10, 10, 3), dtype=np.uint8)
+
+        # Calculate a randomized margin based on the cropped image size
+        m0 = int(min(img.shape[:2]) * np.random.uniform(0.2, 0.4))
+        img = np.pad(img, ((m0, m0), (m0, m0), (0, 0)))
 
         background_path = self.background_df.sample(1).iloc[0].path
         background = cv2.imread(background_path)
@@ -276,54 +285,33 @@ class Renderer:
         img = img[ymin:ymax, xmin:xmax]
         return img
 
-def min_or_zero(array):
-    """Returns the minimum value of an array, or 0 if the array is empty.
+def crop_by_alpha(img, margin=0):
+    """Crops an image by removing transparent pixels.
+
+    This function identifies the bounding box of non-transparent pixels
+    (alpha channel > 0) and crops the image to this box. An optional margin
+    can be added around the cropped area. If the image contains no
+    non-transparent pixels, a 1x1 black image is returned to prevent errors
+    in downstream processing.
 
     Args:
-        array (np.ndarray): The input array.
+        img (np.ndarray): The input BGRA image as a NumPy array.
+        margin (int, optional): The number of pixels to add as a margin
+            around the cropped image. Defaults to 0.
 
     Returns:
-        int or float: The minimum value or 0.
-    """
-    return np.min(array) if array.size > 0 else 0
-
-def max_or_zero(array, default=0):
-    """Returns the maximum value of an array, or a default value if empty.
-
-    Args:
-        array (np.ndarray): The input array.
-        default (int or float, optional): The default value to return if the
-            array is empty. Defaults to 0.
-
-    Returns:
-        int or float: The maximum value or the default value.
-    """
-    return np.max(array) if array.size > 0 else default
-
-def crop_by_alpha(img, margin):
-    """Crops an image based on its alpha channel.
-
-    This function finds the bounding box of the non-transparent pixels in an
-    image and crops the image to that box, with an added margin.
-
-    Args:
-        img (np.ndarray): The input BGRA image.
-        margin (int): The margin to add around the cropped area.
-
-    Returns:
-        np.ndarray: The cropped image.
+        np.ndarray: The cropped image as a BGRA NumPy array.
     """
     y, x = np.where(img[:, :, 3] > 0)
-    ymin = min_or_zero(y)
-    ymax = max_or_zero(y, default=img.shape[0])
-    xmin = min_or_zero(x)
-    xmax = max_or_zero(x, default=img.shape[1])
+    if y.size == 0 or x.size == 0:
+        return np.zeros((1, 1, 4), dtype=img.dtype)
 
-    if ymin >= ymax or xmin >= xmax:
-        return np.zeros((margin * 2, margin * 2, 4), dtype=img.dtype)
+    ymin, ymax = np.min(y), np.max(y)
+    xmin, xmax = np.min(x), np.max(x)
 
     img = img[ymin : ymax + 1, xmin : xmax + 1]
-    img = np.pad(img, ((margin, margin), (margin, margin), (0, 0)))
+    if margin > 0:
+        img = np.pad(img, ((margin, margin), (margin, margin), (0, 0)))
     return img
 
 
