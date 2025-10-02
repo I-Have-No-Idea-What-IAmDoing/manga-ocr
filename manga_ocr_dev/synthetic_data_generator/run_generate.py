@@ -1,4 +1,6 @@
+import os
 import traceback
+from functools import partial
 from pathlib import Path
 
 import cv2
@@ -6,15 +8,14 @@ import fire
 import pandas as pd
 from tqdm.contrib.concurrent import thread_map
 
-import sys
-sys.path.append("J:/Applications/manga-ocr/")
 from manga_ocr_dev.env import FONTS_ROOT, DATA_SYNTHETIC_ROOT
 from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
+from manga_ocr_dev.synthetic_data_generator.renderer import Renderer
 
-generator = SyntheticDataGenerator()
+OUT_DIR = None
 
 
-def f(args):
+def f(args, generator):
     try:
         i, source, id_, text = args
         filename = f"{id_}.jpg"
@@ -28,14 +29,16 @@ def f(args):
 
     except Exception:
         print(traceback.format_exc())
+        raise
 
 
-def run(package=0, n_random=10000, n_limit=None, max_workers=14):
+def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
     """
     :param package: number of data package to generate
     :param n_random: how many samples with random text to generate
     :param n_limit: limit number of generated samples (for debugging)
     :param max_workers: max number of workers
+    :param cdp_port: port for chrome devtools protocol
     """
 
     package = f"{package:04d}"
@@ -56,7 +59,11 @@ def run(package=0, n_random=10000, n_limit=None, max_workers=14):
     OUT_DIR = DATA_SYNTHETIC_ROOT / "img" / package
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    data = thread_map(f, args, max_workers=max_workers, desc=f"Processing package {package}")
+    browser_executable = os.environ.get('CHROME_EXECUTABLE_PATH')
+    with Renderer(cdp_port=cdp_port, browser_executable=browser_executable) as renderer:
+        generator = SyntheticDataGenerator(renderer=renderer)
+        f_with_generator = partial(f, generator=generator)
+        data = thread_map(f_with_generator, args, max_workers=max_workers, desc=f"Processing package {package}")
 
     data = pd.DataFrame(data, columns=["source", "id", "text", "vertical", "font_path"])
     meta_path = DATA_SYNTHETIC_ROOT / f"meta/{package}.csv"
@@ -66,4 +73,3 @@ def run(package=0, n_random=10000, n_limit=None, max_workers=14):
 
 if __name__ == "__main__":
     fire.Fire(run)
-
