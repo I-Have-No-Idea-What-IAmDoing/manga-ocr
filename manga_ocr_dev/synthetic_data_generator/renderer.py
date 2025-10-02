@@ -17,13 +17,17 @@ class Renderer:
 
     This class uses `html2image` to render HTML and CSS styled text into
     images. It can add random backgrounds, text bubbles, and other visual
-    effects to create synthetic data for OCR.
+    effects to create synthetic data for OCR. This is a core component of the
+    synthetic data generation pipeline.
 
     Attributes:
-        hti (Html2Image): An instance of Html2Image for rendering HTML.
-        lock (threading.Lock): A lock to ensure thread-safe rendering.
-        background_df (pd.DataFrame): A DataFrame of available background images.
-        max_size (int): The maximum size of the longest side of the output image.
+        hti (Html2Image): An instance of `Html2Image` for rendering HTML.
+        lock (threading.Lock): A lock to ensure thread-safe rendering, as
+            `html2image` may not be thread-safe.
+        background_df (pd.DataFrame): A DataFrame containing paths to available
+            background images.
+        max_size (int): The maximum size (in pixels) of the longest side of the
+            output image.
     """
     def __init__(self, cdp_port=9222, browser_executable=None):
         """Initializes the Renderer.
@@ -31,9 +35,9 @@ class Renderer:
         Args:
             cdp_port (int, optional): The port for the Chrome DevTools Protocol.
                 Defaults to 9222.
-            browser_executable (str, optional): The path to the browser
-                executable. If not provided, `html2image` will try to find a
-                default installation. Defaults to None.
+            browser_executable (str | None, optional): The path to the browser
+                executable. If None, `html2image` will try to find a default
+                installation. Defaults to None.
         """
         self.hti = Html2Image(
             browser='chrome-cdp',

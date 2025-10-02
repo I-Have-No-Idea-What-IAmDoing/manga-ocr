@@ -13,35 +13,34 @@ from manga_ocr_dev.synthetic_data_generator.utils import (
 
 
 class SyntheticDataGenerator:
-    """Generates synthetic manga-style text images and corresponding text.
+    """Generates synthetic manga-style text images and their transcriptions.
 
-    This class handles the entire pipeline of synthetic data generation, from
-    creating random text to rendering it with various styles, fonts, and
-    effects like furigana.
+    This class orchestrates the process of creating synthetic data for training
+    the Manga OCR model. It can generate random Japanese text or use provided
+    text, then renders it into an image using various fonts, styles, and
+    effects like furigana to mimic the appearance of text in manga.
 
     Attributes:
-        vocab (set): A set of all characters supported by the generator.
-        hiragana (set): A set of hiragana characters.
-        katakana (set): A set of katakana characters.
-        len_to_p (pd.DataFrame): A DataFrame mapping text length to its
-            probability of occurrence.
-        parser (budoux.Parser): A BudouX parser for splitting Japanese text
-            into words.
-        fonts_df (pd.DataFrame): A DataFrame containing metadata about the
-            available fonts.
-        font_map (dict): A dictionary mapping font paths to the set of
-            characters they support.
-        font_labels (list): A list of font labels (e.g., 'common', 'regular').
-        font_p (np.ndarray): An array of probabilities corresponding to each
-            font label.
-        renderer (Renderer): An instance of the Renderer class for rendering
-            text into images.
+        vocab (set[str]): The set of all characters supported by the generator.
+        hiragana (set[str]): A set of hiragana characters.
+        katakana (set[str]): A set of katakana characters.
+        len_to_p (pd.DataFrame): A DataFrame defining the probability
+            distribution of text lengths.
+        parser (budoux.Parser): A parser for splitting Japanese text into
+            semantically correct units.
+        fonts_df (pd.DataFrame): A DataFrame with metadata about available fonts.
+        font_map (dict[str, set[str]]): A mapping from font paths to the set of
+            characters each font supports.
+        font_labels (list[str]): A list of font categories (e.g., 'common').
+        font_p (np.ndarray): An array of sampling probabilities for each font
+            category.
+        renderer (Renderer): The renderer instance used to create images from text.
     """
     def __init__(self, renderer=None):
         """Initializes the SyntheticDataGenerator.
 
         Args:
-            renderer (Renderer, optional): An instance of the Renderer class.
+            renderer (Renderer, optional): An instance of the `Renderer` class.
                 If not provided, a new one will be created.
         """
         self.vocab, self.hiragana, self.katakana = get_charsets()
@@ -52,24 +51,22 @@ class SyntheticDataGenerator:
         self.renderer = renderer if renderer else Renderer()
 
     def process(self, text=None, override_css_params=None):
-        """Generates an image-text pair.
+        """Generates a single image-text pair.
 
         This method can either use a provided source text or generate random
-        Japanese text. It then renders the text into an image with various
-        randomized styles.
+        Japanese text. It then renders the text into an image with randomized
+        styling.
 
         Args:
-            text (str, optional): The source text to be rendered. If None,
-                random text will be generated. Defaults to None.
-            override_css_params (dict, optional): A dictionary of CSS
-                parameters to override the default rendering styles.
-                Defaults to None.
+            text (str, optional): The source text to render. If None, random
+                text will be generated. Defaults to None.
+            override_css_params (dict, optional): A dictionary of CSS parameters
+                to override the default rendering styles. Defaults to None.
 
         Returns:
-            tuple: A tuple containing:
-                - np.ndarray: The rendered image as a NumPy array.
-                - str: The ground truth text.
-                - dict: A dictionary of the CSS parameters used for rendering.
+            tuple[np.ndarray, str, dict]: A tuple containing the rendered
+            image as a NumPy array, the ground truth text, and a dictionary of
+            the CSS parameters used for rendering.
         """
 
         if override_css_params is None:

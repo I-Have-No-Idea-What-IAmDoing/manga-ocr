@@ -132,6 +132,50 @@ Here are some cherry-picked examples showing the capability of the model.
 # Contact
 For any inquiries, please feel free to contact me at kha-white@mail.com
 
+# Development
+
+This section provides instructions for setting up a development environment, running tests, and contributing to the project.
+
+## Setup
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/kha-white/manga-ocr.git
+    cd manga-ocr
+    ```
+
+2.  **Install Python:**
+    This project requires Python 3.8, 3.9, or 3.10. It is recommended to use a virtual environment.
+
+3.  **Install dependencies:**
+    Install the required packages, including the development dependencies, using pip:
+    ```bash
+    pip install '.[dev]'
+    ```
+    If you plan to use a GPU, make sure to install the appropriate version of PyTorch for your system by following the instructions on the [PyTorch website](https://pytorch.org/get-started/locally/).
+
+## Running Tests
+
+To run the test suite, use `pytest`:
+```bash
+pytest
+```
+
+To run tests with coverage, use `pytest-cov`:
+```bash
+pytest --cov=manga_ocr
+```
+
+## Project Structure
+
+-   `manga_ocr/`: The main source code for the Manga OCR library.
+-   `manga_ocr_dev/`: Contains scripts and resources for development, including:
+    -   `synthetic_data_generator/`: Scripts for generating synthetic training data.
+    -   `training/`: Scripts for training the OCR model.
+-   `tests/`: Unit tests for the project.
+-   `assets/`: Contains example images and other assets.
+-   `fonts/`: Contains fonts used for synthetic data generation.
+
 # Acknowledgments
 
 This project was done with the usage of:

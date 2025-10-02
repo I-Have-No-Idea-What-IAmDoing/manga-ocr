@@ -4,8 +4,10 @@ from manga_ocr.run import run
 
 
 def main():
-    """
-    Main entry point of the script.
+    """Entry point for the command-line interface.
+
+    This function uses `fire` to expose the `run` function to the command line,
+    allowing users to run the OCR process with various arguments.
     """
     fire.Fire(run)
 

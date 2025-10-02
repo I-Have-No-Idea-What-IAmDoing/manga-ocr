@@ -37,8 +37,8 @@ def run(
             decoder model. Defaults to "jhu-clsp/mmBERT-base".
         max_len (int, optional): The maximum length for the generated text
             sequences. Defaults to 300.
-        num_decoder_layers (int, optional): The number of layers to use in the
-            decoder. If None, the full decoder is used. Defaults to 3.
+        num_decoder_layers (int | None, optional): The number of layers to use
+            in the decoder. If None, the full decoder is used. Defaults to 3.
         batch_size (int, optional): The batch size for training and evaluation.
             Defaults to 64.
         num_epochs (int, optional): The total number of training epochs.

@@ -12,15 +12,16 @@ from transformers import (
 class TrOCRProcessorCustom:
     """A custom processor that wraps a feature extractor and a tokenizer.
 
-    This class bypasses the type checks of the base processor classes and acts
-    as a simple container for a feature extractor and a tokenizer, which are
-    used for image and text processing, respectively.
+    This class acts as a simple container for a feature extractor and a
+    tokenizer, bypassing the type checks of the base processor classes. It is
+    used to prepare data for the `VisionEncoderDecoderModel`.
 
     Attributes:
-        feature_extractor: The feature extractor for image processing.
-        tokenizer: The tokenizer for text processing.
-        current_processor: The currently active processor (defaults to the
-            feature extractor).
+        feature_extractor: An image feature extractor (e.g.,
+            `AutoImageProcessor`).
+        tokenizer: A tokenizer for processing text (e.g., `AutoTokenizer`).
+        current_processor: The currently active processor, which defaults to the
+            feature extractor.
     """
 
     def __init__(self, feature_extractor, tokenizer):
@@ -37,21 +38,21 @@ class TrOCRProcessorCustom:
 
 
 def get_processor(encoder_name, decoder_name):
-    """Initializes and returns a custom processor.
+    """Initializes and returns a custom processor for the OCR model.
 
-    This function creates a feature extractor from the encoder model name and a
-    tokenizer from the decoder model name, then wraps them in a
+    This function creates a feature extractor from a pre-trained encoder model
+    and a tokenizer from a pre-trained decoder model. It then wraps them in a
     `TrOCRProcessorCustom` instance.
 
     Args:
-        encoder_name (str): The name or path of the pre-trained encoder model,
-            used to initialize the feature extractor.
-        decoder_name (str): The name or path of the pre-trained decoder model,
-            used to initialize the tokenizer.
+        encoder_name (str): The name or path of the pre-trained encoder model
+            (e.g., 'facebook/deit-tiny-patch16-224').
+        decoder_name (str): The name or path of the pre-trained decoder model
+            (e.g., 'cl-tohoku/bert-base-japanese-char-v2').
 
     Returns:
         TrOCRProcessorCustom: A custom processor instance containing the
-        feature extractor and tokenizer.
+        initialized feature extractor and tokenizer.
     """
     feature_extractor = AutoImageProcessor.from_pretrained(encoder_name, use_fast=True)
     tokenizer = AutoTokenizer.from_pretrained(decoder_name)
@@ -60,29 +61,28 @@ def get_processor(encoder_name, decoder_name):
 
 
 def get_model(encoder_name, decoder_name, max_length, num_decoder_layers=None):
-    """Constructs and returns a VisionEncoderDecoderModel for OCR.
+    """Constructs and returns a `VisionEncoderDecoderModel` for OCR.
 
-    This function sets up an encoder and a decoder from pretrained models,
+    This function sets up an encoder and a decoder from pre-trained models,
     configures them for a vision-encoder-decoder architecture, and
-    initializes the `VisionEncoderDecoderModel`. It also sets up special
+    initializes the `VisionEncoderDecoderModel`. It also configures special
     tokens and beam search parameters for text generation.
 
     If `num_decoder_layers` is specified, the decoder will be truncated to
-    the specified number of layers.
+    that number of layers.
 
     Args:
         encoder_name (str): The name or path of the pre-trained vision model
             to be used as the encoder.
         decoder_name (str): The name or path of the pre-trained language model
             to be used as the decoder.
-        max_length (int): The maximum length for the generated text sequences.
-        num_decoder_layers (int, optional): If specified, truncates the
+        max_length (int): The maximum length for generated text sequences.
+        num_decoder_layers (int | None, optional): If specified, truncates the
             decoder to this number of layers. Defaults to None.
 
     Returns:
-        tuple: A tuple containing:
-            - VisionEncoderDecoderModel: The configured OCR model.
-            - TrOCRProcessorCustom: The processor for the model.
+        tuple[VisionEncoderDecoderModel, TrOCRProcessorCustom]: A tuple
+        containing the configured OCR model and its processor.
     """
     encoder_config = AutoConfig.from_pretrained(encoder_name)
     encoder_config.is_decoder = False

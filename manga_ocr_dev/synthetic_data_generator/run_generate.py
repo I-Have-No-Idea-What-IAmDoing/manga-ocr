@@ -24,14 +24,14 @@ def f(args, generator):
     metadata about the generated sample.
 
     Args:
-        args (tuple): A tuple containing the index, source, ID, and text for
-            the data sample.
+        args (tuple[int, str, str, str]): A tuple containing the index, source,
+            ID, and text for the data sample.
         generator (SyntheticDataGenerator): An instance of the
             `SyntheticDataGenerator` class used to generate the image.
 
     Returns:
-        tuple: A tuple containing metadata about the generated sample:
-        (source, id, text_gt, vertical, font_path).
+        tuple[str, str, str, bool, str]: A tuple containing metadata about the
+        generated sample: (source, id, text_gt, vertical, font_path).
     """
     try:
         i, source, id_, text = args

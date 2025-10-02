@@ -14,14 +14,14 @@ class MangaDataset(Dataset):
 
     This dataset combines synthetically generated text images with real manga
     crops from the Manga109 dataset. It handles data loading, augmentation,
-    and preprocessing.
+    and preprocessing, making it suitable for training a `VisionEncoderDecoderModel`.
 
     Attributes:
-        processor: The processor for feature extraction and tokenization.
+        processor: A processor that combines a feature extractor and a tokenizer.
         max_target_length (int): The maximum length for tokenized text sequences.
-        data (pd.DataFrame): A DataFrame containing the file paths and text
-            for each sample.
-        augment (bool): Whether to apply data augmentation.
+        data (pd.DataFrame): A DataFrame holding the file paths and text for
+            each sample in the dataset.
+        augment (bool): A flag indicating whether to apply data augmentation.
         transform_medium (A.Compose): The medium-level augmentation pipeline.
         transform_heavy (A.Compose): The heavy-level augmentation pipeline.
     """
@@ -41,12 +41,12 @@ class MangaDataset(Dataset):
             split (str): The dataset split to use, typically 'train' or 'test'.
             max_target_length (int): The maximum length for tokenized text
                 sequences.
-            limit_size (int, optional): If specified, limits the dataset to
-                this number of samples. Defaults to None.
+            limit_size (int | None, optional): If specified, limits the dataset
+                to this number of samples. Defaults to None.
             augment (bool, optional): Whether to apply data augmentation.
                 Defaults to False.
-            skip_packages (set, optional): A set of package numbers to skip
-                when loading synthetic data. Defaults to None.
+            skip_packages (set[int] | None, optional): A set of package numbers
+                to skip when loading synthetic data. Defaults to None.
         """
         self.processor = processor
         self.max_target_length = max_target_length
