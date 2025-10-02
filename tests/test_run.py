@@ -154,3 +154,79 @@ def test_run_wayland_not_installed(mock_mocr, mock_os_system, monkeypatch):
     monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-1")
     with pytest.raises(NotImplementedError):
         run(read_from="clipboard", write_to="clipboard")
+
+
+@patch("manga_ocr.run.MangaOcr")
+def test_run_invalid_read_from(mock_mocr, tmp_path):
+    """
+    Tests that a ValueError is raised when read_from is an invalid path.
+    """
+    invalid_path = tmp_path / "invalid_file.txt"
+    with open(invalid_path, "w") as f:
+        f.write("dummy content")
+    with pytest.raises(ValueError, match='read_from must be either "clipboard" or a path to a directory'):
+        run(read_from=str(invalid_path), write_to="clipboard")
+
+
+@patch("manga_ocr.run.MangaOcr")
+@patch("pathlib.Path.iterdir")
+@patch("time.sleep")
+@patch("loguru.logger.warning")
+def test_run_directory_invalid_image(mock_logger_warning, mock_sleep, mock_iterdir, mock_mocr, tmp_path):
+    """
+    Tests that the run function logs a warning when an invalid image is found.
+    """
+    mock_mocr_instance = mock_mocr.return_value
+
+    # Create a dummy invalid image file
+    invalid_img_path = tmp_path / "invalid_img.txt"
+    invalid_img_path.touch()
+
+    # Simulate directory scanning: initial scan is empty, then the invalid file appears
+    mock_iterdir.side_effect = [
+        [],
+        [invalid_img_path],
+        KeyboardInterrupt,
+    ]
+
+    with pytest.raises(KeyboardInterrupt):
+        run(read_from=str(tmp_path), write_to="clipboard")
+
+    assert mock_iterdir.call_count == 3
+    mock_mocr_instance.assert_not_called()
+    mock_logger_warning.assert_called_once()
+
+
+@patch("manga_ocr.run.MangaOcr")
+@patch("PIL.ImageGrab.grabclipboard")
+@patch("time.sleep")
+@patch("loguru.logger.warning")
+def test_run_clipboard_oserror_verbose(mock_logger_warning, mock_sleep, mock_grabclipboard, mock_mocr):
+    """
+    Tests that the run function logs a warning on OSError when verbose is True.
+    """
+    mock_grabclipboard.side_effect = [OSError("test error"), KeyboardInterrupt]
+
+    with pytest.raises(KeyboardInterrupt):
+        run(read_from="clipboard", write_to="clipboard", verbose=True)
+
+    mock_logger_warning.assert_called_once_with("Error while reading from clipboard (test error)")
+
+
+@patch("sys.platform", "linux")
+@patch("os.system", return_value=0)  # wl-copy found
+@patch("pyperclip.set_clipboard")
+@patch("manga_ocr.run.MangaOcr")
+@patch("PIL.ImageGrab.grabclipboard")
+def test_run_wayland_installed(mock_grabclipboard, mock_mocr, mock_set_clipboard, mock_os_system, monkeypatch):
+    """
+    Tests that the run function sets the clipboard to wl-clipboard on Wayland.
+    """
+    monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-1")
+
+    # Mock the rest of the function to avoid infinite loop
+    with patch("manga_ocr.run.time.sleep", side_effect=KeyboardInterrupt):
+        with pytest.raises(KeyboardInterrupt):
+            run(read_from="clipboard", write_to="clipboard")
+
+    mock_set_clipboard.assert_called_once_with("wl-clipboard")
