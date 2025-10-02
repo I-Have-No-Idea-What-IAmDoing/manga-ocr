@@ -1,25 +1,41 @@
 import os
 import uuid
+import threading
+import time
 
 import albumentations as A
 import cv2
 import numpy as np
-from html2image import Html2Image
+from manga_ocr_dev.vendored.html2image import Html2Image
 
 from manga_ocr_dev.env import BACKGROUND_DIR
 from manga_ocr_dev.synthetic_data_generator.utils import get_background_df
 
 
 class Renderer:
-    def __init__(self):
-        # self.hti = Html2Image(browser="edge", temp_path="J:/temp")
-        self.hti = Html2Image(temp_path="J:/temp")
-        
+    def __init__(self, cdp_port=9222, browser_executable=None):
+        self.hti = Html2Image(
+            browser='chrome-cdp',
+            browser_cdp_port=cdp_port,
+            browser_executable=browser_executable,
+            temp_path="/tmp/html2image",
+            custom_flags=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote', '--ozone-platform=headless']
+        )
+        self.lock = threading.Lock()
+
         self.background_df = get_background_df(BACKGROUND_DIR)
         self.max_size = 600
 
+    def __enter__(self):
+        self.hti.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.hti.__exit__(exc_type, exc_val, exc_tb)
+
     def render(self, lines, override_css_params=None):
-        img, params = self.render_text(lines, override_css_params)
+        with self.lock:
+            img, params = self.render_text(lines, override_css_params)
         img = self.render_background(img)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         img = A.LongestMaxSize(self.max_size)(image=img)["image"]
@@ -43,10 +59,26 @@ class Renderer:
             size = size[::-1]
         html = self.lines_to_html(lines)
 
-        filename = str(uuid.uuid4()) + ".png"
-        self.hti.screenshot(html_str=html, css_str=css, save_as=filename, size=size)
-        img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
-        os.remove(filename)
+        # create a temporary file for the html content
+        html_filename = str(uuid.uuid4()) + ".html"
+        self.hti.load_str(html, as_filename=html_filename)
+
+        # screenshot the temporary file and get the bytes
+        img_bytes = self.hti.screenshot_as_bytes(
+            file=html_filename,
+            size=size,
+        )
+
+        # remove the temporary file
+        self.hti._remove_temp_file(html_filename)
+
+        # decode the bytes into an image
+        img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_UNCHANGED)
+
+        # ensure image has 4 channels
+        if img.shape[2] == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+
         return img, params
 
     @staticmethod
