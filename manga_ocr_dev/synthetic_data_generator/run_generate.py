@@ -16,6 +16,23 @@ OUT_DIR = None
 
 
 def f(args, generator):
+    """Processes a single data sample, generating and saving an image.
+
+    This function is designed to be used as a worker in a parallel processing
+    setup. It takes a tuple of arguments and a `SyntheticDataGenerator`
+    instance, generates an image from text, saves it to a file, and returns
+    metadata about the generated sample.
+
+    Args:
+        args (tuple): A tuple containing the index, source, ID, and text for
+            the data sample.
+        generator (SyntheticDataGenerator): An instance of the
+            `SyntheticDataGenerator` class used to generate the image.
+
+    Returns:
+        tuple: A tuple containing metadata about the generated sample:
+        (source, id, text_gt, vertical, font_path).
+    """
     try:
         i, source, id_, text = args
         filename = f"{id_}.jpg"
@@ -33,12 +50,29 @@ def f(args, generator):
 
 
 def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
-    """
-    :param package: number of data package to generate
-    :param n_random: how many samples with random text to generate
-    :param n_limit: limit number of generated samples (for debugging)
-    :param max_workers: max number of workers
-    :param cdp_port: port for chrome devtools protocol
+    """Generates a package of synthetic data.
+
+    This function orchestrates the generation of a data package, which
+    consists of rendered images and a metadata CSV file. It reads lines of
+    text from a source CSV, adds a specified number of random text samples,
+    and then uses a pool of workers to generate an image for each line.
+
+    The generated images are saved in a subdirectory of
+    `DATA_SYNTHETIC_ROOT/img`, and the metadata is saved to
+    `DATA_SYNTHETIC_ROOT/meta`.
+
+    Args:
+        package (int, optional): The number of the data package to generate.
+            This is used to determine the input and output file paths.
+            Defaults to 0.
+        n_random (int, optional): The number of samples with random text to
+            generate and add to the package. Defaults to 10000.
+        n_limit (int, optional): If specified, limits the total number of
+            generated samples. This is useful for debugging. Defaults to None.
+        max_workers (int, optional): The maximum number of worker threads to
+            use for parallel processing. Defaults to 14.
+        cdp_port (int, optional): The port for the Chrome DevTools Protocol,
+            used by the renderer. Defaults to 9222.
     """
 
     package = f"{package:04d}"

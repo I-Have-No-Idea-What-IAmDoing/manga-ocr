@@ -23,10 +23,19 @@ def has_glyph(font, glyph):
 
 
 def process(font_path):
-    """
-    Get supported characters list for a given font.
-    Font metadata is not always reliable, so try to render each character and see if anything shows up.
-    Still not perfect, because sometimes unsupported characters show up as rectangles.
+    """Determines the list of supported characters for a given font.
+
+    This function checks for the presence of a glyph for each character in a
+    predefined vocabulary and then attempts to render the character to ensure
+    it's not a blank or placeholder glyph. This is not always perfect as some
+    fonts may render unsupported characters as placeholder shapes (e.g.,
+    rectangles).
+
+    Args:
+        font_path (str or Path): The path to the font file.
+
+    Returns:
+        str: A string containing all the supported characters found in the font.
     """
 
     try:
@@ -57,6 +66,16 @@ def process(font_path):
 
 
 def main():
+    """Scans all fonts in the `FONTS_ROOT` directory to generate a metadata CSV.
+
+    This function finds all supported font files (e.g., .ttf, .otf) in the
+    `FONTS_ROOT` directory, processes them in parallel to determine which
+    characters they support, and then saves this information to 'fonts.csv'
+    in the `ASSETS_PATH` directory.
+
+    The output CSV contains the font path, the list of supported characters,
+    the number of supported characters, and a default 'regular' label.
+    """
     path_in = FONTS_ROOT
     out_path = ASSETS_PATH / "fonts.csv"
 

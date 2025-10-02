@@ -18,30 +18,33 @@ def run(
     num_epochs=8,
     fp16=True,
 ):
-    """
-    Initializes and runs the training process for the Manga OCR model.
+    """Main training script for the Manga OCR model.
 
-    This function sets up the model, datasets, and training arguments, then
-    initiates the training using the Seq2SeqTrainer from the Hugging Face
-    Transformers library.
+    This script sets up the model, datasets, and training arguments, then
+    initiates the training process using the `Seq2SeqTrainer` from the Hugging
+    Face Transformers library.
+
+    The training uses a combination of synthetic data and the Manga109 dataset.
+    The validation set is constructed from a specific package of the synthetic
+    data.
 
     Args:
-        run_name (str, optional): A name for the training run, used for logging
-            and output directories. Defaults to "debug".
-        encoder_name (str, optional): The name or path of the pre-trained encoder model.
-            Defaults to "apple/MobileCLIP2-S2".
-        decoder_name (str, optional): The name or path of the pre-trained decoder model.
-            Defaults to "jhu-clsp/mmBERT-base".
-        max_len (int, optional): The maximum length for the generated text sequences.
-            Defaults to 300.
-        num_decoder_layers (int, optional): The number of layers to use in the decoder.
-            If None, the full decoder is used. Defaults to 3.
+        run_name (str, optional): A name for the training run, used for
+            logging and output directories. Defaults to "debug".
+        encoder_name (str, optional): The name or path of the pre-trained
+            encoder model. Defaults to "apple/MobileCLIP2-S2".
+        decoder_name (str, optional): The name or path of the pre-trained
+            decoder model. Defaults to "jhu-clsp/mmBERT-base".
+        max_len (int, optional): The maximum length for the generated text
+            sequences. Defaults to 300.
+        num_decoder_layers (int, optional): The number of layers to use in the
+            decoder. If None, the full decoder is used. Defaults to 3.
         batch_size (int, optional): The batch size for training and evaluation.
             Defaults to 64.
         num_epochs (int, optional): The total number of training epochs.
             Defaults to 8.
-        fp16 (bool, optional): Whether to use 16-bit floating-point precision (mixed precision)
-            for training. Defaults to True.
+        fp16 (bool, optional): Whether to use 16-bit floating-point precision
+            (mixed precision) for training. Defaults to True.
     """
 
     model, processor = get_model(encoder_name, decoder_name, max_len, num_decoder_layers)

@@ -7,18 +7,21 @@ from manga_ocr_dev.env import DATA_SYNTHETIC_ROOT, ASSETS_PATH
 
 
 def export_lines(num_lines_in_each_package=10000, num_packages=100):
-    """
-    Processes a large Japanese text file from the CC-100 dataset and exports the lines into smaller CSV packages.
+    """Processes and packages lines from the CC-100 Japanese text file.
 
-    Each line from the input text file is processed, and if it's longer than two characters,
-    it's saved into a CSV file along with a source identifier and a unique ID.
-    The function creates multiple CSV files, each containing a specified number of lines.
+    This function reads a large Japanese text file (`ja.txt`) from the CC-100
+    dataset, processes each line, and exports them into smaller CSV packages.
+    Lines with two or fewer characters are skipped.
+
+    Each exported CSV file contains a specified number of lines and is saved to
+    the `ASSETS_PATH/lines` directory. The CSVs have 'source', 'id', and
+    'line' columns.
 
     Args:
-        num_lines_in_each_package (int, optional): The maximum number of lines to store in each CSV package.
-            Defaults to 10000.
-        num_packages (int, optional): The total number of packages (CSV files) to create.
-            Defaults to 100.
+        num_lines_in_each_package (int, optional): The maximum number of lines
+            to store in each CSV package. Defaults to 10000.
+        num_packages (int, optional): The total number of packages (CSV files)
+            to create. Defaults to 100.
     """
     cc100_text_file = DATA_SYNTHETIC_ROOT / "ja.txt"
 

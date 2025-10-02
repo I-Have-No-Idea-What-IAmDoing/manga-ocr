@@ -3,27 +3,36 @@ import evaluate
 
 
 class Metrics:
-    """
-    A class for computing evaluation metrics for the OCR model, specifically Character Error Rate (CER) and accuracy.
+    """Computes evaluation metrics for the OCR model.
+
+    This class is responsible for calculating the Character Error Rate (CER)
+    and accuracy of the model's predictions. It uses the `evaluate` library
+    for the CER computation.
+
+    Attributes:
+        cer_metric: An instance of the CER metric from the `evaluate` library.
+        processor: The processor used for tokenization and decoding, which is
+            essential for converting model outputs back to text.
     """
     def __init__(self, processor):
-        """
-        Initializes the Metrics class.
+        """Initializes the Metrics class.
 
         Args:
-            processor: The processor used for tokenization and decoding, which is
-                       essential for converting model outputs back to text.
+            processor: The processor used for tokenization and decoding.
         """
         self.cer_metric = evaluate.load("cer")
         self.processor = processor
 
     def compute_metrics(self, pred):
-        """
-        Computes the CER and accuracy for a given set of predictions and labels.
+        """Computes the CER and accuracy for a given set of predictions.
+
+        This method takes the model's predictions and the ground truth labels,
+        decodes them into strings, and then computes the Character Error Rate
+        and the exact match accuracy.
 
         Args:
             pred: A prediction object from the model, which contains `label_ids`
-                  (the ground truth) and `predictions` (the model's output).
+                (the ground truth) and `predictions` (the model's output).
 
         Returns:
             dict: A dictionary containing the computed 'cer' and 'accuracy'.
