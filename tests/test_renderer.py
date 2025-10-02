@@ -59,11 +59,52 @@ def test_get_css():
     assert 'text-orientation' in css
 
 def test_crop_by_alpha():
+    # Test case 1: Standard crop with margin
     img = np.zeros((100, 100, 4), dtype=np.uint8)
-    img[20:80, 20:80, 3] = 255
+    content_rgba = (128, 150, 170, 255)
+    img[20:80, 30:70, :] = content_rgba
     cropped_img = crop_by_alpha(img, margin=10)
-    assert cropped_img.shape[0] == 80
-    assert cropped_img.shape[1] == 80
+    assert cropped_img.shape == (60 + 20, 40 + 20, 4)
+    # Check that the content area is correct
+    content_area = cropped_img[10:-10, 10:-10, :]
+    assert np.array_equal(content_area, np.full((60, 40, 4), content_rgba))
+    # Check that the margin is black and fully transparent
+    assert np.all(cropped_img[0:10, :, :] == 0)  # Top margin
+    assert np.all(cropped_img[-10:, :, :] == 0)  # Bottom margin
+    assert np.all(cropped_img[:, 0:10, :] == 0)  # Left margin
+    assert np.all(cropped_img[:, -10:, :] == 0)  # Right margin
+
+    # Test case 2: Crop with no margin
+    cropped_img_no_margin = crop_by_alpha(img, margin=0)
+    assert cropped_img_no_margin.shape == (60, 40, 4)
+    assert np.array_equal(cropped_img_no_margin, np.full((60, 40, 4), content_rgba))
+
+    # Test case 3: Fully transparent image
+    img_transparent = np.zeros((100, 100, 4), dtype=np.uint8)
+    cropped_transparent = crop_by_alpha(img_transparent)
+    assert cropped_transparent.shape == (1, 1, 4)
+    assert np.all(cropped_transparent == 0)
+
+    # Test case 4: Fully opaque image with non-uniform content
+    img_opaque = np.zeros((100, 100, 4), dtype=np.uint8)
+    img_opaque[:, :, 0] = 50
+    img_opaque[:, :, 1] = 100
+    img_opaque[:, :, 2] = 150
+    img_opaque[:, :, 3] = 255
+    cropped_opaque = crop_by_alpha(img_opaque, margin=0)
+    assert cropped_opaque.shape == (100, 100, 4)
+    assert np.array_equal(cropped_opaque, img_opaque)
+
+    # Test case 5: Image with content touching the border
+    img_border = np.zeros((100, 100, 4), dtype=np.uint8)
+    img_border[0, :, 0:3] = 128  # Give the line some color
+    img_border[0, :, 3] = 255    # Top edge with non-zero alpha
+    cropped_border = crop_by_alpha(img_border, margin=0)
+    # The image should be cropped to the single line of content
+    assert cropped_border.shape == (1, 100, 4)
+    # Verify the content of the cropped line
+    expected_content = img_border[0:1, :, :]
+    assert np.array_equal(cropped_border, expected_content)
 
 def test_blend():
     fg = np.zeros((100, 100, 4), dtype=np.uint8)
