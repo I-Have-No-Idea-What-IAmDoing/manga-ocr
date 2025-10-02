@@ -1,14 +1,22 @@
 import cv2
 import numpy as np
-import os
+from pathlib import Path
+import sys
 
-# Create a directory for the dummy background images
-os.makedirs("tmp/backgrounds", exist_ok=True)
+# Add project root to Python path to allow importing from manga_ocr_dev
+ROOT_DIR = Path(__file__).parent
+sys.path.insert(0, str(ROOT_DIR))
+
+from manga_ocr_dev.env import BACKGROUND_DIR
+
+
+# Create the directory for the dummy background images
+BACKGROUND_DIR.mkdir(parents=True, exist_ok=True)
 
 # Create a black image
 dummy_image = np.zeros((1024, 1024, 3), dtype=np.uint8)
 
 # Save the image with a filename that matches the expected format
-cv2.imwrite("tmp/backgrounds/dummy_0_1024_0_1024.png", dummy_image)
+cv2.imwrite(str(BACKGROUND_DIR / "dummy_0_1024_0_1024.png"), dummy_image)
 
-print("Dummy background image created successfully.")
+print("Dummy background image created successfully in the correct directory.")

@@ -159,45 +159,8 @@ def test_run_wayland_not_installed(mock_mocr, mock_os_system, monkeypatch):
         run(read_from="clipboard", write_to="clipboard")
 
 
-@patch("manga_ocr.run.MangaOcr")
-def test_run_invalid_read_from(mock_mocr, tmp_path):
-    """
-    Tests that a ValueError is raised when read_from is an invalid path.
-    """
-    invalid_path = tmp_path / "invalid_file.txt"
-    with open(invalid_path, "w") as f:
-        f.write("dummy content")
-    with pytest.raises(ValueError, match='read_from must be either "clipboard" or a path to a directory'):
-        run(read_from=str(invalid_path), write_to="clipboard")
 
 
-@patch("manga_ocr.run.MangaOcr")
-@patch("pathlib.Path.iterdir")
-@patch("time.sleep")
-@patch("loguru.logger.warning")
-def test_run_directory_invalid_image(mock_logger_warning, mock_sleep, mock_iterdir, mock_mocr, tmp_path):
-    """
-    Tests that the run function logs a warning when an invalid image is found.
-    """
-    mock_mocr_instance = mock_mocr.return_value
-
-    # Create a dummy invalid image file
-    invalid_img_path = tmp_path / "invalid_img.txt"
-    invalid_img_path.touch()
-
-    # Simulate directory scanning: initial scan is empty, then the invalid file appears
-    mock_iterdir.side_effect = [
-        [],
-        [invalid_img_path],
-        KeyboardInterrupt,
-    ]
-
-    with pytest.raises(KeyboardInterrupt):
-        run(read_from=str(tmp_path), write_to="clipboard")
-
-    assert mock_iterdir.call_count == 3
-    mock_mocr_instance.assert_not_called()
-    mock_logger_warning.assert_called_once()
 
 
 @patch("manga_ocr.run.MangaOcr")
@@ -249,6 +212,43 @@ def test_run_clipboard_oserror_no_image(mock_logger_warning, mock_sleep, mock_gr
         run(read_from="clipboard", write_to="clipboard", verbose=False)
 
     mock_logger_warning.assert_not_called()
+
+
+def test_run_raises_on_invalid_read_from_path(tmp_path):
+    """
+    Tests that `run` raises a ValueError if `read_from` is a file instead of a directory.
+    """
+    invalid_path = tmp_path / "not_a_directory.txt"
+    invalid_path.touch()
+
+    with patch("manga_ocr.run.MangaOcr"):
+        with pytest.raises(ValueError, match='read_from must be either "clipboard" or a path to a directory'):
+            run(read_from=str(invalid_path))
+
+
+@patch("manga_ocr.run.MangaOcr")
+@patch("pathlib.Path.iterdir")
+@patch("time.sleep", side_effect=KeyboardInterrupt)
+@patch("loguru.logger.warning")
+def test_run_logs_warning_on_invalid_image_file(mock_logger_warning, mock_sleep, mock_iterdir, mock_mocr, tmp_path):
+    """
+    Tests that `run` logs a warning when it encounters a file that cannot be opened as an image.
+    """
+    invalid_file = tmp_path / "invalid_image.txt"
+    invalid_file.write_text("this is not an image")
+
+    # Simulate directory scanning: initial scan is empty, then the invalid file appears
+    mock_iterdir.side_effect = [
+        [],
+        [invalid_file],
+    ]
+
+    with pytest.raises(KeyboardInterrupt):
+        run(read_from=str(tmp_path))
+
+    mock_logger_warning.assert_called_once()
+    logged_message = mock_logger_warning.call_args[0][0]
+    assert f"Error while reading file {invalid_file}" in logged_message
 
 
 @patch("manga_ocr.run.MangaOcr")

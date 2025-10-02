@@ -13,12 +13,11 @@ def test_synthetic_data_generator():
     """
     browser_executable = os.environ.get('CHROME_EXECUTABLE_PATH', '/home/jules/.cache/ms-playwright/chromium-1181/chrome-linux/chrome')
     os.environ['CHROME_EXECUTABLE_PATH'] = browser_executable
-    dummy_font_path = str(FONTS_ROOT / 'dummy_font.ttf')
+    font_path = str(FONTS_ROOT / 'NotoSansJP-Regular.ttf')
 
-    # Get the character set for the dummy font
+    # Get the character set for the font
     _, font_map = get_font_meta()
-    font_key = 'dummy_font.ttf'
-    valid_chars = font_map.get(font_key, set())
+    valid_chars = font_map.get(font_path, set())
 
     input_text = 'test text'
     # The generator will filter out any characters from the input text that are not
@@ -29,7 +28,7 @@ def test_synthetic_data_generator():
         generator = SyntheticDataGenerator(renderer=renderer)
         img, text, params = generator.process(
             input_text,
-            override_css_params={'font_path': dummy_font_path}
+            override_css_params={'font_path': font_path}
         )
 
         assert isinstance(img, np.ndarray)
