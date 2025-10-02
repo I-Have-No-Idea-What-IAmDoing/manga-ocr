@@ -74,16 +74,11 @@ class MangaDataset(Dataset):
             glob_pattern = [DATA_SYNTHETIC_ROOT / "meta" / f"{pid}.csv" for pid in package_ids]
         else:
             glob_pattern = sorted((DATA_SYNTHETIC_ROOT / "meta").glob("*.csv"))
-
-        if skip_packages is None:
-            skip_packages = set()
-        else:
-            skip_packages = {f"{x:04d}" for x in skip_packages}
+            if skip_packages is not None:
+                skip_package_ids = {f"{x:04d}" for x in skip_packages}
+                glob_pattern = [p for p in glob_pattern if p.stem not in skip_package_ids]
 
         for path in glob_pattern:
-            if path.stem in skip_packages:
-                print(f"Skipping package {path}")
-                continue
             if not (DATA_SYNTHETIC_ROOT / "img" / path.stem).is_dir():
                 print(f"Missing image data for package {path}, skipping")
                 continue
@@ -93,6 +88,10 @@ class MangaDataset(Dataset):
             df = df[["path", "text"]]
             df["synthetic"] = True
             data.append(df)
+
+        if not data:
+            return pd.DataFrame(columns=["path", "text", "synthetic"])
+
         return pd.concat(data, ignore_index=True)
 
     def load_manga109_data(self, split):
