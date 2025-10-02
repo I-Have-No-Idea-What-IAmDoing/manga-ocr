@@ -17,6 +17,7 @@ class Metrics:
         processor: The processor used for decoding model outputs and labels
             back to text.
     """
+
     def __init__(self, processor):
         """Initializes the Metrics class.
 
