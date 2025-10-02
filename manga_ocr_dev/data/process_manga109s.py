@@ -10,6 +10,16 @@ from manga_ocr_dev.env import MANGA109_ROOT
 
 
 def get_books():
+    """
+    Retrieves the list of books from the Manga109 dataset.
+
+    Reads the 'books.txt' file to get the list of book titles, then constructs
+    the paths to the corresponding annotation files and image directories.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the book titles, paths to annotation
+                      XML files, and paths to image directories.
+    """
     root = MANGA109_ROOT / "Manga109s_released_2021_02_28"
     books = (root / "books.txt").read_text().splitlines()
     books = pd.DataFrame(
@@ -24,6 +34,13 @@ def get_books():
 
 
 def export_frames():
+    """
+    Parses the XML annotation files to extract frame-level information and exports it to a CSV file.
+
+    For each book in the Manga109 dataset, this function iterates through the pages
+    and their frames, extracting attributes like page index, dimensions, and frame
+    coordinates. This data is then compiled into a pandas DataFrame and saved as 'frames.csv'.
+    """
     books = get_books()
 
     data = []
@@ -51,6 +68,15 @@ def export_frames():
 
 
 def export_crops():
+    """
+    Extracts text bounding boxes from the Manga109 dataset, saves them as cropped images, and exports the metadata to a CSV file.
+
+    This function processes each book's annotation file to get text-level information,
+    including the bounding box coordinates and the text content. It then splits the
+    data into training and testing sets, saves the metadata to 'data.csv', and
+    creates cropped images of each text box with a small margin, saving them
+    as PNG files.
+    """
     crops_root = MANGA109_ROOT / "crops"
     crops_root.mkdir(parents=True, exist_ok=True)
     margin = 10
