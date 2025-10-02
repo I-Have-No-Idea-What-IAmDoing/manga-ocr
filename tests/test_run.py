@@ -20,6 +20,8 @@ def test_are_images_identical():
     img2 = Image.new("RGB", (100, 100), color="red")
     img3 = Image.new("RGB", (100, 100), color="blue")
     img4 = Image.new("RGB", (50, 50), color="red")
+    img5_rgb = Image.new("RGB", (100, 100), color="green")
+    img5_rgba = img5_rgb.convert("RGBA")
 
     assert are_images_identical(img1, img2)
     assert not are_images_identical(img1, img3)
@@ -27,6 +29,7 @@ def test_are_images_identical():
     assert not are_images_identical(img1, None)
     assert not are_images_identical(None, img1)
     assert are_images_identical(None, None)
+    assert are_images_identical(img5_rgb, img5_rgba)
 
 
 def test_get_path_key(tmp_path):

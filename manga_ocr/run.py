@@ -26,8 +26,8 @@ def are_images_identical(img1, img2):
     if None in (img1, img2):
         return img1 == img2
 
-    img1 = np.array(img1)
-    img2 = np.array(img2)
+    img1 = np.array(img1.convert("RGB"))
+    img2 = np.array(img2.convert("RGB"))
 
     return (img1.shape == img2.shape) and (img1 == img2).all()
 
