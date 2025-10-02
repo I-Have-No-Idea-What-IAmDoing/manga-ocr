@@ -1,3 +1,5 @@
+import yaml
+from pathlib import Path
 import fire
 import wandb
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments, default_data_collator
@@ -8,83 +10,63 @@ from manga_ocr_dev.training.get_model import get_model
 from manga_ocr_dev.training.metrics import Metrics
 
 
-def run(
-    run_name="debug",
-    encoder_name="apple/MobileCLIP2-S2",
-    decoder_name="jhu-clsp/mmBERT-base",
-    max_len=300,
-    num_decoder_layers=3,
-    batch_size=64,
-    num_epochs=8,
-    fp16=True,
-):
-    """Main training script for the Manga OCR model.
+class TrainingPipeline:
+    def __init__(self, config_path: str):
+        with open(config_path, 'r') as f:
+            self.config = yaml.safe_load(f)
 
-    This script sets up the model, datasets, and training arguments, then
-    initiates the training process using the `Seq2SeqTrainer` from the Hugging
-    Face Transformers library.
+        self.model_config = self.config['model']
+        self.dataset_config = self.config['dataset']
+        self.training_config = self.config['training']
 
-    The training uses a combination of synthetic data and the Manga109 dataset.
-    The validation set is constructed from a specific package of the synthetic
-    data.
+    def run(self):
+        """Main training script for the Manga OCR model."""
+        wandb.init(project="manga-ocr", name=self.config['run_name'], config=self.config)
 
-    Args:
-        run_name (str, optional): A name for the training run, used for
-            logging and output directories. Defaults to "debug".
-        encoder_name (str, optional): The name or path of the pre-trained
-            encoder model. Defaults to "apple/MobileCLIP2-S2".
-        decoder_name (str, optional): The name or path of the pre-trained
-            decoder model. Defaults to "jhu-clsp/mmBERT-base".
-        max_len (int, optional): The maximum length for the generated text
-            sequences. Defaults to 300.
-        num_decoder_layers (int | None, optional): The number of layers to use
-            in the decoder. If None, the full decoder is used. Defaults to 3.
-        batch_size (int, optional): The batch size for training and evaluation.
-            Defaults to 64.
-        num_epochs (int, optional): The total number of training epochs.
-            Defaults to 8.
-        fp16 (bool, optional): Whether to use 16-bit floating-point precision
-            (mixed precision) for training. Defaults to True.
-    """
+        model, processor = get_model(
+            encoder_name=self.model_config['encoder_name'],
+            decoder_name=self.model_config['decoder_name'],
+            max_len=self.model_config['max_len'],
+            num_decoder_layers=self.model_config['num_decoder_layers']
+        )
 
-    model, processor = get_model(encoder_name, decoder_name, max_len, num_decoder_layers)
+        train_dataset = MangaDataset(
+            processor,
+            sources=self.dataset_config['train']['sources'],
+            max_target_length=self.model_config['max_len'],
+            augment=self.dataset_config['augment'],
+        )
 
-    # keep package 0 for validation
-    train_dataset = MangaDataset(processor, "train", max_len, augment=True, skip_packages=[0])
-    eval_dataset = MangaDataset(processor, "test", max_len, augment=False, skip_packages=range(1, 9999))
+        eval_dataset = MangaDataset(
+            processor,
+            sources=self.dataset_config['eval']['sources'],
+            max_target_length=self.model_config['max_len'],
+            augment=False,
+        )
 
-    metrics = Metrics(processor)
+        metrics = Metrics(processor)
 
-    training_args = Seq2SeqTrainingArguments(
-        predict_with_generate=True,
-        eval_strategy="steps",
-        save_strategy="steps",
-        per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=batch_size,
-        fp16=fp16,
-        fp16_full_eval=fp16,
-        dataloader_num_workers=16,
-        output_dir=TRAIN_ROOT,
-        logging_steps=10,
-        report_to="none",
-        save_steps=20000,
-        eval_steps=20000,
-        num_train_epochs=num_epochs,
-        run_name=run_name,
-    )
+        training_args = Seq2SeqTrainingArguments(
+            output_dir=str(TRAIN_ROOT),
+            run_name=self.config['run_name'],
+            **self.training_config
+        )
 
-    # instantiate trainer
-    trainer = Seq2SeqTrainer(
-        model=model,
-        processing_class=processor.feature_extractor,
-        args=training_args,
-        compute_metrics=metrics.compute_metrics,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        data_collator=default_data_collator,
-    )
-    trainer.train()
+        trainer = Seq2SeqTrainer(
+            model=model,
+            args=training_args,
+            compute_metrics=metrics.compute_metrics,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            data_collator=default_data_collator,
+        )
+        trainer.train()
+
+
+def main(config_path: str = 'manga_ocr_dev/training/config.yaml'):
+    pipeline = TrainingPipeline(config_path)
+    pipeline.run()
 
 
 if __name__ == "__main__":
-    fire.Fire(run)
+    fire.Fire(main)
