@@ -27,13 +27,6 @@ def test_ocr():
         assert result == item["result"]
 
 
-def test_ocr_invalid_input():
-    """
-    Tests that MangaOcr raises ValueError for invalid input types.
-    """
-    mocr = MangaOcr()
-    with pytest.raises(ValueError, match="img_or_path must be a path or PIL.Image"):
-        mocr(object())
 
 
 def test_post_process():
@@ -113,3 +106,12 @@ def test_manga_ocr_force_cpu(mock_logger_info, mock_call, mock_cuda):
     """
     MangaOcr(force_cpu=True)
     mock_logger_info.assert_any_call("Using CPU")
+
+
+def test_ocr_raises_on_invalid_input_type():
+    """
+    Tests that MangaOcr raises a ValueError when the input is not a path or PIL Image.
+    """
+    mocr = MangaOcr()
+    with pytest.raises(ValueError, match="img_or_path must be a path or PIL.Image"):
+        mocr(123)
