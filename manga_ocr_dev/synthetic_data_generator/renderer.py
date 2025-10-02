@@ -17,7 +17,6 @@ class Renderer:
         self.hti = Html2Image(
             browser='chrome-cdp',
             browser_cdp_port=cdp_port,
-            browser_executable='/home/jules/.cache/ms-playwright/chromium-1181/chrome-linux/chrome',
             temp_path="/tmp/html2image",
             custom_flags=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote', '--ozone-platform=headless']
         )
@@ -28,7 +27,6 @@ class Renderer:
 
     def __enter__(self):
         self.hti.__enter__()
-        time.sleep(5)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -60,10 +58,22 @@ class Renderer:
             size = size[::-1]
         html = self.lines_to_html(lines)
 
-        filename = str(uuid.uuid4()) + ".png"
-        self.hti.screenshot(html_str=html, css_str=css, save_as=filename, size=size)
-        img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
-        os.remove(filename)
+        # create a temporary file for the html content
+        html_filename = str(uuid.uuid4()) + ".html"
+        self.hti.load_str(html, as_filename=html_filename)
+
+        # screenshot the temporary file and get the bytes
+        img_bytes = self.hti.screenshot_as_bytes(
+            file=html_filename,
+            size=size,
+        )
+
+        # remove the temporary file
+        self.hti._remove_temp_file(html_filename)
+
+        # decode the bytes into an image
+        img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_UNCHANGED)
+
         return img, params
 
     @staticmethod

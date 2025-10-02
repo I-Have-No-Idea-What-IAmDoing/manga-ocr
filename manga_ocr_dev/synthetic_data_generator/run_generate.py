@@ -7,9 +7,6 @@ import fire
 import pandas as pd
 from tqdm.contrib.concurrent import thread_map
 
-import sys
-
-sys.path.append("J:/Applications/manga-ocr/")
 from manga_ocr_dev.env import FONTS_ROOT, DATA_SYNTHETIC_ROOT
 from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
 from manga_ocr_dev.synthetic_data_generator.renderer import Renderer
@@ -31,7 +28,7 @@ def f(args, generator):
 
     except Exception:
         print(traceback.format_exc())
-        return None, None, None, None, None
+        raise
 
 
 def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
