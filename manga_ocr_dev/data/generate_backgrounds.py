@@ -10,6 +10,24 @@ from manga_ocr_dev.env import MANGA109_ROOT, BACKGROUND_DIR
 
 
 def find_rectangle(mask, y, x, aspect_ratio_range=(0.33, 3.0)):
+    """
+    Finds the largest rectangle of an unmasked area in a given mask.
+
+    The function starts from a given point (y, x) and expands outwards
+    until it hits a masked area or the edge of the mask. It also considers
+    the aspect ratio of the rectangle to ensure it's within a given range.
+
+    Args:
+        mask (np.ndarray): A boolean 2D numpy array. True values represent masked areas.
+        y (int): The starting y-coordinate.
+        x (int): The starting x-coordinate.
+        aspect_ratio_range (tuple, optional): A tuple containing the minimum and
+            maximum aspect ratio (width/height) of the rectangle.
+            Defaults to (0.33, 3.0).
+
+    Returns:
+        tuple: A tuple containing the coordinates of the rectangle (ymin, ymax, xmin, xmax).
+    """
     ymin_ = ymax_ = y
     xmin_ = xmax_ = x
 
@@ -48,6 +66,20 @@ def find_rectangle(mask, y, x, aspect_ratio_range=(0.33, 3.0)):
 
 
 def generate_backgrounds(crops_per_page=5, min_size=40):
+    """
+    Generates background images by cropping unmasked regions from manga pages.
+
+    This function reads manga page data and corresponding frame data, identifies
+    unmasked regions (areas that are not part of text boxes or frames), and
+    randomly crops rectangular sections from these regions. The cropped images
+    are then saved as background images.
+
+    Args:
+        crops_per_page (int, optional): The number of random crops to generate
+            from each page. Defaults to 5.
+        min_size (int, optional): The minimum size (both width and height)
+            for a cropped image to be saved. Defaults to 40.
+    """
     data = pd.read_csv(MANGA109_ROOT / "data.csv")
     frames_df = pd.read_csv(MANGA109_ROOT / "frames.csv")
 
