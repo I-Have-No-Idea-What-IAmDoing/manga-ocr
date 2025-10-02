@@ -8,6 +8,13 @@ TEST_DATA_ROOT = Path(__file__).parent / "data"
 
 
 def test_ocr():
+    """
+    Tests the MangaOcr model by comparing its output against a set of expected results.
+
+    This test loads the pre-generated expected results from a JSON file, runs the
+    OCR model on the corresponding test images, and asserts that the output
+    matches the expected text.
+    """
     mocr = MangaOcr()
 
     expected_results = json.loads((TEST_DATA_ROOT / "expected_results.json").read_text(encoding="utf-8"))
@@ -19,7 +26,11 @@ def test_ocr():
 
 def test_post_process():
     """
-    Test the post_process function.
+    Tests the text post-processing function.
+
+    This test verifies that the `post_process` function correctly handles
+    specific text replacements, such as converting standard ellipsis and dots
+    to full-width Japanese characters.
     """
     assert post_process("…") == "．．．"
     assert post_process("・・") == "．．"
