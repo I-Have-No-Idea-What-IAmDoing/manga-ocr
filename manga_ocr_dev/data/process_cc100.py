@@ -1,27 +1,27 @@
 import pandas as pd
 from tqdm import tqdm
-import sys
-sys.path.append("J:/Applications/manga-ocr/")
 
 from manga_ocr_dev.env import DATA_SYNTHETIC_ROOT, ASSETS_PATH
 
 
 def export_lines(num_lines_in_each_package=10000, num_packages=100):
-    """Processes and packages lines from the CC-100 Japanese text file.
+    """Processes and packages lines from the CC-100 Japanese text corpus.
 
-    This function reads a large Japanese text file (`ja.txt`) from the CC-100
-    dataset, processes each line, and exports them into smaller CSV packages.
-    Lines with two or fewer characters are skipped.
+    This function reads the `ja.txt` file from the CC-100 dataset, which
+    contains a large collection of Japanese text. It processes each line,
+    skips lines that are too short (two or fewer characters), and then
+    packages them into smaller, more manageable CSV files.
 
-    Each exported CSV file contains a specified number of lines and is saved to
-    the `ASSETS_PATH/lines` directory. The CSVs have 'source', 'id', and
-    'line' columns.
+    Each exported CSV file is saved to the `ASSETS_PATH/lines` directory and
+    contains 'source', 'id', and 'line' columns, which are used for training
+    the OCR model.
 
     Args:
         num_lines_in_each_package (int, optional): The maximum number of lines
-            to store in each CSV package. Defaults to 10000.
-        num_packages (int, optional): The total number of packages (CSV files)
-            to create. Defaults to 100.
+            of text to include in each CSV package. Defaults to 10000.
+        num_packages (int, optional): The total number of packages to create.
+            The function will stop after creating this many packages, even if
+            there is more text in the source file. Defaults to 100.
     """
     cc100_text_file = DATA_SYNTHETIC_ROOT / "ja.txt"
 

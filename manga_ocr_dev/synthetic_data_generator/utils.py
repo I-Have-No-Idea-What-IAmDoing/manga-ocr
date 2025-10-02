@@ -9,7 +9,8 @@ def get_background_df(background_dir):
 
     This function iterates through a directory of background images, parses
     the dimensions from their filenames, and compiles the information into a
-    pandas DataFrame.
+    pandas DataFrame. The resulting DataFrame is used by the data generator
+    to select appropriate backgrounds for rendering text.
 
     The filenames are expected to be in a specific format where the last four
     parts of the filename (split by '_') are ymin, ymax, xmin, and xmax.
@@ -43,13 +44,14 @@ def get_background_df(background_dir):
 
 
 def is_kanji(ch):
-    """Checks if a character is a kanji.
+    """Checks if a character is a Japanese kanji character.
 
-    This function determines if a given character is a CJK Unified Ideograph
-    by checking its Unicode name.
+    This function determines if a given character is a CJK Unified Ideograph,
+    which is the block that contains kanji characters, by checking its
+    Unicode name. It handles non-string inputs gracefully.
 
     Args:
-        ch (str): The character to check.
+        ch (str): The character to check. Must be a single character string.
 
     Returns:
         bool: True if the character is a kanji, False otherwise.
@@ -62,13 +64,13 @@ def is_kanji(ch):
         return False
 
 def is_hiragana(ch):
-    """Checks if a character is a hiragana.
+    """Checks if a character is a Japanese hiragana character.
 
-    This function determines if a given character is a hiragana character
-    by checking its Unicode name.
+    This function determines if a given character is a hiragana character by
+    checking its Unicode name. It handles non-string inputs gracefully.
 
     Args:
-        ch (str): The character to check.
+        ch (str): The character to check. Must be a single character string.
 
     Returns:
         bool: True if the character is a hiragana, False otherwise.
@@ -82,13 +84,13 @@ def is_hiragana(ch):
 
 
 def is_katakana(ch):
-    """Checks if a character is a katakana.
+    """Checks if a character is a Japanese katakana character.
 
-    This function determines if a given character is a katakana character
-    by checking its Unicode name.
+    This function determines if a given character is a katakana character by
+    checking its Unicode name. It handles non-string inputs gracefully.
 
     Args:
-        ch (str): The character to check.
+        ch (str): The character to check. Must be a single character string.
 
     Returns:
         bool: True if the character is a katakana, False otherwise.
@@ -104,10 +106,11 @@ def is_ascii(ch):
     """Checks if a character is an ASCII character.
 
     This function determines if a given character is within the ASCII range
-    (0-127) by checking its ordinal value.
+    (0-127) by checking its ordinal value. It handles non-string inputs
+    gracefully.
 
     Args:
-        ch (str): The character to check.
+        ch (str): The character to check. Must be a single character string.
 
     Returns:
         bool: True if the character is an ASCII character, False otherwise.
@@ -120,21 +123,24 @@ def is_ascii(ch):
         return False
 
 def get_charsets(vocab_path=None):
-    """Loads character sets from a vocabulary file.
+    """Loads and categorizes character sets from a vocabulary file.
 
-    This function reads a vocabulary from a CSV file and separates it into
-    hiragana, katakana, and the full vocabulary.
+    This function reads a vocabulary from a specified CSV file and separates
+    the characters into different sets: the full vocabulary, hiragana, and
+    katakana. These sets are used for various purposes in the data generation
+    pipeline, such as generating random text.
 
     Args:
         vocab_path (str or Path, optional): The path to the vocabulary CSV
-            file. If not provided, it defaults to the path specified in
+            file. If not provided, it defaults to the `vocab.csv` file in the
             `ASSETS_PATH`.
 
     Returns:
-        tuple: A tuple containing:
-            - np.ndarray: The full vocabulary.
-            - np.ndarray: The hiragana character set.
-            - np.ndarray: The katakana character set.
+        tuple[np.ndarray, np.ndarray, np.ndarray]: A tuple containing three
+        NumPy arrays:
+            - The full vocabulary of characters.
+            - The subset of hiragana characters.
+            - The subset of katakana characters.
     """
     if vocab_path is None:
         vocab_path = ASSETS_PATH / "vocab.csv"
@@ -145,17 +151,19 @@ def get_charsets(vocab_path=None):
 
 
 def get_font_meta():
-    """Loads font metadata from the fonts CSV file.
+    """Loads font metadata and creates a character support map.
 
-    This function reads 'fonts.csv' from the `ASSETS_PATH`, constructs the
-    full paths to the font files, and creates a mapping from font paths to
-    the set of characters they support.
+    This function reads the `fonts.csv` file from the `ASSETS_PATH`, which
+    contains metadata about the fonts used for synthetic data generation. It
+    constructs the full paths to the font files and creates a mapping from
+    each font path to the set of characters it supports.
 
     Returns:
-        tuple: A tuple containing:
-            - pd.DataFrame: A DataFrame with font metadata.
-            - dict: A dictionary mapping font paths to sets of supported
-              characters.
+        tuple[pd.DataFrame, dict[str, set]]: A tuple containing:
+            - A pandas DataFrame with the font metadata, including paths and
+              character counts.
+            - A dictionary mapping each font path to a set of characters
+              supported by that font.
     """
     df = pd.read_csv(ASSETS_PATH / "fonts.csv")
     df.font_path = df.font_path.apply(lambda x: str(FONTS_ROOT / x))

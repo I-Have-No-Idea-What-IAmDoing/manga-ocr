@@ -66,6 +66,8 @@ class MangaDataset(Dataset):
         self.transform_medium, self.transform_heavy = self.get_transforms()
 
     def load_synthetic_data(self, packages=None, skip_packages=None):
+        """Loads synthetic data from specified packages."""
+        
         data = []
         if packages is not None:
             package_ids = {f"{x:04d}" for x in packages}
@@ -94,6 +96,8 @@ class MangaDataset(Dataset):
         return pd.concat(data, ignore_index=True)
 
     def load_manga109_data(self, split):
+        """Loads Manga109 data from a specific split."""
+        
         df = pd.read_csv(MANGA109_ROOT / "data.csv")
         df = df[df.split == split].reset_index(drop=True)
         df["path"] = df.crop_path.apply(lambda x: str(MANGA109_ROOT / x))

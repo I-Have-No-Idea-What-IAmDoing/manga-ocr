@@ -134,9 +134,16 @@ For any inquiries, please feel free to contact me at kha-white@mail.com
 
 # Development
 
-This section provides instructions for setting up a development environment, running tests, and contributing to the project.
+This section provides a guide for developers who want to contribute to Manga OCR. It covers setting up the environment, running tests, and understanding the project structure.
 
-## Setup
+## Getting Started
+
+### Prerequisites
+
+-   Python 3.8+
+-   A virtual environment manager (e.g., `venv`, `conda`) is recommended.
+
+### Setup
 
 1.  **Clone the repository:**
     ```bash
@@ -144,37 +151,49 @@ This section provides instructions for setting up a development environment, run
     cd manga-ocr
     ```
 
-2.  **Install Python:**
-    This project requires Python 3.8, 3.9, or 3.10. It is recommended to use a virtual environment.
+2.  **Create and activate a virtual environment:**
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
+    ```
 
 3.  **Install dependencies:**
-    Install the required packages, including the development dependencies, using pip:
+    The project uses `pip` for dependency management. To install all required packages, including development dependencies, run:
     ```bash
     pip install '.[dev]'
     ```
-    If you plan to use a GPU, make sure to install the appropriate version of PyTorch for your system by following the instructions on the [PyTorch website](https://pytorch.org/get-started/locally/).
+    If you have a GPU, ensure you install the correct version of PyTorch by following the instructions on the [official PyTorch website](https://pytorch.org/get-started/locally/).
 
 ## Running Tests
 
-To run the test suite, use `pytest`:
+The project uses `pytest` for testing. To run the full test suite, execute:
 ```bash
 pytest
 ```
 
-To run tests with coverage, use `pytest-cov`:
+To check test coverage, you can use the `pytest-cov` plugin:
 ```bash
 pytest --cov=manga_ocr
 ```
 
 ## Project Structure
 
--   `manga_ocr/`: The main source code for the Manga OCR library.
--   `manga_ocr_dev/`: Contains scripts and resources for development, including:
-    -   `synthetic_data_generator/`: Scripts for generating synthetic training data.
+The repository is organized into several key directories:
+
+-   `manga_ocr/`: The main source code for the Manga OCR library, containing the core OCR functionality and the command-line interface.
+-   `manga_ocr_dev/`: Contains all scripts and resources for the development and training of the OCR model.
+    -   `data/`: Scripts for processing datasets like Manga109-s and CC-100.
+    -   `synthetic_data_generator/`: The pipeline for generating synthetic training data.
     -   `training/`: Scripts for training the OCR model.
 -   `tests/`: Unit tests for the project.
--   `assets/`: Contains example images and other assets.
--   `fonts/`: Contains fonts used for synthetic data generation.
+-   `assets/`: Example images, fonts metadata, and other assets required for data generation and testing.
+-   `fonts/`: A collection of fonts used by the synthetic data generator.
+
+For a more detailed overview of the development environment, please refer to the `manga_ocr_dev/README.md` file.
+
+## Contributing
+
+Contributions are welcome! If you have a suggestion or a bug fix, please open an issue or a pull request.
 
 # Acknowledgments
 

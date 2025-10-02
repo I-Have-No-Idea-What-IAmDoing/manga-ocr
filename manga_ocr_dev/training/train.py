@@ -11,7 +11,13 @@ from manga_ocr_dev.training.metrics import Metrics
 
 
 class TrainingPipeline:
+    """Orchestrates the training process for the Manga OCR model."""
     def __init__(self, config_path: str):
+        """Initializes the training pipeline with a configuration file.
+
+        Args:
+            config_path (str): The path to the YAML configuration file.
+        """
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
 
@@ -20,7 +26,12 @@ class TrainingPipeline:
         self.training_config = self.config['training']
 
     def run(self):
-        """Main training script for the Manga OCR model."""
+        """Main training script for the Manga OCR model.
+
+        This script sets up the model, datasets, and training arguments based
+        on the loaded configuration, then initiates the training process using
+        the `Seq2SeqTrainer` from the Hugging Face Transformers library.
+        """
         wandb.init(project="manga-ocr", name=self.config['run_name'], config=self.config)
 
         model, processor = get_model(
@@ -64,6 +75,12 @@ class TrainingPipeline:
 
 
 def main(config_path: str = 'manga_ocr_dev/training/config.yaml'):
+    """Entry point for the training pipeline.
+
+    Args:
+        config_path (str, optional): Path to the training configuration file.
+            Defaults to 'manga_ocr_dev/training/config.yaml'.
+    """
     pipeline = TrainingPipeline(config_path)
     pipeline.run()
 

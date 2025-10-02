@@ -4,30 +4,30 @@ import cv2
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-import sys
-sys.path.append("J:/Applications/manga-ocr/")
+
 from manga_ocr_dev.env import MANGA109_ROOT, BACKGROUND_DIR
 
 
 def find_rectangle(mask, y, x, aspect_ratio_range=(0.33, 3.0)):
-    """Finds the largest rectangle of an unmasked area in a given mask.
+    """Finds the largest possible rectangle in an unmasked area of a mask.
 
-    The function starts from a given point (y, x) and expands outwards
-    until it hits a masked area or the edge of the mask. It also considers
-    the aspect ratio of the rectangle to ensure it's within a given range.
+    Starting from a given seed point (y, x), this function expands a rectangle
+    outwards until it hits a masked area (where the mask value is True) or the
+    edge of the mask. The expansion stops if the aspect ratio of the rectangle
+    goes outside the specified range.
 
     Args:
-        mask (np.ndarray): A boolean 2D numpy array where True values represent
-            masked areas.
-        y (int): The starting y-coordinate.
-        x (int): The starting x-coordinate.
-        aspect_ratio_range (tuple, optional): A tuple containing the minimum and
-            maximum aspect ratio (width/height) of the rectangle.
-            Defaults to (0.33, 3.0).
+        mask (np.ndarray): A 2D boolean NumPy array where True values indicate
+            masked (forbidden) areas.
+        y (int): The starting y-coordinate for the expansion.
+        x (int): The starting x-coordinate for the expansion.
+        aspect_ratio_range (tuple, optional): A tuple `(min_ratio, max_ratio)`
+            specifying the acceptable range for the rectangle's aspect ratio
+            (width / height). Defaults to (0.33, 3.0).
 
     Returns:
-        tuple: A tuple containing the coordinates of the rectangle
-        (ymin, ymax, xmin, xmax).
+        tuple[int, int, int, int]: A tuple containing the coordinates of the
+        found rectangle in the format (ymin, ymax, xmin, xmax).
     """
     ymin_ = ymax_ = y
     xmin_ = xmax_ = x
@@ -67,21 +67,21 @@ def find_rectangle(mask, y, x, aspect_ratio_range=(0.33, 3.0)):
 
 
 def generate_backgrounds(crops_per_page=5, min_size=40):
-    """Generates background images by cropping unmasked regions from manga pages.
+    """Generates background images from manga pages for synthetic data.
 
-    This function reads manga page data and corresponding frame data, identifies
-    unmasked regions (areas that are not part of text boxes or frames), and
-    randomly crops rectangular sections from these regions. The cropped images
-    are then saved as background images.
+    This function processes the Manga109 dataset to extract background images
+    that can be used for generating synthetic training data. It works by
+    identifying regions on manga pages that do not contain text or comic
+    frames, and then randomly cropping these regions.
 
-    The generated backgrounds are saved in the `BACKGROUND_DIR` specified in the
-    `env.py` file.
+    The generated background images are saved to the `BACKGROUND_DIR` defined
+    in the project's environment settings.
 
     Args:
-        crops_per_page (int, optional): The number of random crops to generate
-            from each page. Defaults to 5.
-        min_size (int, optional): The minimum size (both width and height)
-            for a cropped image to be saved. Defaults to 40.
+        crops_per_page (int, optional): The number of random background crops
+            to generate from each manga page. Defaults to 5.
+        min_size (int, optional): The minimum size (both width and height) for
+            a cropped image to be considered valid and saved. Defaults to 40.
     """
     data = pd.read_csv(MANGA109_ROOT / "data.csv")
     frames_df = pd.read_csv(MANGA109_ROOT / "frames.csv")
