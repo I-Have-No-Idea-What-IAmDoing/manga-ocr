@@ -321,7 +321,7 @@ def crop_by_alpha(img, margin):
     if ymin >= ymax or xmin >= xmax:
         return np.zeros((margin * 2, margin * 2, 4), dtype=img.dtype)
 
-    img = img[ymin:ymax, xmin:xmax]
+    img = img[ymin : ymax + 1, xmin : xmax + 1]
     img = np.pad(img, ((margin, margin), (margin, margin), (0, 0)))
     return img
 

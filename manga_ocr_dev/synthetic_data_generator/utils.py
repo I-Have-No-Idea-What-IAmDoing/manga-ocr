@@ -139,8 +139,8 @@ def get_charsets(vocab_path=None):
     if vocab_path is None:
         vocab_path = ASSETS_PATH / "vocab.csv"
     vocab = pd.read_csv(vocab_path).char.values
-    hiragana = vocab[[is_hiragana(c) for c in vocab]][:-6]
-    katakana = vocab[[is_katakana(c) for c in vocab]][3:]
+    hiragana = vocab[[is_hiragana(c) for c in vocab]]
+    katakana = vocab[[is_katakana(c) for c in vocab]]
     return vocab, hiragana, katakana
 
 
