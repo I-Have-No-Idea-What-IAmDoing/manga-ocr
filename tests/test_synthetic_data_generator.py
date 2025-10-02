@@ -1,23 +1,50 @@
 import os
 import numpy as np
+from unittest.mock import patch
+import pandas as pd
+import cv2
 from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
 from manga_ocr_dev.synthetic_data_generator.renderer import Renderer
+from fontTools.ttLib import TTFont
+
 from manga_ocr_dev.env import FONTS_ROOT
-from manga_ocr_dev.synthetic_data_generator.utils import get_font_meta
 
 
-def test_synthetic_data_generator():
+@patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.get_font_meta')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.renderer.get_background_df')
+def test_synthetic_data_generator(mock_get_background_df, mock_get_charsets, mock_read_csv, mock_get_font_meta, mock_imread):
     """
     Tests that the synthetic data generator can successfully produce an image-text pair
     and correctly filters characters not present in the font.
     """
-    browser_executable = os.environ.get('CHROME_EXECUTABLE_PATH', '/home/jules/.cache/ms-playwright/chromium-1181/chrome-linux/chrome')
+    mock_get_background_df.return_value = pd.DataFrame([{'path': 'dummy.jpg', 'h': 100, 'w': 100, 'ratio': 1.0}])
+    mock_get_charsets.return_value = (np.array(['t', 'e', 's', ' ']), np.array([]), np.array([]))
+    mock_read_csv.return_value = pd.DataFrame({'p': [1.0], 'len': [1]})
+    mock_imread.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    browser_executable = os.environ.get('CHROME_EXECUTABLE_PATH',
+                                        '/home/jules/.cache/ms-playwright/chromium-1181/chrome-linux/chrome')
     os.environ['CHROME_EXECUTABLE_PATH'] = browser_executable
     font_path = str(FONTS_ROOT / 'NotoSansJP-Regular.ttf')
 
-    # Get the character set for the font
-    _, font_map = get_font_meta()
-    valid_chars = font_map.get(font_path, set())
+    # Get the character set for the font to use in the mock
+    font = TTFont(font_path)
+    valid_chars = set()
+    for cmap in font['cmap'].tables:
+        if cmap.isUnicode():
+            for code in cmap.cmap:
+                valid_chars.add(chr(code))
+
+    mock_fonts_df = pd.DataFrame([{
+        'font_path': font_path,
+        'label': 'regular',
+        'num_chars': len(valid_chars)
+    }])
+    mock_font_map = {font_path: valid_chars}
+    mock_get_font_meta.return_value = (mock_fonts_df, mock_font_map)
 
     input_text = 'test text'
     # The generator will filter out any characters from the input text that are not

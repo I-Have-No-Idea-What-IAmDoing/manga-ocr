@@ -58,10 +58,10 @@ class MangaOcr:
         else:
             logger.info("Using CPU")
 
-        example_path = Path(__file__).parent.parent / "assets/example.jpg"
-        if not example_path.is_file():
-            raise FileNotFoundError(f"Missing example image {example_path}")
-        self(example_path)
+        # warm up
+        logger.info("Warming up MangaOcr model...")
+        self(Image.new("RGB", (100, 100), "white"))
+        logger.info("MangaOcr model warmed up")
 
         logger.info("OCR ready")
 

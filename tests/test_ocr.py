@@ -48,15 +48,6 @@ def test_post_process():
     assert post_process("a.・b") == "ａ．．ｂ"
 
 
-@patch("pathlib.Path.is_file", return_value=False)
-def test_manga_ocr_missing_example_image(mock_is_file):
-    """
-    Tests that MangaOcr raises FileNotFoundError if the example image is missing.
-    """
-    with pytest.raises(FileNotFoundError, match="Missing example image"):
-        MangaOcr()
-
-
 @patch("torch.cuda.is_available", return_value=True)
 @patch("torch.backends.mps.is_available", return_value=False)
 @patch("manga_ocr.ocr.MangaOcrModel.cuda")
