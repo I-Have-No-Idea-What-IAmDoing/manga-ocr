@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from manga_ocr import MangaOcr
 from manga_ocr.ocr import post_process
 
@@ -24,6 +26,15 @@ def test_ocr():
         assert result == item["result"]
 
 
+def test_ocr_invalid_input():
+    """
+    Tests that MangaOcr raises ValueError for invalid input types.
+    """
+    mocr = MangaOcr()
+    with pytest.raises(ValueError, match="img_or_path must be a path or PIL.Image"):
+        mocr(123)
+
+
 def test_post_process():
     """
     Tests the text post-processing function.
@@ -34,3 +45,10 @@ def test_post_process():
     """
     assert post_process("…") == "．．．"
     assert post_process("・・") == "．．"
+    assert post_process("a b c") == "ａｂｃ"
+    assert post_process("a　b　c") == "ａｂｃ"
+    assert post_process("a.b") == "ａ．ｂ"
+    assert post_process("a..b") == "ａ．．ｂ"
+    assert post_process("a・b") == "ａ・ｂ"
+    assert post_process("a・・b") == "ａ．．ｂ"
+    assert post_process("a.・b") == "ａ．．ｂ"
