@@ -1,0 +1,39 @@
+run_name: "debug"
+model:
+  encoder_name: "apple/MobileCLIP2-S2"
+  decoder_name: "jhu-clsp/mmBERT-base"
+  max_len: 300
+  num_decoder_layers: 3
+dataset:
+  augment: true
+  train:
+    sources:
+      - type: synthetic
+        params:
+          skip_packages: [0]
+      - type: manga109
+        params:
+          split: "train"
+  eval:
+    sources:
+      - type: synthetic
+        params:
+          packages: [0]
+      - type: manga109
+        params:
+          split: "test"
+training:
+  batch_size: 64
+  num_epochs: 8
+  fp16: true
+  predict_with_generate: true
+  eval_strategy: "steps"
+  save_strategy: "steps"
+  dataloader_num_workers: 16
+  logging_steps: 10
+  report_to: "wandb"
+  save_steps: 20000
+  eval_steps: 20000
+  load_best_model_at_end: true
+  save_total_limit: 3
+  include_inputs_for_metrics: true

@@ -21,11 +21,11 @@ class SyntheticDataGenerator:
     and effects like furigana to mimic the appearance of text in manga.
 
     Attributes:
-        vocab (np.ndarray): The set of all characters supported by the
+        vocab (set[str]): The set of all characters supported by the
             generator.
-        hiragana (np.ndarray): A subset of `vocab` containing only hiragana
+        hiragana (set[str]): A subset of `vocab` containing only hiragana
             characters.
-        katakana (np.ndarray): A subset of `vocab` containing only katakana
+        katakana (set[str]): A subset of `vocab` containing only katakana
             characters.
         len_to_p (pd.DataFrame): A DataFrame defining the probability
             distribution of text lengths, used for generating random text.
@@ -42,6 +42,7 @@ class SyntheticDataGenerator:
         renderer (Renderer): The renderer instance used to create images from
             text.
     """
+
     def __init__(self, renderer=None):
         """Initializes the SyntheticDataGenerator.
 

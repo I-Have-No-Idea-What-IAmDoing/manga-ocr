@@ -28,39 +28,58 @@ class MangaDataset(Dataset):
     def __init__(
         self,
         processor,
-        split,
+        sources,
         max_target_length,
         limit_size=None,
         augment=False,
-        skip_packages=None,
     ):
         """Initializes the MangaDataset.
 
         Args:
             processor: The processor for feature extraction and tokenization.
-            split (str): The dataset split to use, typically 'train' or 'test'.
+            sources (list): A list of data source configurations.
             max_target_length (int): The maximum length for tokenized text
                 sequences.
             limit_size (int | None, optional): If specified, limits the dataset
                 to this number of samples. Defaults to None.
             augment (bool, optional): Whether to apply data augmentation.
                 Defaults to False.
-            skip_packages (set[int] | None, optional): A set of package numbers
-                to skip when loading synthetic data. Defaults to None.
         """
         self.processor = processor
         self.max_target_length = max_target_length
 
         data = []
+        for source in sources:
+            if source['type'] == 'synthetic':
+                data.append(self.load_synthetic_data(**source.get('params', {})))
+            elif source['type'] == 'manga109':
+                data.append(self.load_manga109_data(**source.get('params', {})))
 
-        print(f"Initializing dataset {split}...")
+        self.data = pd.concat(data, ignore_index=True)
+
+        if limit_size:
+            self.data = self.data.iloc[:limit_size]
+
+        print(f"Initialized dataset with {len(self.data)} samples.")
+
+        self.augment = augment
+        self.transform_medium, self.transform_heavy = self.get_transforms()
+
+    def load_synthetic_data(self, packages=None, skip_packages=None):
+        """Loads synthetic data from specified packages."""
+        data = []
+        if packages is not None:
+            package_ids = {f"{x:04d}" for x in packages}
+            glob_pattern = [DATA_SYNTHETIC_ROOT / "meta" / f"{pid}.csv" for pid in package_ids]
+        else:
+            glob_pattern = sorted((DATA_SYNTHETIC_ROOT / "meta").glob("*.csv"))
 
         if skip_packages is None:
             skip_packages = set()
         else:
             skip_packages = {f"{x:04d}" for x in skip_packages}
 
-        for path in sorted((DATA_SYNTHETIC_ROOT / "meta").glob("*.csv")):
+        for path in glob_pattern:
             if path.stem in skip_packages:
                 print(f"Skipping package {path}")
                 continue
@@ -73,24 +92,16 @@ class MangaDataset(Dataset):
             df = df[["path", "text"]]
             df["synthetic"] = True
             data.append(df)
+        return pd.concat(data, ignore_index=True)
 
+    def load_manga109_data(self, split):
+        """Loads Manga109 data from a specific split."""
         df = pd.read_csv(MANGA109_ROOT / "data.csv")
         df = df[df.split == split].reset_index(drop=True)
         df["path"] = df.crop_path.apply(lambda x: str(MANGA109_ROOT / x))
         df = df[["path", "text"]]
         df["synthetic"] = False
-        data.append(df)
-
-        data = pd.concat(data, ignore_index=True)
-
-        if limit_size:
-            data = data.iloc[:limit_size]
-        self.data = data
-
-        print(f"Dataset {split}: {len(self.data)}")
-
-        self.augment = augment
-        self.transform_medium, self.transform_heavy = self.get_transforms()
+        return df
 
     def __len__(self):
         """Returns the total number of samples in the dataset."""
@@ -232,7 +243,11 @@ if __name__ == "__main__":
     max_length = 300
 
     processor = get_processor(encoder_name, decoder_name)
-    ds = MangaDataset(processor, "train", max_length, augment=True)
+    train_sources = [
+        {'type': 'synthetic', 'params': {'skip_packages': [0]}},
+        {'type': 'manga109', 'params': {'split': 'train'}}
+    ]
+    ds = MangaDataset(processor, train_sources, max_length, augment=True)
 
     for i in range(20):
         sample = ds[0]
