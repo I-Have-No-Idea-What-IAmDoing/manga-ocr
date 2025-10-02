@@ -13,7 +13,28 @@ from manga_ocr_dev.synthetic_data_generator.utils import get_background_df
 
 
 class Renderer:
+    """Renders text into images with various styles, backgrounds, and effects.
+
+    This class uses `html2image` to render HTML and CSS styled text into
+    images. It can add random backgrounds, text bubbles, and other visual
+    effects to create synthetic data for OCR.
+
+    Attributes:
+        hti (Html2Image): An instance of Html2Image for rendering HTML.
+        lock (threading.Lock): A lock to ensure thread-safe rendering.
+        background_df (pd.DataFrame): A DataFrame of available background images.
+        max_size (int): The maximum size of the longest side of the output image.
+    """
     def __init__(self, cdp_port=9222, browser_executable=None):
+        """Initializes the Renderer.
+
+        Args:
+            cdp_port (int, optional): The port for the Chrome DevTools Protocol.
+                Defaults to 9222.
+            browser_executable (str, optional): The path to the browser
+                executable. If not provided, `html2image` will try to find a
+                default installation. Defaults to None.
+        """
         self.hti = Html2Image(
             browser='chrome-cdp',
             browser_cdp_port=cdp_port,
@@ -27,13 +48,34 @@ class Renderer:
         self.max_size = 600
 
     def __enter__(self):
+        """Starts the context manager for the Html2Image instance."""
         self.hti.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exits the context manager for the Html2Image instance."""
         self.hti.__exit__(exc_type, exc_val, exc_tb)
 
     def render(self, lines, override_css_params=None):
+        """Renders the given lines of text into a styled image.
+
+        This is the main rendering method. It coordinates the process of
+        rendering text with CSS, adding a background, and applying final
+        transformations.
+
+        Args:
+            lines (list): A list of strings, where each string is a line of
+                text to be rendered.
+            override_css_params (dict, optional): A dictionary of CSS
+                parameters to override the default rendering styles.
+                Defaults to None.
+
+        Returns:
+            tuple: A tuple containing:
+                - np.ndarray: The final rendered image as a grayscale NumPy
+                  array.
+                - dict: A dictionary of the CSS parameters used for rendering.
+        """
         with self.lock:
             img, params = self.render_text(lines, override_css_params)
         img = self.render_background(img)
@@ -42,7 +84,22 @@ class Renderer:
         return img, params
 
     def render_text(self, lines, override_css_params=None):
-        """Render text on transparent background and return as BGRA image."""
+        """Renders text on a transparent background.
+
+        This method takes lines of text, generates random CSS styles (with
+        optional overrides), and uses `html2image` to render the text as a
+        BGRA image with a transparent background.
+
+        Args:
+            lines (list): A list of strings to be rendered.
+            override_css_params (dict, optional): A dictionary of CSS
+                parameters to override the default styles. Defaults to None.
+
+        Returns:
+            tuple: A tuple containing:
+                - np.ndarray: The rendered text as a BGRA image.
+                - dict: The CSS parameters used for rendering.
+        """
 
         params = self.get_random_css_params()
         if override_css_params:
@@ -83,6 +140,15 @@ class Renderer:
 
     @staticmethod
     def get_random_css_params():
+        """Generates a dictionary of random CSS parameters for text rendering.
+
+        This method creates a set of randomized CSS properties, such as font
+        size, orientation, and text effects (stroke or shadow), to be used
+        for rendering text.
+
+        Returns:
+            dict: A dictionary of CSS parameters.
+        """
         params = {
             "font_size": 48,
             "vertical": True if np.random.rand() < 0.7 else False,
@@ -107,7 +173,19 @@ class Renderer:
         return params
 
     def render_background(self, img):
-        """Add background and/or text bubble to a BGRA image, crop and return as BGR image."""
+        """Adds a background and/or text bubble to an image.
+
+        This method takes a BGRA image with a transparent background, adds a
+        randomly selected background image, and optionally draws a text bubble
+        around the text. The image is then cropped and returned as a BGR image.
+
+        Args:
+            img (np.ndarray): The input BGRA image with text on a transparent
+                background.
+
+        Returns:
+            np.ndarray: The final BGR image with the background and other effects.
+        """
         draw_bubble = np.random.random() < 0.7
 
         m0 = int(min(img.shape[:2]) * 0.3)
@@ -179,17 +257,57 @@ class Renderer:
         return img
 
     def lines_to_html(self, lines):
+        """Converts a list of text lines into an HTML string.
+
+        Each line is wrapped in a `<p>` tag.
+
+        Args:
+            lines (list): A list of strings.
+
+        Returns:
+            str: The generated HTML string.
+        """
         lines_str = "\n".join(["<p>" + line + "</p>" for line in lines])
         html = f"<html><body>\n{lines_str}\n</body></html>"
         return html
 
 def min_or_zero(array):
+    """Returns the minimum value of an array, or 0 if the array is empty.
+
+    Args:
+        array (np.ndarray): The input array.
+
+    Returns:
+        int or float: The minimum value or 0.
+    """
     return np.min(array) if array.size > 0 else 0
 
 def max_or_zero(array, default=0):
+    """Returns the maximum value of an array, or a default value if empty.
+
+    Args:
+        array (np.ndarray): The input array.
+        default (int or float, optional): The default value to return if the
+            array is empty. Defaults to 0.
+
+    Returns:
+        int or float: The maximum value or the default value.
+    """
     return np.max(array) if array.size > 0 else default
 
 def crop_by_alpha(img, margin):
+    """Crops an image based on its alpha channel.
+
+    This function finds the bounding box of the non-transparent pixels in an
+    image and crops the image to that box, with an added margin.
+
+    Args:
+        img (np.ndarray): The input BGRA image.
+        margin (int): The margin to add around the cropped area.
+
+    Returns:
+        np.ndarray: The cropped image.
+    """
     y, x = np.where(img[:, :, 3] > 0)
     ymin = min_or_zero(y)
     ymax = max_or_zero(y, default=img.shape[0])
@@ -205,6 +323,15 @@ def crop_by_alpha(img, margin):
 
 
 def blend(img, background):
+    """Blends a foreground image onto a background image using alpha blending.
+
+    Args:
+        img (np.ndarray): The foreground BGRA image.
+        background (np.ndarray): The background BGR image.
+
+    Returns:
+        np.ndarray: The blended BGR image.
+    """
     alpha = (img[:, :, 3] / 255)[:, :, np.newaxis]
     img = img[:, :, :3]
     img = (background * (1 - alpha) + img * alpha).astype(np.uint8)
@@ -212,7 +339,26 @@ def blend(img, background):
 
 
 def rounded_rectangle(src, top_left, bottom_right, radius=1, color=255, thickness=1, line_type=cv2.LINE_AA):
-    """From https://stackoverflow.com/a/60210706"""
+    """Draws a rounded rectangle on an image.
+
+    This function is based on a solution from Stack Overflow.
+
+    Args:
+        src (np.ndarray): The source image.
+        top_left (tuple): The top-left corner of the rectangle.
+        bottom_right (tuple): The bottom-right corner of the rectangle.
+        radius (float, optional): The radius of the corners as a fraction of
+            the smaller side of the rectangle. Defaults to 1.
+        color (tuple or int, optional): The color of the rectangle.
+            Defaults to 255.
+        thickness (int, optional): The thickness of the rectangle's outline.
+            A negative value fills the rectangle. Defaults to 1.
+        line_type (int, optional): The line type for drawing.
+            Defaults to cv2.LINE_AA.
+
+    Returns:
+        np.ndarray: The image with the rounded rectangle drawn on it.
+    """
 
     #  corners:
     #  p1 - p2
@@ -348,6 +494,37 @@ def get_css(
     line_height=0.5,
     text_orientation=None,
 ):
+    """Generates a CSS string for styling the rendered text.
+
+    This function constructs a CSS string based on the provided parameters,
+    including font properties, text orientation, colors, and effects like
+    shadows and strokes.
+
+    Args:
+        font_size (int): The font size in pixels.
+        font_path (str): The path to the font file.
+        vertical (bool, optional): Whether to use vertical writing mode.
+            Defaults to True.
+        background_color (str, optional): The background color.
+            Defaults to "white".
+        text_color (str, optional): The text color. Defaults to "black".
+        shadow_size (int, optional): The size of the text shadow.
+            Defaults to 0.
+        shadow_color (str, optional): The color of the text shadow.
+            Defaults to "black".
+        stroke_size (int, optional): The size of the text stroke.
+            Defaults to 0.
+        stroke_color (str, optional): The color of the text stroke.
+            Defaults to "black".
+        letter_spacing (float, optional): The letter spacing in 'em' units.
+            Defaults to None.
+        line_height (float, optional): The line height. Defaults to 0.5.
+        text_orientation (str, optional): The text orientation (e.g.,
+            'upright'). Defaults to None.
+
+    Returns:
+        str: The generated CSS string.
+    """
     styles = [
         f"background-color: {background_color};",
         f"font-size: {font_size}px;",

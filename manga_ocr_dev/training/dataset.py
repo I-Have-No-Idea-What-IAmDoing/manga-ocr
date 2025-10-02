@@ -10,11 +10,20 @@ from manga_ocr_dev.env import MANGA109_ROOT, DATA_SYNTHETIC_ROOT
 
 
 class MangaDataset(Dataset):
-    """
-    A PyTorch Dataset for loading manga images and their corresponding text for OCR training.
+    """A PyTorch Dataset for loading manga images and text for OCR training.
 
-    This dataset combines synthetically generated text images with real manga crops
-    from the Manga109 dataset. It handles data loading, augmentation, and preprocessing.
+    This dataset combines synthetically generated text images with real manga
+    crops from the Manga109 dataset. It handles data loading, augmentation,
+    and preprocessing.
+
+    Attributes:
+        processor: The processor for feature extraction and tokenization.
+        max_target_length (int): The maximum length for tokenized text sequences.
+        data (pd.DataFrame): A DataFrame containing the file paths and text
+            for each sample.
+        augment (bool): Whether to apply data augmentation.
+        transform_medium (A.Compose): The medium-level augmentation pipeline.
+        transform_heavy (A.Compose): The heavy-level augmentation pipeline.
     """
     def __init__(
         self,
@@ -25,18 +34,19 @@ class MangaDataset(Dataset):
         augment=False,
         skip_packages=None,
     ):
-        """
-        Initializes the MangaDataset.
+        """Initializes the MangaDataset.
 
         Args:
             processor: The processor for feature extraction and tokenization.
             split (str): The dataset split to use, typically 'train' or 'test'.
-            max_target_length (int): The maximum length for tokenized text sequences.
-            limit_size (int, optional): If specified, limits the dataset to this number of samples.
-                Defaults to None.
-            augment (bool, optional): Whether to apply data augmentation. Defaults to False.
-            skip_packages (set, optional): A set of package numbers to skip when loading
-                synthetic data. Defaults to None.
+            max_target_length (int): The maximum length for tokenized text
+                sequences.
+            limit_size (int, optional): If specified, limits the dataset to
+                this number of samples. Defaults to None.
+            augment (bool, optional): Whether to apply data augmentation.
+                Defaults to False.
+            skip_packages (set, optional): A set of package numbers to skip
+                when loading synthetic data. Defaults to None.
         """
         self.processor = processor
         self.max_target_length = max_target_length
@@ -87,19 +97,18 @@ class MangaDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        """
-        Retrieves a sample from the dataset at the given index.
+        """Retrieves a sample from the dataset at the given index.
 
-        This method fetches an image and its corresponding text, applies augmentations
-        if enabled, and then preprocesses the image and tokenizes the text to prepare
-        it for the model.
+        This method fetches an image and its corresponding text, applies
+        augmentations if enabled, and then preprocesses the image and tokenizes
+        the text to prepare it for the model.
 
         Args:
             idx (int): The index of the sample to retrieve.
 
         Returns:
-            dict: A dictionary containing the preprocessed 'pixel_values' of the image
-                  and the 'labels' (tokenized text).
+            dict: A dictionary containing the preprocessed 'pixel_values' of
+            the image and the 'labels' (tokenized text).
         """
         sample = self.data.loc[idx]
         text = sample.text
@@ -138,15 +147,14 @@ class MangaDataset(Dataset):
 
     @staticmethod
     def read_image(processor, path, transform=None):
-        """
-        Reads an image from a given path, applies transformations, and extracts pixel values.
+        """Reads an image, applies transforms, and extracts pixel values.
 
         Args:
             processor: The processor for feature extraction.
             path (str or Path): The path to the image file.
-            transform (albumentations.Compose, optional): An Albumentations transform pipeline
-                to apply to the image. Defaults to None, in which case the image is only
-                converted to grayscale.
+            transform (A.Compose, optional): An Albumentations transform
+                pipeline to apply. If None, the image is only converted to
+                grayscale. Defaults to None.
 
         Returns:
             torch.Tensor: The preprocessed pixel values of the image.
@@ -163,12 +171,11 @@ class MangaDataset(Dataset):
 
     @staticmethod
     def get_transforms():
-        """
-        Defines and returns the medium and heavy augmentation pipelines.
+        """Defines and returns the medium and heavy augmentation pipelines.
 
         Returns:
             tuple: A tuple containing two Albumentations Compose objects:
-                   (transform_medium, transform_heavy).
+            (transform_medium, transform_heavy).
         """
         t_medium = A.Compose(
             [

@@ -4,17 +4,21 @@ from torchinfo import summary
 
 
 def encoder_summary(model, batch_size=4):
-    """
-    Generates and returns a summary of the model's encoder.
+    """Generates a summary of the model's encoder.
+
+    This function uses `torchinfo.summary` to create a textual summary of the
+    encoder part of a `VisionEncoderDecoderModel`. The summary includes
+    information about output size, number of parameters, and multiply-adds for
+    each layer.
 
     Args:
-        model: The VisionEncoderDecoderModel.
-        batch_size (int, optional): The batch size to use for the input size calculation.
-            Defaults to 4.
+        model (VisionEncoderDecoderModel): The model whose encoder will be
+            summarized.
+        batch_size (int, optional): The batch size to use for the input size
+            calculation in the summary. Defaults to 4.
 
     Returns:
-        str: A summary of the encoder's architecture, including output size,
-             number of parameters, and multiply-adds.
+        str: A string containing the summary of the encoder's architecture.
     """
     img_size = model.config.encoder.image_size
     return summary(
@@ -27,17 +31,20 @@ def encoder_summary(model, batch_size=4):
 
 
 def decoder_summary(model, batch_size=4):
-    """
-    Generates and returns a summary of the model's decoder.
+    """Generates a summary of the model's decoder.
+
+    This function uses `torchinfo.summary` to create a textual summary of the
+    decoder part of a `VisionEncoderDecoderModel`. It constructs dummy input
+    tensors with the correct shapes to probe the decoder's architecture.
 
     Args:
-        model: The VisionEncoderDecoderModel.
-        batch_size (int, optional): The batch size to use for creating dummy input data.
-            Defaults to 4.
+        model (VisionEncoderDecoderModel): The model whose decoder will be
+            summarized.
+        batch_size (int, optional): The batch size to use for creating the
+            dummy input data for the summary. Defaults to 4.
 
     Returns:
-        str: A summary of the decoder's architecture, including output size,
-             number of parameters, and multiply-adds.
+        str: A string containing the summary of the decoder's architecture.
     """
     img_size = model.config.encoder.image_size
     encoder_hidden_shape = (
@@ -61,18 +68,17 @@ def decoder_summary(model, batch_size=4):
 
 
 def tensor_to_image(img):
-    """
-    Converts a PyTorch tensor back to a displayable image format.
+    """Converts a PyTorch tensor back to a displayable image format.
 
-    The function denormalizes the tensor, clips the values to the valid
-    range [0, 255], converts it to an unsigned 8-bit integer format,
-    and transposes the axes to the standard image format (H, W, C).
+    This function takes a PyTorch image tensor (typically in C, H, W format and
+    normalized in the range [-1, 1]), denormalizes it to the [0, 255] range,
+    and converts it to a NumPy array in the standard image format (H, W, C).
 
     Args:
-        img (torch.Tensor): The input image tensor, expected to be in C, H, W format
-                           and normalized in the range [-1, 1].
+        img (torch.Tensor): The input image tensor.
 
     Returns:
-        np.ndarray: The converted image as a NumPy array.
+        np.ndarray: The converted image as a NumPy array, suitable for display
+        with libraries like Matplotlib or OpenCV.
     """
     return ((img.cpu().numpy() + 1) / 2 * 255).clip(0, 255).astype(np.uint8).transpose(1, 2, 0)
