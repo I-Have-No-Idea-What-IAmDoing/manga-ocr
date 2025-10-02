@@ -9,26 +9,40 @@ from transformers import ViTImageProcessor, AutoTokenizer, VisionEncoderDecoderM
 
 
 class MangaOcrModel(VisionEncoderDecoderModel, GenerationMixin):
-    """
-    A custom VisionEncoderDecoderModel that also inherits from GenerationMixin.
+    """Custom VisionEncoderDecoderModel for Manga OCR.
+
+    This class inherits from both `VisionEncoderDecoderModel` and `GenerationMixin`
+    to provide generation capabilities for the OCR model.
     """
     pass
 
+
 class MangaOcr:
-    """
-    A class for performing OCR on manga images.
+    """A class for performing OCR on manga images.
+
+    This class encapsulates the entire OCR pipeline, including model loading,
+    image preprocessing, text generation, and post-processing.
+
+    Attributes:
+        processor: The image processor for preparing images for the model.
+        tokenizer: The tokenizer for converting token IDs to text.
+        model: The underlying OCR model.
     """
     def __init__(self, pretrained_model_name_or_path="kha-white/manga-ocr-base", force_cpu=False):
-        """
-        Initializes the MangaOcr model.
+        """Initializes the MangaOcr model.
+
+        This involves loading the pre-trained model, processor, and tokenizer from
+        the specified path. It also performs a warm-up run to ensure the model
+        is ready for inference.
 
         Args:
-            pretrained_model_name_or_path (str, optional): The path to the pretrained model.
-                Defaults to "kha-white/manga-ocr-base".
-            force_cpu (bool, optional): Whether to force the use of CPU. Defaults to False.
+            pretrained_model_name_or_path (str, optional): The name or path of the
+                pretrained model to use. Defaults to "kha-white/manga-ocr-base".
+            force_cpu (bool, optional): If True, forces the model to run on the CPU,
+                even if a GPU is available. Defaults to False.
 
         Raises:
-            FileNotFoundError: If the example image is not found.
+            FileNotFoundError: If the example image for the warm-up run is not found.
         """
         logger.info(f"Loading OCR model from {pretrained_model_name_or_path}")
         self.processor = ViTImageProcessor.from_pretrained(pretrained_model_name_or_path)
@@ -52,17 +66,19 @@ class MangaOcr:
         logger.info("OCR ready")
 
     def __call__(self, img_or_path):
-        """
-        Performs OCR on the given image.
+        """Performs OCR on a given image.
+
+        The image can be provided as a file path or a PIL Image object.
 
         Args:
-            img_or_path (str or Path or Image.Image): The path to the image or the image itself.
+            img_or_path (str | Path | Image.Image): The path to the image file or
+                a PIL Image object.
 
         Returns:
-            str: The recognized text.
+            str: The recognized text from the image.
 
         Raises:
-            ValueError: If img_or_path is not a path or PIL.Image.
+            ValueError: If `img_or_path` is not a valid path or PIL Image.
         """
         if isinstance(img_or_path, str) or isinstance(img_or_path, Path):
             img = Image.open(img_or_path)
@@ -80,28 +96,32 @@ class MangaOcr:
         return x
 
     def _preprocess(self, img):
-        """
-        Preprocesses the image before feeding it to the model.
+        """Preprocesses an image before feeding it to the model.
 
         Args:
-            img (Image.Image): The image to preprocess.
+            img (Image.Image): The PIL Image to preprocess.
 
         Returns:
-            torch.Tensor: The preprocessed image.
+            torch.Tensor: The preprocessed image as a PyTorch tensor.
         """
         pixel_values = self.processor(img, return_tensors="pt").pixel_values
         return pixel_values.squeeze()
 
 
 def post_process(text):
-    """
-    Post-processes the recognized text.
+    """Post-processes the raw text output from the OCR model.
+
+    This function performs several cleaning and normalization steps:
+    - Removes all whitespace.
+    - Normalizes sequences of dots.
+    - Replaces the full-width ellipsis with three dots.
+    - Converts half-width characters to full-width.
 
     Args:
-        text (str): The text to post-process.
+        text (str): The raw text to post-process.
 
     Returns:
-        str: The post-processed text.
+        str: The cleaned and normalized text.
     """
     text = "".join(text.split())
     text = re.sub("[・.]{2,}", lambda x: (x.end() - x.start()) * ".", text)

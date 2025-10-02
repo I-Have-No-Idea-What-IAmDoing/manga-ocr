@@ -7,18 +7,19 @@ class Metrics:
 
     This class is responsible for calculating the Character Error Rate (CER)
     and accuracy of the model's predictions. It uses the `evaluate` library
-    for the CER computation.
+    for the CER computation and is designed to be used with the Hugging Face
+    `Trainer`.
 
     Attributes:
         cer_metric: An instance of the CER metric from the `evaluate` library.
-        processor: The processor used for tokenization and decoding, which is
-            essential for converting model outputs back to text.
+        processor: The processor used for decoding model outputs and labels
+            back to text.
     """
     def __init__(self, processor):
         """Initializes the Metrics class.
 
         Args:
-            processor: The processor used for tokenization and decoding.
+            processor: The processor containing the tokenizer for decoding.
         """
         self.cer_metric = evaluate.load("cer")
         self.processor = processor
@@ -28,14 +29,16 @@ class Metrics:
 
         This method takes the model's predictions and the ground truth labels,
         decodes them into strings, and then computes the Character Error Rate
-        and the exact match accuracy.
+        (CER) and the exact match accuracy.
 
         Args:
-            pred: A prediction object from the model, which contains `label_ids`
-                (the ground truth) and `predictions` (the model's output).
+            pred: A prediction object from the `Trainer`, which contains
+                `label_ids` (the ground truth) and `predictions` (the model's
+                output logits).
 
         Returns:
-            dict: A dictionary containing the computed 'cer' and 'accuracy'.
+            dict[str, float]: A dictionary containing the computed 'cer' and
+            'accuracy' scores.
         """
         label_ids = pred.label_ids
         pred_ids = pred.predictions
