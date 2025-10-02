@@ -1,5 +1,7 @@
 import numpy as np
 import evaluate
+import wandb
+from manga_ocr_dev.training.utils import tensor_to_image
 
 
 class Metrics:
@@ -15,6 +17,7 @@ class Metrics:
         processor: The processor used for decoding model outputs and labels
             back to text.
     """
+
     def __init__(self, processor):
         """Initializes the Metrics class.
 
@@ -42,23 +45,29 @@ class Metrics:
         """
         label_ids = pred.label_ids
         pred_ids = pred.predictions
-        print(label_ids.shape, pred_ids.shape)
+        pixel_values = pred.inputs
 
         pred_str = self.processor.tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
         label_ids[label_ids == -100] = self.processor.tokenizer.pad_token_id
         label_str = self.processor.tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
-        pred_str = np.array(["".join(text.split()) for text in pred_str])
-        label_str = np.array(["".join(text.split()) for text in label_str])
+        pred_str_norm = np.array(["".join(text.split()) for text in pred_str])
+        label_str_norm = np.array(["".join(text.split()) for text in label_str])
 
         results = {}
         try:
-            results["cer"] = self.cer_metric.compute(predictions=pred_str, references=label_str)
+            results["cer"] = self.cer_metric.compute(predictions=pred_str_norm, references=label_str_norm)
         except Exception as e:
             print(e)
-            print(pred_str)
-            print(label_str)
+            print(pred_str_norm)
+            print(label_str_norm)
             results["cer"] = 0
-        results["accuracy"] = (pred_str == label_str).mean()
+        results["accuracy"] = (pred_str_norm == label_str_norm).mean()
+
+        # Log images to wandb
+        if pixel_values is not None:
+            images = [tensor_to_image(pixel_values[i]) for i in range(len(pixel_values))]
+            captions = [f"Pred: {p}\nLabel: {l}" for p, l in zip(pred_str, label_str)]
+            wandb.log({"eval/samples": [wandb.Image(img, caption=cap) for img, cap in zip(images, captions)]})
 
         return results
