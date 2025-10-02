@@ -2,6 +2,7 @@ import os
 import uuid
 import threading
 import time
+from textwrap import dedent
 
 import albumentations as A
 import cv2
@@ -118,7 +119,22 @@ class Renderer:
         )
         if params["vertical"]:
             size = size[::-1]
-        html = self.lines_to_html(lines)
+
+        lines_str = "\n".join([f"<p>{line}</p>" for line in lines])
+        html = f"""\
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+                {css}
+          </style>
+        </head>
+        <body>
+            {lines_str}
+        </body>
+        </html>
+        """
+        html = dedent(html)
 
         # create a temporary file for the html content
         html_filename = str(uuid.uuid4()) + ".html"
@@ -259,21 +275,6 @@ class Renderer:
         xmax = img.shape[1] - m0 + int(min(img.shape[:2]) * np.random.uniform(0.01, 0.2))
         img = img[ymin:ymax, xmin:xmax]
         return img
-
-    def lines_to_html(self, lines):
-        """Converts a list of text lines into an HTML string.
-
-        Each line is wrapped in a `<p>` tag.
-
-        Args:
-            lines (list): A list of strings.
-
-        Returns:
-            str: The generated HTML string.
-        """
-        lines_str = "\n".join(["<p>" + line + "</p>" for line in lines])
-        html = f"<html><body>\n{lines_str}\n</body></html>"
-        return html
 
 def min_or_zero(array):
     """Returns the minimum value of an array, or 0 if the array is empty.
