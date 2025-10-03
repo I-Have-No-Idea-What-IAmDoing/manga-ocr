@@ -26,8 +26,8 @@ from manga_ocr_dev.training.metrics import Metrics
 
 
 def main(
-    config_path: Path = typer.Option(
-        ...,
+    config_path: Optional[Path] = typer.Option(
+        None,
         "--config-path",
         "-c",
         exists=True,
@@ -35,7 +35,7 @@ def main(
         dir_okay=False,
         readable=True,
         resolve_path=True,
-        help="Path to the training configuration file.",
+        help="Path to the training configuration file. If not provided, the default `config.yaml` will be used.",
     ),
     run_name: Optional[str] = typer.Option(
         None,
@@ -49,7 +49,7 @@ def main(
     """
     config = load_config(config_path)
 
-    wandb.init(project="manga-ocr", name=run_name, config=config.dict())
+    wandb.init(project="manga-ocr", name=run_name, config=config.model_dump())
     if run_name is None:
         run_name = wandb.run.name
 
@@ -73,7 +73,7 @@ def main(
     training_args = Seq2SeqTrainingArguments(
         output_dir=str(TRAIN_ROOT / run_name),
         run_name=run_name,
-        **config.training.dict(by_alias=True),
+        **config.training.model_dump(by_alias=True),
     )
 
     trainer = Seq2SeqTrainer(

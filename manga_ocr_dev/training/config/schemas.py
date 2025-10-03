@@ -7,10 +7,15 @@ configuration easier to manage and understand. Each class corresponds to a
 specific section of the `config.yaml` file.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type
 
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    YamlConfigSettingsSource,
+)
 
 
 class ModelConfig(BaseModel):
@@ -98,9 +103,35 @@ class TrainingConfig(BaseSettings):
     include_inputs_for_metrics: bool = Field(True, description="Whether to pass the inputs to `compute_metrics`.")
 
 
-class AppConfig(BaseModel):
+class AppConfig(BaseSettings):
     """The root configuration object for the entire training application."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     model: ModelConfig = Field(..., description="The model configuration.")
     dataset: DatasetConfig = Field(..., description="The dataset configuration.")
     training: TrainingConfig = Field(default_factory=TrainingConfig, description="The training arguments.")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """
+        Define the priority of configuration sources.
+        """
+        return (
+            init_settings,
+            YamlConfigSettingsSource(settings_cls),
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+        )

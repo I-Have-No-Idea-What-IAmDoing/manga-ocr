@@ -1,54 +1,54 @@
 """Handles loading and validation of the training configuration.
 
-This module provides the `load_config` function, which reads the main `config.yaml`
-file, parses it, and validates its structure and types using the Pydantic
-schemas defined in `schemas.py`. It also loads a default configuration instance
-for easy access throughout the training package.
+This module provides the `load_config` function, which leverages `pydantic-settings`
+to build a configuration object from multiple sources, including YAML files,
+environment variables, and `.env` files.
 """
 
-import yaml
 from pathlib import Path
-from manga_ocr_dev.training.config.schemas import AppConfig, TrainingConfig
+from typing import Optional
+
+from pydantic_settings import SettingsConfigDict
+
+from manga_ocr_dev.training.config.schemas import AppConfig
+
+# Default config path, resolved relative to this file's location to ensure
+# it works correctly regardless of the current working directory.
+DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
 
 
-def load_config(config_path: Path) -> AppConfig:
-    """Loads a YAML configuration file and merges it with environment variables.
+def load_config(config_path: Optional[Path] = None) -> AppConfig:
+    """Loads and validates the training configuration.
 
-    This function orchestrates the loading of configuration from multiple sources,
-    ensuring a consistent and validated configuration object. The layering is as follows,
-    with later sources overriding earlier ones:
+    This function instantiates the `AppConfig` settings object, which automatically
+    loads configuration from the following sources, in order of precedence:
 
-    1.  Default values defined in the Pydantic schemas.
-    2.  Values from the specified YAML configuration file.
-    3.  Values from environment variables (prefixed with `MANGA_OCR_TRAINING_`) or a `.env` file.
+    1.  Arguments passed to this function (e.g., a specific config path).
+    2.  Environment variables.
+    3.  `.env` file.
+    4.  YAML configuration file (the one specified by `config_path` or the
+        default `config.yaml`).
+    5.  Default values defined in the Pydantic schemas.
 
     Args:
-        config_path (Path): The path to the YAML configuration file.
+        config_path: An optional path to a YAML configuration file. If not
+            provided, the default `config.yaml` located alongside the training
+            package will be used.
 
     Returns:
         An `AppConfig` object representing the final, validated configuration.
     """
-    with open(config_path, "r") as f:
-        config_dict = yaml.safe_load(f)
+    # Use the provided config_path, or fall back to the default.
+    effective_config_path = config_path or DEFAULT_CONFIG_PATH
 
-    # Pop training config from yaml dict to handle it separately
-    training_yaml = config_dict.pop("training", {})
+    if not effective_config_path.is_file():
+        # Raise a more informative error if the config file doesn't exist.
+        raise FileNotFoundError(
+            f"Configuration file not found at: {effective_config_path}"
+        )
 
-    # Load training config from environment variables and .env file
-    training_env = TrainingConfig()
-
-    # Merge YAML and environment configs, with environment taking precedence
-    # The `model_dump` method with `exclude_unset=True` returns only the fields
-    # that were explicitly set, e.g., from environment variables.
-    merged_training_config_data = {
-        **training_yaml,
-        **training_env.model_dump(exclude_unset=True),
-    }
-    config_dict["training"] = merged_training_config_data
-
-    return AppConfig(**config_dict)
-
-
-# Load the default config from the default path for easy access
-CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
-config = load_config(CONFIG_PATH)
+    # Pass the path to the AppConfig constructor via the _settings_config argument.
+    # This ensures that pydantic-settings knows where to load the YAML file from.
+    return AppConfig(
+        _settings_config=SettingsConfigDict(yaml_file=effective_config_path)
+    )

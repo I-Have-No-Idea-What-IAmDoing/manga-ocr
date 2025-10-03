@@ -234,8 +234,9 @@ class MangaDataset(Dataset):
 if __name__ == "__main__":
     from manga_ocr_dev.training.get_model import get_model
     from manga_ocr_dev.training.utils import tensor_to_image
-    from manga_ocr_dev.training.config import config as app_config
+    from manga_ocr_dev.training.config import load_config
 
+    app_config = load_config()
     model, processor = get_model(app_config.model)
 
     ds = MangaDataset(
