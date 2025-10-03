@@ -124,12 +124,12 @@ class SyntheticDataGenerator:
         if font_path:
             vocab = self.font_map.get(font_path)
             if vocab:
-                unsupported_chars = {
-                    c for c in text_gt if c not in vocab and not c.isspace()
-                }
+                unsupported_chars = {c for c in text_gt if c not in vocab and not c.isspace()}
                 if unsupported_chars:
-                    lines = []
-                    text_gt = ""
+                    raise ValueError(
+                        f"Text contains unsupported characters for font "
+                        f"{Path(font_path).name}: {''.join(unsupported_chars)}"
+                    )
         else:
             vocab = None
 
