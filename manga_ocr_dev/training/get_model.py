@@ -1,11 +1,11 @@
 from transformers import (
     AutoConfig,
-    AutoModelForCausalLM,
     AutoModel,
-    VisionEncoderDecoderModel,
+    AutoModelForCausalLM,
     AutoImageProcessor,
     AutoTokenizer,
     VisionEncoderDecoderConfig,
+    VisionEncoderDecoderModel,
 )
 from manga_ocr_dev.training.config.schemas import ModelConfig
 
@@ -14,13 +14,16 @@ class TrOCRProcessorCustom:
     """A custom processor that wraps a feature extractor and a tokenizer.
 
     This class acts as a simple container for a feature extractor and a
-    tokenizer, bypassing the type checks of the base processor classes. It is
-    used to prepare data for the `VisionEncoderDecoderModel`.
+    tokenizer, bypassing the type checks and complexities of the official
+    `TrOCRProcessor`. It provides a streamlined interface for preparing data
+    for the `VisionEncoderDecoderModel`, which requires both image and text
+    processing.
 
     Attributes:
-        feature_extractor: An image feature extractor (e.g.,
-            `AutoImageProcessor`).
-        tokenizer: A tokenizer for processing text (e.g., `AutoTokenizer`).
+        feature_extractor: An image feature extractor, such as
+            `AutoImageProcessor`, for converting images into tensors.
+        tokenizer: A tokenizer, such as `AutoTokenizer`, for converting text
+            into token IDs.
     """
 
     def __init__(self, feature_extractor, tokenizer):
@@ -38,23 +41,33 @@ class TrOCRProcessorCustom:
 def get_model(model_config: ModelConfig):
     """Constructs and returns a `VisionEncoderDecoderModel` and processor for OCR.
 
-    This function sets up an encoder and a decoder from pre-trained models,
-    configures them for a vision-encoder-decoder architecture, and
-    initializes the `VisionEncoderDecoderModel`. It also configures special
-    tokens and beam search parameters for text generation.
+    This function sets up a vision-encoder-decoder architecture by loading
+    a pre-trained vision model as the encoder and a pre-trained language model
+    as the decoder. It configures them to work together and initializes the
+    `VisionEncoderDecoderModel`. The function also sets up special tokens and
+    beam search parameters for effective text generation during inference.
 
     If `num_decoder_layers` is specified in the config, the decoder will be
-    truncated to that number of layers.
+    truncated to that number of layers, which can be useful for creating a
+    smaller, faster model.
 
     Args:
-        model_config (ModelConfig): The model configuration object.
+        model_config: The model configuration object, specifying the encoder
+            and decoder names, max length, and other parameters.
 
     Returns:
-        tuple[VisionEncoderDecoderModel, TrOCRProcessorCustom]: A tuple
-        containing the configured OCR model and its processor.
+        A tuple containing:
+            - The configured `VisionEncoderDecoderModel` for OCR.
+            - The `TrOCRProcessorCustom` instance for data processing.
+
+    Raises:
+        ValueError: If `num_decoder_layers` is specified but the decoder's
+            model type is not supported for layer truncation.
     """
     # Create processor
-    feature_extractor = AutoImageProcessor.from_pretrained(model_config.encoder_name, use_fast=True)
+    feature_extractor = AutoImageProcessor.from_pretrained(
+        model_config.encoder_name, use_fast=True
+    )
     tokenizer = AutoTokenizer.from_pretrained(model_config.decoder_name)
     processor = TrOCRProcessorCustom(feature_extractor, tokenizer)
 
@@ -72,17 +85,25 @@ def get_model(model_config: ModelConfig):
 
     if model_config.num_decoder_layers is not None:
         if decoder_config.model_type == "bert":
-            decoder.bert.encoder.layer = decoder.bert.encoder.layer[-model_config.num_decoder_layers:]
+            decoder.bert.encoder.layer = decoder.bert.encoder.layer[
+                -model_config.num_decoder_layers :
+            ]
         elif decoder_config.model_type in ("roberta", "xlm-roberta"):
-            decoder.roberta.encoder.layer = decoder.roberta.encoder.layer[-model_config.num_decoder_layers:]
+            decoder.roberta.encoder.layer = decoder.roberta.encoder.layer[
+                -model_config.num_decoder_layers :
+            ]
         elif decoder_config.model_type in ("modernbert"):
-            decoder.modernbert.encoder.layer = decoder.modernbert.encoder.layer[-model_config.num_decoder_layers:]
+            decoder.modernbert.encoder.layer = decoder.modernbert.encoder.layer[
+                -model_config.num_decoder_layers :
+            ]
         else:
             raise ValueError(f"Unsupported model_type: {decoder_config.model_type}")
 
         decoder_config.num_hidden_layers = model_config.num_decoder_layers
 
-    config = VisionEncoderDecoderConfig.from_encoder_decoder_configs(encoder_config, decoder_config)
+    config = VisionEncoderDecoderConfig.from_encoder_decoder_configs(
+        encoder_config, decoder_config
+    )
     config.tie_word_embeddings = False
     model = VisionEncoderDecoderModel(encoder=encoder, decoder=decoder, config=config)
 

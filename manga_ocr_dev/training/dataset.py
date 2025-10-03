@@ -22,12 +22,16 @@ class MangaDataset(Dataset):
     Attributes:
         processor: A processor that combines a feature extractor and a tokenizer.
         max_target_length (int): The maximum length for tokenized text sequences.
+        config (DatasetConfig): The configuration for the dataset, including
+            data sources and augmentation settings.
         data (pd.DataFrame): A DataFrame holding the file paths and text for
             each sample in the dataset.
-        augment (bool): A flag indicating whether to apply data augmentation.
         transform_medium (A.Compose): The medium-level augmentation pipeline.
         transform_heavy (A.Compose): The heavy-level augmentation pipeline.
+        aug_probs (object): An object containing the probabilities for applying
+            different levels of augmentation.
     """
+
     def __init__(
         self,
         processor,
@@ -39,10 +43,11 @@ class MangaDataset(Dataset):
 
         Args:
             processor: The processor for feature extraction and tokenization.
-            dataset_config (DatasetConfig): The dataset configuration object.
+            dataset_config (DatasetConfig): The dataset configuration object,
+                specifying data sources and augmentation parameters.
             max_target_length (int): The maximum length for tokenized text sequences.
             limit_size (int | None, optional): If specified, limits the dataset
-                to this number of samples. Defaults to None.
+                to this number of samples for quick testing. Defaults to None.
         """
         self.processor = processor
         self.max_target_length = max_target_length
@@ -50,9 +55,9 @@ class MangaDataset(Dataset):
 
         data = []
         for source in self.config.train.sources:
-            if source.type == 'synthetic':
+            if source.type == "synthetic":
                 data.append(self.load_synthetic_data(**source.params))
-            elif source.type == 'manga109':
+            elif source.type == "manga109":
                 data.append(self.load_manga109_data(**source.params))
 
         self.data = pd.concat(data, ignore_index=True)
@@ -67,17 +72,37 @@ class MangaDataset(Dataset):
         self.aug_probs = self.config.augmentations.probabilities
 
     def load_synthetic_data(self, packages=None, skip_packages=None):
-        """Loads synthetic data from specified packages."""
-        
+        """Loads metadata for synthetic data from specified packages.
+
+        This method reads metadata from CSV files corresponding to different
+        packages of synthetic data. It can be configured to load specific
+        packages or to load all available packages while skipping certain ones.
+
+        Args:
+            packages (list[int], optional): A list of package IDs to load.
+                If provided, only these packages will be loaded. Defaults to None.
+            skip_packages (list[int], optional): A list of package IDs to skip.
+                If `packages` is not specified, all packages except these will
+                be loaded. Defaults to None.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the file paths, text, and a
+            'synthetic' flag for the loaded data.
+        """
+
         data = []
         if packages is not None:
             package_ids = {f"{x:04d}" for x in packages}
-            glob_pattern = [DATA_SYNTHETIC_ROOT / "meta" / f"{pid}.csv" for pid in package_ids]
+            glob_pattern = [
+                DATA_SYNTHETIC_ROOT / "meta" / f"{pid}.csv" for pid in package_ids
+            ]
         else:
             glob_pattern = sorted((DATA_SYNTHETIC_ROOT / "meta").glob("*.csv"))
             if skip_packages is not None:
                 skip_package_ids = {f"{x:04d}" for x in skip_packages}
-                glob_pattern = [p for p in glob_pattern if p.stem not in skip_package_ids]
+                glob_pattern = [
+                    p for p in glob_pattern if p.stem not in skip_package_ids
+                ]
 
         for path in glob_pattern:
             if not (DATA_SYNTHETIC_ROOT / "img" / path.stem).is_dir():
@@ -85,7 +110,9 @@ class MangaDataset(Dataset):
                 continue
             df = pd.read_csv(path)
             df = df.dropna()
-            df["path"] = df.id.apply(lambda x: str(DATA_SYNTHETIC_ROOT / "img" / path.stem / f"{x}.jpg"))
+            df["path"] = df.id.apply(
+                lambda x: str(DATA_SYNTHETIC_ROOT / "img" / path.stem / f"{x}.jpg")
+            )
             df = df[["path", "text"]]
             df["synthetic"] = True
             data.append(df)
@@ -96,8 +123,20 @@ class MangaDataset(Dataset):
         return pd.concat(data, ignore_index=True)
 
     def load_manga109_data(self, split):
-        """Loads Manga109 data from a specific split."""
-        
+        """Loads metadata for the Manga109 dataset from a specific split.
+
+        This method reads the main `data.csv` file from the Manga109 dataset,
+        filters it to include only the specified data split (e.g., 'train' or
+        'test'), and constructs the full paths to the cropped image files.
+
+        Args:
+            split (str): The dataset split to load, typically 'train' or 'test'.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the file paths, text, and a
+            'synthetic' flag for the loaded data.
+        """
+
         df = pd.read_csv(MANGA109_ROOT / "data.csv")
         df = df[df.split == split].reset_index(drop=True)
         df["path"] = df.crop_path.apply(lambda x: str(MANGA109_ROOT / x))
@@ -112,16 +151,17 @@ class MangaDataset(Dataset):
     def __getitem__(self, idx):
         """Retrieves a sample from the dataset at the given index.
 
-        This method fetches an image and its corresponding text, applies
-        augmentations if enabled, and then preprocesses the image and tokenizes
-        the text to prepare it for the model.
+        This method fetches an image and its corresponding text, applies a
+        randomly selected augmentation pipeline (none, medium, or heavy), and
+        then preprocesses the image and tokenizes the text to prepare it for
+        the model.
 
         Args:
             idx (int): The index of the sample to retrieve.
 
         Returns:
             dict: A dictionary containing the preprocessed 'pixel_values' of
-            the image and the 'labels' (tokenized text).
+            the image and the 'labels' (tokenized text), ready for training.
         """
         sample = self.data.loc[idx]
         text = sample.text
@@ -160,8 +200,12 @@ class MangaDataset(Dataset):
     def read_image(processor, path, transform=None):
         """Reads an image, applies transforms, and extracts pixel values.
 
+        This static method encapsulates the process of reading an image file,
+        applying a given Albumentations transformation pipeline, and then
+        using the model's feature extractor to prepare it as a tensor.
+
         Args:
-            processor: The processor for feature extraction.
+            processor: The processor containing the feature extractor.
             path (str or Path): The path to the image file.
             transform (A.Compose, optional): An Albumentations transform
                 pipeline to apply. If None, the image is only converted to
@@ -177,7 +221,9 @@ class MangaDataset(Dataset):
 
         img = transform(image=img)["image"]
 
-        pixel_values = processor.feature_extractor(img, return_tensors="pt").pixel_values
+        pixel_values = processor.feature_extractor(
+            img, return_tensors="pt"
+        ).pixel_values
         return pixel_values.squeeze()
 
 
@@ -188,14 +234,18 @@ if __name__ == "__main__":
 
     model, processor = get_model(app_config.model)
 
-    ds = MangaDataset(processor, app_config.dataset, app_config.model.max_len, limit_size=100)
+    ds = MangaDataset(
+        processor, app_config.dataset, app_config.model.max_len, limit_size=100
+    )
 
     for i in range(20):
         sample = ds[0]
         img = tensor_to_image(sample["pixel_values"])
         tokens = sample["labels"]
         tokens[tokens == -100] = processor.tokenizer.pad_token_id
-        text = "".join(processor.tokenizer.decode(tokens, skip_special_tokens=True).split())
+        text = "".join(
+            processor.tokenizer.decode(tokens, skip_special_tokens=True).split()
+        )
 
         print(f"{i}:\n{text}\n")
         plt.imshow(img)

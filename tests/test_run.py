@@ -176,7 +176,7 @@ def test_run_clipboard_oserror_verbose(mock_logger_warning, mock_sleep, mock_gra
     with pytest.raises(KeyboardInterrupt):
         run(read_from="clipboard", write_to="clipboard", verbose=True)
 
-    mock_logger_warning.assert_called_once_with("Error while reading from clipboard (test error)")
+    mock_logger_warning.assert_called_once_with("Error while reading from clipboard: test error")
 
 
 @patch("sys.platform", "linux")

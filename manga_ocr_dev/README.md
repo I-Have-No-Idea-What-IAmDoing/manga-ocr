@@ -1,157 +1,134 @@
 # Manga OCR Development Environment
 
-This document provides a comprehensive guide for developers working on the Manga OCR project. It covers the project structure, setup instructions, and the various components of the development environment, including data preprocessing, synthetic data generation, and model training.
-
-## Project Overview
-
-The `manga_ocr_dev` directory contains all the necessary tools and scripts for the development and training of the Manga OCR model. This includes:
-
-- **Data Preprocessing**: Scripts for processing datasets like Manga109-s and preparing them for training.
-- **Synthetic Data Generation**: A powerful pipeline for creating synthetic training data, which is crucial for improving the model's robustness.
-- **Model Training**: The main training script and related utilities for training the OCR model.
+This document provides a comprehensive guide for developers working on the Manga OCR project. It covers the project structure, setup instructions, data preprocessing, synthetic data generation, and model training.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.8+
-- [Poetry](https://python-poetry.org/) for dependency management.
+-   **Python 3.8+**
+-   A virtual environment manager (e.g., `venv`, `conda`) is highly recommended.
 
-### Installation
+### Setup
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/your-repo/manga-ocr.git
-   cd manga-ocr
-   ```
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/kha-white/manga-ocr.git
+    cd manga-ocr
+    ```
 
-2. **Install dependencies:**
-   ```bash
-   poetry install
-   ```
+2.  **Create and activate a virtual environment:**
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
+    ```
 
-### Configuration
+3.  **Install dependencies:**
+    The project uses `pip` for dependency management. To install all required packages, including development dependencies, run:
+    ```bash
+    pip install '.[dev]'
+    ```
+    *Tip: For faster dependency management, you can use tools like `uv` as a drop-in replacement for `pip`.*
 
-Before running any of the development scripts, you need to configure the necessary paths in `manga_ocr_dev/env.py`. This file defines the locations for datasets, assets, and training outputs.
+    If you have a GPU, ensure you install the correct version of PyTorch by following the instructions on the [official PyTorch website](https://pytorch.org/get-started/locally/).
+
+## Documentation
+
+The source code is thoroughly documented using Google Style Python Docstrings. This provides detailed information on the purpose, arguments, and return values of functions, methods, and classes. Developers are encouraged to read the docstrings for a deeper understanding of the codebase.
 
 ## Project Structure
 
+The `manga_ocr_dev` directory contains all scripts and resources for developing and training the OCR model.
+
 ```
-assets/                       # Assets (see description below)
-manga_ocr/                    # Release code (inference only)
-manga_ocr_dev/                # Development code
-   env.py                     # Global constants and paths
-   data/                      # Data preprocessing scripts
-   synthetic_data_generator/  # Synthetic data generation pipeline
-   training/                  # Model training scripts
-   vendored/                  # Third-party libraries included directly
-      html2image/             # Vendored version of the html2image library
+manga_ocr_dev/
+├── env.py                     # Defines global paths and constants for the dev environment.
+├── data/                      # Scripts for processing raw datasets.
+│   ├── generate_backgrounds.py  # Extracts background images from Manga109.
+│   ├── process_cc100.py       # Processes and packages text from the CC-100 corpus.
+│   └── process_manga109s.py   # Extracts text crops and metadata from Manga109.
+├── synthetic_data_generator/  # The pipeline for generating synthetic training data.
+│   ├── generator.py           # Orchestrates the generation of synthetic image-text pairs.
+│   ├── renderer.py            # Renders text into styled images with backgrounds.
+│   ├── run_generate.py        # A runnable script to generate a package of synthetic data.
+│   ├── scan_fonts.py          # Scans font files to determine their character support.
+│   └── utils.py               # Utility functions for data generation.
+├── training/                  # Scripts for training the OCR model.
+│   ├── config.yaml            # The main configuration file for training runs.
+│   ├── train.py               # The main script to launch a training session.
+│   ├── dataset.py             # The PyTorch Dataset class for loading data.
+│   ├── get_model.py           # The script for constructing the VisionEncoderDecoderModel.
+│   ├── metrics.py             # The class for computing evaluation metrics (CER, accuracy).
+│   └── augmentations.py       # Functions for building augmentation pipelines from the config.
+└── vendored/                  # Third-party libraries included directly in the project.
+    └── html2image/            # A vendored version of the html2image library.
 ```
 
-## Assets
+## Training Workflow
 
-The `assets` directory contains various files required for data generation and training.
+This section outlines the complete workflow for training a new Manga OCR model.
 
-### `fonts.csv`
-A CSV file with metadata about the fonts used by the synthetic data generator.
+### 1. Data Preparation
 
-- **`font_path`**: Path to the font file, relative to `FONTS_ROOT`.
-- **`supported_chars`**: A string of characters supported by the font.
-- **`num_chars`**: The number of supported characters.
-- **`label`**: `common`, `regular`, or `special` (used for weighted sampling).
+The model is trained on a combination of real data from the Manga109-s dataset and synthetic data.
 
-You can generate this file for your own fonts using the `manga_ocr_dev/synthetic_data_generator/scan_fonts.py` script.
+#### Manga109-s Dataset
 
-### `lines_example.csv`
-An example of a CSV file used for synthetic data generation.
+1.  **Download the Dataset**: Download the Manga109-s dataset from the [official website](http.www.manga109.org/en/download_s.html).
 
-- **`source`**: The source of the text (e.g., a corpus name).
-- **`id`**: A unique ID for the line.
-- **`line`**: A line of text from the corpus.
-
-### `len_to_p.csv`
-A CSV file mapping text length to its probability of occurrence in manga, used to generate realistically sized text samples.
-
-### `vocab.csv`
-A list of all characters supported by the tokenizer.
-
-## Training the OCR Model
-
-1. **Download the Manga109-s Dataset**:
-   You can download the dataset from the [official website](http://www.manga109.org/en/download_s.html).
-
-2. **Set up the dataset directory**:
-   Ensure your directory structure looks like this, and update the `MANGA109_ROOT` path in `env.py`:
+2.  **Set up Directory**: Unzip the dataset and ensure the directory structure is as follows. The `MANGA109_ROOT` variable in `manga_ocr_dev/env.py` should point to your `assets` directory.
     ```
-    <MANGA109_ROOT>/
-        Manga109s_released_2021_02_28/
-            annotations/
-            images/
-            books.txt
-            readme.txt
+    assets/
+    └── Manga109s_released_2021_02_28/
+        ├── annotations/
+        ├── images/
+        └── books.txt
     ```
 
-3. **Preprocess the Manga109-s dataset**:
-   Run the following script to process the dataset:
-   ```bash
-   python manga_ocr_dev/data/process_manga109s.py
-   ```
+3.  **Preprocess the Data**: Run the preprocessing script to extract text crops and metadata. This will create `data.csv`, `frames.csv`, and a `crops` directory inside your `assets` folder.
+    ```bash
+    python manga_ocr_dev/data/process_manga109s.py
+    ```
 
-4. **(Optional) Generate Synthetic Data**:
-   Follow the steps in the "Synthetic Data Generation" section to create additional training data.
+#### Synthetic Dataset
 
-5. **Start Training**:
-   Run the main training script:
-   ```bash
-   python manga_ocr_dev/training/train.py --run_name "my_training_run"
-   ```
+1.  **Generate Backgrounds**: The synthetic data generator overlays text on background images extracted from manga pages. Run this script to generate a pool of backgrounds from Manga109.
+    ```bash
+    python manga_ocr_dev/data/generate_backgrounds.py
+    ```
+    *Note: If you run this without having processed Manga109 first, you can run `create_dummy_background.py` from the root directory to avoid errors.*
 
-## Synthetic Data Generation
+2.  **Prepare Fonts**:
+    - Place your font files (`.ttf`, `.otf`) in the `fonts/` directory.
+    - Scan the fonts to generate `assets/fonts.csv`, which contains metadata about character support.
+      ```bash
+      python manga_ocr_dev/synthetic_data_generator/scan_fonts.py
+      ```
+    - (Optional) Manually edit `assets/fonts.csv` to assign labels (`common`, `regular`, `special`) to fonts for weighted sampling.
 
-The synthetic data generation pipeline creates image-text pairs that mimic the appearance of text in manga.
+3.  **Provide a Text Corpus**:
+    - The generator uses a text corpus to create realistic text samples. You can use the `process_cc100.py` script or provide your own.
+    - Place your text data as CSV files in `assets/lines/`. Each file should have a `line` column. For example, `assets/lines/0000.csv`.
 
-### Directory Structure
+4.  **Run the Generator**: Generate packages of synthetic data. Each package consists of images and a corresponding metadata file.
+    ```bash
+    python manga_ocr_dev/synthetic_data_generator/run_generate.py --package 0
+    ```
+    Run this command for each text corpus file you created (e.g., for `0001.csv`, use `--package 1`).
 
-The pipeline uses the following directory structure within `<DATA_SYNTHETIC_ROOT>`:
+### 2. Configuration
 
+Training behavior is controlled by `manga_ocr_dev/training/config.yaml`. Before training, review and customize this file to set:
+-   `run_name`: A unique name for your training run, used for logging.
+-   `model`: The encoder/decoder architecture, max length, etc.
+-   `dataset`: The data sources to use (synthetic and/or Manga109) and augmentation settings.
+-   `training`: Hugging Face `Seq2SeqTrainingArguments`, including learning rate, batch size, and logging steps.
+
+### 3. Launching Training
+
+Once your data is prepared and your configuration is set, start the training process:
+```bash
+python manga_ocr_dev/training/train.py --config_path manga_ocr_dev/training/config.yaml
 ```
-<DATA_SYNTHETIC_ROOT>/
-   img/           # Generated images
-      0000/
-      0001/
-      ...
-   lines/         # Lines from a text corpus
-      0000.csv
-      0001.csv
-      ...
-   meta/          # Metadata for the generated images
-      0000.csv
-      0001.csv
-      ...
-```
 
-### Generation Steps
-
-1. **Generate Backgrounds**:
-   ```bash
-   python manga_ocr_dev/data/generate_backgrounds.py
-   ```
-
-2. **Prepare Fonts**:
-   - Place your font files in the `<FONTS_ROOT>` directory.
-   - Generate the font metadata by running:
-     ```bash
-     python manga_ocr_dev/synthetic_data_generator/scan_fonts.py
-     ```
-   - (Optional) Manually label special fonts in `assets/fonts.csv`.
-
-3. **Provide Text Corpus**:
-   Create CSV files with lines of text and place them in `<DATA_SYNTHETIC_ROOT>/lines/`.
-
-4. **Run the Generator**:
-   Run the `run_generate.py` script for each data package you want to create:
-   ```bash
-   python manga_ocr_dev/synthetic_data_generator/run_generate.py --package 0
-   python manga_ocr_dev/synthetic_data_generator/run_generate.py --package 1
-   ...
-   ```
+The script will initialize `wandb` for experiment tracking, create the datasets and model, and start the `Seq2SeqTrainer`. You can monitor the progress and view results in your `wandb` dashboard.
