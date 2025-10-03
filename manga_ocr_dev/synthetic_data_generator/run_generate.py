@@ -58,7 +58,7 @@ def worker_fn(args, generator):
             print(f"Skipping empty image for text: {text}")
             return None
 
-        cv2.imwrite(str(OUT_DIR / filename), img)
+        cv2.imwrite(str(Path(OUT_DIR) / filename), img)
 
         font_path = params["font_path"]
         ret = source, id_, text_gt, params["vertical"], str(font_path)
@@ -98,7 +98,7 @@ def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
     """
 
     package_id = f"{package:04d}"
-    lines_path = DATA_SYNTHETIC_ROOT / f"lines/{package_id}.csv"
+    lines_path = Path(DATA_SYNTHETIC_ROOT) / f"lines/{package_id}.csv"
     if not lines_path.exists():
         raise FileNotFoundError(f"Lines file not found: {lines_path}")
 
@@ -116,7 +116,7 @@ def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
     args = [(i, *values) for i, values in enumerate(lines.values)]
 
     global OUT_DIR
-    OUT_DIR = DATA_SYNTHETIC_ROOT / "img" / package_id
+    OUT_DIR = Path(DATA_SYNTHETIC_ROOT) / "img" / package_id
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     browser_executable = os.environ.get("CHROME_EXECUTABLE_PATH")
@@ -129,7 +129,7 @@ def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
 
     data = [res for res in results if res is not None]
     data = pd.DataFrame(data, columns=["source", "id", "text", "vertical", "font_path"])
-    meta_path = DATA_SYNTHETIC_ROOT / f"meta/{package_id}.csv"
+    meta_path = Path(DATA_SYNTHETIC_ROOT) / f"meta/{package_id}.csv"
     meta_path.parent.mkdir(parents=True, exist_ok=True)
     data.to_csv(meta_path, index=False)
 

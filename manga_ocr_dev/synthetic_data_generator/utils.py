@@ -178,7 +178,7 @@ def get_font_meta():
         path = Path(p)
         if path.is_absolute():
             return str(path)
-        return str(FONTS_ROOT / path)
+        return str(Path(FONTS_ROOT) / path)
 
     df["font_path"] = df["font_path"].apply(resolve_font_path)
 

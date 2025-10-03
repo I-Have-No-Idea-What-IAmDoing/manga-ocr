@@ -75,7 +75,7 @@ def main(
     metrics = Metrics(processor)
 
     training_args = Seq2SeqTrainingArguments(
-        output_dir=str(TRAIN_ROOT / run_name),
+        output_dir=str(Path(TRAIN_ROOT) / run_name),
         run_name=run_name,
         **config.training.model_dump(by_alias=True),
     )

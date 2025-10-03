@@ -6,6 +6,7 @@ CSV files serve as a text source for the synthetic data generator, which uses
 them to render realistic text images for training the OCR model.
 """
 
+from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 
@@ -31,7 +32,7 @@ def export_lines(num_lines_in_each_package=10000, num_packages=100):
             The function will stop after creating this many packages, even if
             more text is available in the source file. Defaults to 100.
     """
-    cc100_text_file = DATA_SYNTHETIC_ROOT / "ja.txt"
+    cc100_text_file = Path(DATA_SYNTHETIC_ROOT) / "ja.txt"
 
     id_count = 0
     with open(cc100_text_file, "r", encoding="utf-8") as file:
@@ -60,7 +61,7 @@ def export_lines(num_lines_in_each_package=10000, num_packages=100):
 
             data = pd.DataFrame(data)
             data.to_csv(
-                ASSETS_PATH / "lines" / f"{package_count:04}.csv",
+                Path(ASSETS_PATH) / "lines" / f"{package_count:04}.csv",
                 index=False,
                 escapechar="\\",
             )

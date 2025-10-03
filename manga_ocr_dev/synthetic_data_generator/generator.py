@@ -145,7 +145,9 @@ class SyntheticDataGenerator:
 
         # Resolve font path to absolute for renderer
         if "font_path" in override_css_params:
-            override_css_params["font_path"] = str(FONTS_ROOT / override_css_params["font_path"])
+            override_css_params["font_path"] = str(
+                Path(FONTS_ROOT) / override_css_params["font_path"]
+            )
 
         img, params = self.renderer.render(lines, override_css_params)
 

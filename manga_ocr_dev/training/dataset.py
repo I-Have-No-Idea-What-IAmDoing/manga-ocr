@@ -94,10 +94,11 @@ class MangaDataset(Dataset):
         if packages is not None:
             package_ids = {f"{x:04d}" for x in packages}
             glob_pattern = [
-                DATA_SYNTHETIC_ROOT / "meta" / f"{pid}.csv" for pid in package_ids
+                Path(DATA_SYNTHETIC_ROOT) / "meta" / f"{pid}.csv"
+                for pid in package_ids
             ]
         else:
-            glob_pattern = sorted((DATA_SYNTHETIC_ROOT / "meta").glob("*.csv"))
+            glob_pattern = sorted((Path(DATA_SYNTHETIC_ROOT) / "meta").glob("*.csv"))
             if skip_packages is not None:
                 skip_package_ids = {f"{x:04d}" for x in skip_packages}
                 glob_pattern = [
@@ -105,13 +106,15 @@ class MangaDataset(Dataset):
                 ]
 
         for path in glob_pattern:
-            if not (DATA_SYNTHETIC_ROOT / "img" / path.stem).is_dir():
+            if not (Path(DATA_SYNTHETIC_ROOT) / "img" / path.stem).is_dir():
                 print(f"Missing image data for package {path}, skipping")
                 continue
             df = pd.read_csv(path)
             df = df.dropna()
             df["path"] = df.id.apply(
-                lambda x: str(DATA_SYNTHETIC_ROOT / "img" / path.stem / f"{x}.jpg")
+                lambda x: str(
+                    Path(DATA_SYNTHETIC_ROOT) / "img" / path.stem / f"{x}.jpg"
+                )
             )
             df = df[["path", "text"]]
             df["synthetic"] = True
@@ -137,9 +140,9 @@ class MangaDataset(Dataset):
             'synthetic' flag for the loaded data.
         """
 
-        df = pd.read_csv(MANGA109_ROOT / "data.csv")
+        df = pd.read_csv(Path(MANGA109_ROOT) / "data.csv")
         df = df[df.split == split].reset_index(drop=True)
-        df["path"] = df.crop_path.apply(lambda x: str(MANGA109_ROOT / x))
+        df["path"] = df.crop_path.apply(lambda x: str(Path(MANGA109_ROOT) / x))
         df = df[["path", "text"]]
         df["synthetic"] = False
         return df

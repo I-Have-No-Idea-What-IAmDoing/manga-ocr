@@ -90,14 +90,14 @@ def generate_backgrounds(crops_per_page=5, min_size=40):
         min_size (int, optional): The minimum size (both width and height) for
             a cropped image to be considered valid and saved. Defaults to 40.
     """
-    data = pd.read_csv(MANGA109_ROOT / "data.csv")
-    frames_df = pd.read_csv(MANGA109_ROOT / "frames.csv")
+    data = pd.read_csv(Path(MANGA109_ROOT) / "data.csv")
+    frames_df = pd.read_csv(Path(MANGA109_ROOT) / "frames.csv")
 
     BACKGROUND_DIR.mkdir(parents=True, exist_ok=True)
 
     page_paths = data.page_path.unique()
     for page_path in tqdm(page_paths):
-        page = cv2.imread(str(MANGA109_ROOT / page_path))
+        page = cv2.imread(str(Path(MANGA109_ROOT) / page_path))
         mask = np.zeros((page.shape[0], page.shape[1]), dtype=bool)
         for row in data[data.page_path == page_path].itertuples():
             mask[row.ymin : row.ymax, row.xmin : row.xmax] = True
@@ -123,7 +123,7 @@ def generate_backgrounds(crops_per_page=5, min_size=40):
                     "_".join(Path(page_path).with_suffix("").parts[-2:])
                     + f"_{ymin}_{ymax}_{xmin}_{xmax}.png"
                 )
-                cv2.imwrite(str(BACKGROUND_DIR / out_filename), crop)
+                cv2.imwrite(str(Path(BACKGROUND_DIR) / out_filename), crop)
 
 
 if __name__ == "__main__":

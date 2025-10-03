@@ -6,6 +6,7 @@ font selection, and styling capabilities. These tests use extensive mocking to
 isolate the generator's logic and verify its behavior under various conditions.
 """
 
+from pathlib import Path
 import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock, Mock
@@ -69,9 +70,9 @@ def generator(mock_renderer, mock_budoux, mock_read_csv, mock_get_charsets, mock
     font1_path_rel = 'font1.ttf'
     font2_path_rel = 'font2.ttf'
     font3_path_rel = 'font3.ttf'
-    font1_path_abs = str(FONTS_ROOT / font1_path_rel)
-    font2_path_abs = str(FONTS_ROOT / font2_path_rel)
-    font3_path_abs = str(FONTS_ROOT / font3_path_rel)
+    font1_path_abs = str(Path(FONTS_ROOT) / font1_path_rel)
+    font2_path_abs = str(Path(FONTS_ROOT) / font2_path_rel)
+    font3_path_abs = str(Path(FONTS_ROOT) / font3_path_rel)
 
     mock_get_font_meta.return_value = (
         pd.DataFrame({
@@ -95,15 +96,15 @@ def generator(mock_renderer, mock_budoux, mock_read_csv, mock_get_charsets, mock
 
 def test_process_with_given_text(generator):
     """Tests the `process` method with a predefined text string."""
-    img, text_gt, params = generator.process('abcde', override_css_params={'font_path': str(FONTS_ROOT / 'font1.ttf')})
+    img, text_gt, params = generator.process('abcde', override_css_params={'font_path': str(Path(FONTS_ROOT) / 'font1.ttf')})
     assert img is not None
     assert text_gt == 'abcde'
-    assert params['font_path'] == str(FONTS_ROOT / 'font1.ttf')
+    assert params['font_path'] == str(Path(FONTS_ROOT) / 'font1.ttf')
     generator.renderer.render.assert_called()
 
 def test_process_with_random_text(generator):
     """Tests the `process` method's ability to generate random text."""
-    font1_path_abs = str(FONTS_ROOT / 'font1.ttf')
+    font1_path_abs = str(Path(FONTS_ROOT) / 'font1.ttf')
     with patch.object(generator, 'get_random_font', return_value=font1_path_abs), \
          patch.object(generator, 'get_random_words', return_value=['abc']):
         img, text_gt, params = generator.process()
@@ -166,15 +167,15 @@ def test_add_random_furigana(generator):
 
 def test_is_font_supporting_text(generator):
     """Tests the `is_font_supporting_text` method for verifying character support."""
-    font_path = str(FONTS_ROOT / 'font1.ttf')
+    font_path = str(Path(FONTS_ROOT) / 'font1.ttf')
     assert generator.is_font_supporting_text(font_path, 'abc')
     assert not generator.is_font_supporting_text(font_path, 'xyz')
     assert generator.is_font_supporting_text(font_path, ' a b ')
 
 def test_get_random_font(generator):
     """Tests the `get_random_font` method's font selection logic."""
-    font1_path_abs = str(FONTS_ROOT / 'font1.ttf')
-    font3_path_abs = str(FONTS_ROOT / 'font3.ttf')
+    font1_path_abs = str(Path(FONTS_ROOT) / 'font1.ttf')
+    font3_path_abs = str(Path(FONTS_ROOT) / 'font3.ttf')
 
     # Test with text that has full support
     with patch.object(generator, 'is_font_supporting_text', return_value=True):

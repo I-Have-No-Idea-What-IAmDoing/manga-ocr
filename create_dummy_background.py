@@ -26,6 +26,6 @@ BACKGROUND_DIR.mkdir(parents=True, exist_ok=True)
 dummy_image = np.zeros((1024, 1024, 3), dtype=np.uint8)
 
 # Save the image with a filename that matches the expected format
-cv2.imwrite(str(BACKGROUND_DIR / "dummy_0_1024_0_1024.png"), dummy_image)
+cv2.imwrite(str(Path(BACKGROUND_DIR) / "dummy_0_1024_0_1024.png"), dummy_image)
 
 print("Dummy background image created successfully in the correct directory.")
