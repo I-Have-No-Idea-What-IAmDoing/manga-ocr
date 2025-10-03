@@ -1,3 +1,13 @@
+"""Scans font files to generate metadata about character support.
+
+This script is a utility for preprocessing fonts to be used in synthetic data
+generation. It iterates through all supported font files in the `FONTS_ROOT`
+directory, determines which characters from the project's vocabulary are
+supported by each font, and saves this information to `fonts.csv` in the
+`ASSETS_PATH` directory. This metadata is crucial for the data generator to
+select appropriate fonts for rendering text.
+"""
+
 import PIL
 import numpy as np
 import pandas as pd
@@ -20,36 +30,36 @@ def has_glyph(font, glyph):
 
     Args:
         font (TTFont): An instance of a `fontTools.ttLib.TTFont` object.
-        glyph (str): The character to check for. Must be a single character
-            string.
+        glyph (str): The character to check for. Must be a single character.
 
     Returns:
-        bool: True if a glyph for the character is found in any of the font's
+        True if a glyph for the character is found in any of the font's
         cmap tables, False otherwise.
     """
     for table in font["cmap"].tables:
         try:
             if ord(glyph) in table.cmap.keys():
                 return True
-        except:
+        except Exception:
             return False
     return False
 
 
-def process(font_path):
+def process_font(font_path):
     """Determines the set of supported characters for a given font file.
 
     This function checks for the presence of a glyph for each character in a
     predefined vocabulary. It then attempts to render the character to ensure
-    it's not a blank or placeholder glyph, as some fonts may render
-    unsupported characters as placeholder shapes (e.g., rectangles).
+    it's not a blank or placeholder glyph, as some fonts render unsupported
+    characters as placeholder shapes (e.g., rectangles).
 
     Args:
         font_path (str or Path): The path to the font file to be processed.
 
     Returns:
-        str: A string containing all the supported characters found in the
-        font, concatenated together.
+        A string containing all the supported characters found in the font,
+        concatenated together. Returns an empty string if the font cannot be
+        processed.
     """
     global vocab
     if vocab is None:
@@ -74,12 +84,10 @@ def process(font_path):
 
             supported_chars.append(char)
 
-        supported_chars = "".join(supported_chars)
+        return "".join(supported_chars)
     except Exception as e:
         print(f"Error while processing {font_path}: {e}")
-        supported_chars = ""
-
-    return supported_chars
+        return ""
 
 
 def main():
@@ -92,7 +100,7 @@ def main():
 
     The output CSV contains the font path, the list of supported characters,
     the total number of supported characters, and a default 'regular' label,
-    which can be manually updated later.
+    which can be manually updated later for weighted font sampling.
     """
     path_in = FONTS_ROOT
     out_path = ASSETS_PATH / "fonts.csv"
@@ -100,7 +108,7 @@ def main():
     suffixes = {".TTF", ".otf", ".ttc", ".ttf"}
     font_paths = [path for path in path_in.glob("**/*") if path.suffix in suffixes]
 
-    data = process_map(process, font_paths, max_workers=16)
+    data = process_map(process_font, font_paths, max_workers=16)
 
     font_paths = [str(path.relative_to(FONTS_ROOT)) for path in font_paths]
     data = pd.DataFrame({"font_path": font_paths, "supported_chars": data})

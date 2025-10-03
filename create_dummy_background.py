@@ -1,3 +1,12 @@
+"""Creates a dummy background image for the synthetic data generator.
+
+This script generates a simple black 1024x1024 image and saves it to the
+`BACKGROUND_DIR`. Its primary purpose is to serve as a placeholder, ensuring
+that the data generation pipeline does not fail if the background directory
+is empty. The filename is formatted to be compatible with the background
+loading logic, which expects dimensions to be encoded in the name.
+"""
+
 import cv2
 import numpy as np
 from pathlib import Path

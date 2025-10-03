@@ -55,10 +55,6 @@ class MangaOcr:
                 CPU, even if a GPU is available. This is useful for debugging or
                 for systems without a compatible GPU. Defaults to False.
 
-        Raises:
-            FileNotFoundError: If the example image for the warm-up run is not
-                found. This can happen if the model is not downloaded correctly
-                or if the path is incorrect.
         """
         logger.info(f"Loading OCR model from {pretrained_model_name_or_path}")
         self.processor = ViTImageProcessor.from_pretrained(pretrained_model_name_or_path)

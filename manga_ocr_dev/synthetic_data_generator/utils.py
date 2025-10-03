@@ -1,3 +1,11 @@
+"""Utility functions for the synthetic data generation pipeline.
+
+This module provides helper functions that support the data generation process.
+This includes functions for loading and processing assets like fonts and
+backgrounds, as well as character-level utilities for identifying different
+Japanese character types (kanji, hiragana, katakana) and ASCII characters.
+"""
+
 import pandas as pd
 import unicodedata
 
@@ -9,8 +17,8 @@ def get_background_df(background_dir):
 
     This function iterates through a directory of background images, parses
     the dimensions from their filenames, and compiles the information into a
-    pandas DataFrame. The resulting DataFrame is used by the data generator
-    to select appropriate backgrounds for rendering text.
+    pandas DataFrame. The resulting DataFrame is used by the `Renderer` to
+    select appropriate backgrounds for compositing text.
 
     The filenames are expected to be in a specific format where the last four
     parts of the filename (split by '_') are ymin, ymax, xmin, and xmax.
@@ -20,27 +28,23 @@ def get_background_df(background_dir):
             background images.
 
     Returns:
-        pd.DataFrame: A DataFrame with columns 'path', 'h', 'w', and 'ratio',
+        A pandas DataFrame with columns 'path', 'h', 'w', and 'ratio',
         containing the path, height, width, and aspect ratio of each
         background image.
     """
     background_df = []
     for path in background_dir.iterdir():
-        ymin, ymax, xmin, xmax = [int(v) for v in path.stem.split("_")[-4:]]
-        h = ymax - ymin
-        w = xmax - xmin
-        ratio = w / h
+        try:
+            ymin, ymax, xmin, xmax = [int(v) for v in path.stem.split("_")[-4:]]
+            h = ymax - ymin
+            w = xmax - xmin
+            ratio = w / h if h > 0 else 0
+            background_df.append({"path": str(path), "h": h, "w": w, "ratio": ratio})
+        except (ValueError, IndexError):
+            print(f"Could not parse dimensions from filename: {path.name}")
+            continue
 
-        background_df.append(
-            {
-                "path": str(path),
-                "h": h,
-                "w": w,
-                "ratio": ratio,
-            }
-        )
-    background_df = pd.DataFrame(background_df)
-    return background_df
+    return pd.DataFrame(background_df)
 
 
 def is_kanji(ch):
@@ -51,17 +55,18 @@ def is_kanji(ch):
     Unicode name. It handles non-string inputs gracefully.
 
     Args:
-        ch (str): The character to check. Must be a single character string.
+        ch (str): The character to check. Must be a single character.
 
     Returns:
-        bool: True if the character is a kanji, False otherwise.
+        True if the character is a kanji, False otherwise.
     """
     try:
         if len(str(ch)) > 1:
             return False
         return "CJK UNIFIED IDEOGRAPH" in unicodedata.name(ch)
-    except:
+    except (TypeError, ValueError):
         return False
+
 
 def is_hiragana(ch):
     """Checks if a character is a Japanese hiragana character.
@@ -70,16 +75,16 @@ def is_hiragana(ch):
     checking its Unicode name. It handles non-string inputs gracefully.
 
     Args:
-        ch (str): The character to check. Must be a single character string.
+        ch (str): The character to check. Must be a single character.
 
     Returns:
-        bool: True if the character is a hiragana, False otherwise.
+        True if the character is a hiragana, False otherwise.
     """
     try:
         if len(str(ch)) > 1:
             return False
         return "HIRAGANA" in unicodedata.name(ch)
-    except:
+    except (TypeError, ValueError):
         return False
 
 
@@ -90,17 +95,18 @@ def is_katakana(ch):
     checking its Unicode name. It handles non-string inputs gracefully.
 
     Args:
-        ch (str): The character to check. Must be a single character string.
+        ch (str): The character to check. Must be a single character.
 
     Returns:
-        bool: True if the character is a katakana, False otherwise.
+        True if the character is a katakana, False otherwise.
     """
     try:
         if len(str(ch)) > 1:
             return False
         return "KATAKANA" in unicodedata.name(ch)
-    except:
+    except (TypeError, ValueError):
         return False
+
 
 def is_ascii(ch):
     """Checks if a character is an ASCII character.
@@ -110,17 +116,18 @@ def is_ascii(ch):
     gracefully.
 
     Args:
-        ch (str): The character to check. Must be a single character string.
+        ch (str): The character to check. Must be a single character.
 
     Returns:
-        bool: True if the character is an ASCII character, False otherwise.
+        True if the character is an ASCII character, False otherwise.
     """
     try:
         if len(str(ch)) > 1:
             return False
         return ord(ch) < 128
-    except:
+    except (TypeError, ValueError):
         return False
+
 
 def get_charsets(vocab_path=None):
     """Loads and categorizes character sets from a vocabulary file.
@@ -128,16 +135,14 @@ def get_charsets(vocab_path=None):
     This function reads a vocabulary from a specified CSV file and separates
     the characters into different sets: the full vocabulary, hiragana, and
     katakana. These sets are used for various purposes in the data generation
-    pipeline, such as generating random text.
+    pipeline, such as generating random furigana.
 
     Args:
         vocab_path (str or Path, optional): The path to the vocabulary CSV
-            file. If not provided, it defaults to the `vocab.csv` file in the
-            `ASSETS_PATH`.
+            file. If not provided, it defaults to `assets/vocab.csv`.
 
     Returns:
-        tuple[np.ndarray, np.ndarray, np.ndarray]: A tuple containing three
-        NumPy arrays:
+        A tuple containing three NumPy arrays:
             - The full vocabulary of characters.
             - The subset of hiragana characters.
             - The subset of katakana characters.
@@ -159,14 +164,14 @@ def get_font_meta():
     each font path to the set of characters it supports.
 
     Returns:
-        tuple[pd.DataFrame, dict[str, set]]: A tuple containing:
+        A tuple containing:
             - A pandas DataFrame with the font metadata, including paths and
               character counts.
             - A dictionary mapping each font path to a set of characters
               supported by that font.
     """
     df = pd.read_csv(ASSETS_PATH / "fonts.csv")
-    df.font_path = df.font_path.apply(lambda x: str(FONTS_ROOT / x))
+    df["font_path"] = df["font_path"].apply(lambda x: str(FONTS_ROOT / x))
     df = df.dropna()
     font_map = {row.font_path: set(row.supported_chars) for row in df.itertuples()}
     return df, font_map

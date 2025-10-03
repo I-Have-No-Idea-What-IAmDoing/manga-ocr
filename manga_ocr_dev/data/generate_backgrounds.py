@@ -1,3 +1,12 @@
+"""Generates background images from manga pages for synthetic data.
+
+This script processes the Manga109 dataset to extract background images that
+can be used for generating synthetic training data. It works by identifying
+regions on manga pages that do not contain text or comic frames, and then
+randomly cropping these regions to serve as backgrounds for rendered text.
+The generated images are saved to the `BACKGROUND_DIR`.
+"""
+
 from pathlib import Path
 
 import cv2
@@ -67,15 +76,13 @@ def find_rectangle(mask, y, x, aspect_ratio_range=(0.33, 3.0)):
 
 
 def generate_backgrounds(crops_per_page=5, min_size=40):
-    """Generates background images from manga pages for synthetic data.
+    """Extracts and saves background image crops from Manga109 pages.
 
-    This function processes the Manga109 dataset to extract background images
-    that can be used for generating synthetic training data. It works by
-    identifying regions on manga pages that do not contain text or comic
-    frames, and then randomly cropping these regions.
-
-    The generated background images are saved to the `BACKGROUND_DIR` defined
-    in the project's environment settings.
+    This function iterates through the pages of the Manga109 dataset, creates
+    a mask to exclude text boxes and panel frames, and then extracts random
+    rectangular crops from the remaining unmasked areas. These crops are saved
+    as PNG files and are used as backgrounds in the synthetic data generation
+    pipeline.
 
     Args:
         crops_per_page (int, optional): The number of random background crops
@@ -113,7 +120,8 @@ def generate_backgrounds(crops_per_page=5, min_size=40):
 
             if crop.shape[0] >= min_size and crop.shape[1] >= min_size:
                 out_filename = (
-                    "_".join(Path(page_path).with_suffix("").parts[-2:]) + f"_{ymin}_{ymax}_{xmin}_{xmax}.png"
+                    "_".join(Path(page_path).with_suffix("").parts[-2:])
+                    + f"_{ymin}_{ymax}_{xmin}_{xmax}.png"
                 )
                 cv2.imwrite(str(BACKGROUND_DIR / out_filename), crop)
 

@@ -1,3 +1,12 @@
+"""Processes the Manga109-s dataset to extract training data and metadata.
+
+This script provides functions to parse the XML annotations of the Manga109-s
+dataset. It extracts information about manga pages, comic frames, and text
+bounding boxes, and saves this data into structured CSV files. It also generates
+cropped images of each text box, which serve as the real-world data for training
+the OCR model.
+"""
+
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -9,7 +18,7 @@ from manga_ocr_dev.env import MANGA109_ROOT
 
 
 def get_books():
-    """Retrieves and structures the list of books from the Manga109 dataset.
+    """Retrieves the list of book titles from the Manga109 dataset.
 
     This function reads the `books.txt` file from the Manga109 dataset's root
     directory to get the list of book titles. It then constructs the full paths
@@ -19,10 +28,9 @@ def get_books():
     Returns:
         pd.DataFrame: A DataFrame with the following columns:
             - `book`: The title of the manga book.
-            - `annotations`: The full path to the XML annotation file for the
-              book.
-            - `images`: The full path to the directory containing the images
-              for the book.
+            - `annotations`: The full path to the XML annotation file.
+            - `images`: The full path to the directory containing the book's
+              images.
     """
     root = MANGA109_ROOT / "Manga109s_released_2021_02_28"
     books = (root / "books.txt").read_text().splitlines()
@@ -38,16 +46,16 @@ def get_books():
 
 
 def export_frames():
-    """Parses XML annotations to extract and save frame-level information.
+    """Parses XML annotations to extract and save comic frame information.
 
     This function iterates through each book in the Manga109 dataset, parsing
     its XML annotation file to extract information about the comic frames on
-    each page. The extracted data includes the book title, page index, page
-    dimensions, and the coordinates of each frame.
+    each page. The extracted data includes page dimensions and the coordinates
+    of each frame.
 
     The collected data is compiled into a single pandas DataFrame and saved as
-    `frames.csv` in the `MANGA109_ROOT` directory, making it available for
-    other processing scripts.
+    `frames.csv` in the `MANGA109_ROOT` directory. This file is used by other
+    scripts, such as `generate_backgrounds.py`, to identify non-text areas.
     """
     books = get_books()
 
@@ -60,7 +68,9 @@ def export_frames():
                 row = {}
                 row["book"] = book.book
                 row["page_index"] = int(page.attrib["index"])
-                row["page_path"] = str(Path(book.images) / f'{row["page_index"]:03d}.jpg')
+                row["page_path"] = str(
+                    Path(book.images) / f'{row["page_index"]:03d}.jpg'
+                )
                 row["page_width"] = int(page.attrib["width"])
                 row["page_height"] = int(page.attrib["height"])
                 row["id"] = frame.attrib["id"]
@@ -76,7 +86,7 @@ def export_frames():
 
 
 def export_crops():
-    """Extracts text bounding box crops and their metadata from Manga109.
+    """Extracts text crops and metadata from Manga109 for training.
 
     This function processes the annotation files for each book in the Manga109
     dataset to extract text-level information, including the bounding box
@@ -86,7 +96,8 @@ def export_crops():
     split) and saved to `data.csv` in the `MANGA109_ROOT` directory.
     Additionally, cropped images of each text box, with a 10-pixel margin,
     are saved as PNG files in the `MANGA109_ROOT/crops` directory. These
-    crops serve as the real-world data for training the OCR model.
+    crops serve as the primary source of real-world data for training the
+    OCR model.
     """
     crops_root = MANGA109_ROOT / "crops"
     crops_root.mkdir(parents=True, exist_ok=True)
@@ -103,7 +114,9 @@ def export_crops():
                 row = {}
                 row["book"] = book.book
                 row["page_index"] = int(page.attrib["index"])
-                row["page_path"] = str(Path(book.images) / f'{row["page_index"]:03d}.jpg')
+                row["page_path"] = str(
+                    Path(book.images) / f'{row["page_index"]:03d}.jpg'
+                )
                 row["page_width"] = int(page.attrib["width"])
                 row["page_height"] = int(page.attrib["height"])
                 row["id"] = text.attrib["id"]
@@ -119,13 +132,15 @@ def export_crops():
     data["split"] = "train"
     data.loc[data.sample(len(data)).iloc[:n_test].index, "split"] = "test"
 
-    data["crop_path"] = str(crops_root) + "\\" + data.id + ".png"
+    data["crop_path"] = str(crops_root) + "/" + data.id + ".png"
 
     data.page_path = data.page_path.apply(lambda x: "/".join(Path(x).parts[-4:]))
     data.crop_path = data.crop_path.apply(lambda x: "/".join(Path(x).parts[-2:]))
     data.to_csv(MANGA109_ROOT / "data.csv", index=False)
 
-    for page_path, boxes in tqdm(data.groupby("page_path"), total=data.page_path.nunique()):
+    for page_path, boxes in tqdm(
+        data.groupby("page_path"), total=data.page_path.nunique()
+    ):
         img = cv2.imread(str(MANGA109_ROOT / page_path))
 
         for box in boxes.itertuples():

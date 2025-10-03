@@ -1,24 +1,31 @@
+"""Utility functions for model training and inspection.
+
+This module provides helper functions for the training pipeline, including
+tools for summarizing model architectures and converting tensor data back to
+a viewable image format.
+"""
+
 import numpy as np
 import torch
 from torchinfo import summary
 
 
 def encoder_summary(model, batch_size=4):
-    """Generates a summary of the model's encoder.
+    """Generates a summary of the model's encoder architecture.
 
     This function uses `torchinfo.summary` to create a textual summary of the
-    encoder part of a `VisionEncoderDecoderModel`. The summary includes
-    information about output size, number of parameters, and multiply-adds for
-    each layer.
+    encoder part of a `VisionEncoderDecoderModel`. The summary includes details
+    on output size, number of parameters, and multiply-adds for each layer,
+    which is useful for debugging and model inspection.
 
     Args:
-        model (VisionEncoderDecoderModel): The model whose encoder will be
-            summarized.
-        batch_size (int, optional): The batch size to use for the input size
-            calculation in the summary. Defaults to 4.
+        model (torch.nn.Module): The `VisionEncoderDecoderModel` whose encoder
+            will be summarized.
+        batch_size (int, optional): The batch size to use for the input shape
+            in the summary. Defaults to 4.
 
     Returns:
-        str: A string containing the summary of the encoder's architecture.
+        A string containing the summary of the encoder's architecture.
     """
     img_size = model.config.encoder.image_size
     return summary(
@@ -31,20 +38,21 @@ def encoder_summary(model, batch_size=4):
 
 
 def decoder_summary(model, batch_size=4):
-    """Generates a summary of the model's decoder.
+    """Generates a summary of the model's decoder architecture.
 
     This function uses `torchinfo.summary` to create a textual summary of the
     decoder part of a `VisionEncoderDecoderModel`. It constructs dummy input
-    tensors with the correct shapes to probe the decoder's architecture.
+    tensors with the correct shapes to probe the decoder's architecture and
+    provide details on its layers.
 
     Args:
-        model (VisionEncoderDecoderModel): The model whose decoder will be
-            summarized.
+        model (torch.nn.Module): The `VisionEncoderDecoderModel` whose decoder
+            will be summarized.
         batch_size (int, optional): The batch size to use for creating the
             dummy input data for the summary. Defaults to 4.
 
     Returns:
-        str: A string containing the summary of the decoder's architecture.
+        A string containing the summary of the decoder's architecture.
     """
     img_size = model.config.encoder.image_size
     encoder_hidden_shape = (
@@ -68,17 +76,23 @@ def decoder_summary(model, batch_size=4):
 
 
 def tensor_to_image(img):
-    """Converts a PyTorch tensor back to a displayable image format.
+    """Converts a PyTorch image tensor back to a displayable NumPy format.
 
-    This function takes a PyTorch image tensor (typically in C, H, W format and
-    normalized in the range [-1, 1]), denormalizes it to the [0, 255] range,
-    and converts it to a NumPy array in the standard image format (H, W, C).
+    This function takes a PyTorch image tensor, which is typically in (C, H, W)
+    format and normalized to the range [-1, 1]. It denormalizes the tensor to
+    the [0, 255] range and transposes its dimensions to the standard (H, W, C)
+    image format.
 
     Args:
         img (torch.Tensor): The input image tensor.
 
     Returns:
-        np.ndarray: The converted image as a NumPy array, suitable for display
-        with libraries like Matplotlib or OpenCV.
+        An image as a NumPy array, suitable for display with libraries like
+        Matplotlib or OpenCV.
     """
-    return ((img.cpu().numpy() + 1) / 2 * 255).clip(0, 255).astype(np.uint8).transpose(1, 2, 0)
+    return (
+        ((img.cpu().numpy() + 1) / 2 * 255)
+        .clip(0, 255)
+        .astype(np.uint8)
+        .transpose(1, 2, 0)
+    )

@@ -1,3 +1,18 @@
+"""Command-line interface and background monitoring for Manga OCR.
+
+This script provides the main entry point for the `manga_ocr` command-line
+tool. It implements the logic for two primary modes of operation:
+1.  **Clipboard Mode**: Continuously monitors the system clipboard for new
+    images, performs OCR on them, and copies the recognized text back to the
+    clipboard.
+2.  **Directory Mode**: Monitors a specified directory for new image files,
+    performs OCR on them, and appends the recognized text to a file or copies
+    it to the clipboard.
+
+The script uses the `fire` library to create the command-line interface and
+`pyperclip` for clipboard interactions.
+"""
+
 import sys
 import time
 from pathlib import Path
@@ -5,8 +20,7 @@ from pathlib import Path
 import fire
 import numpy as np
 import pyperclip
-from PIL import Image
-from PIL import UnidentifiedImageError
+from PIL import Image, ImageGrab, UnidentifiedImageError
 from loguru import logger
 
 from manga_ocr import MangaOcr
@@ -68,7 +82,9 @@ def process_and_write_results(mocr, img_or_path, write_to):
     else:
         write_to = Path(write_to)
         if write_to.suffix != ".txt":
-            raise ValueError('write_to must be either "clipboard" or a path to a text file')
+            raise ValueError(
+                'write_to must be either "clipboard" or a path to a text file'
+            )
 
         with write_to.open("a", encoding="utf-8") as f:
             f.write(text + "\n")
@@ -114,21 +130,19 @@ def run(
             be "clipboard" to write to the system clipboard, or a path to a
             ".txt" file to append the text. Defaults to "clipboard".
         pretrained_model_name_or_path (str, optional): The name or path of the
-            pretrained Manga OCR model to use. This can be a model from the
-            Hugging Face Hub or a local path. Defaults to
+            pretrained Manga OCR model to use. Defaults to
             "kha-white/manga-ocr-base".
         force_cpu (bool, optional): If True, forces the model to run on the
             CPU, even if a GPU is available. Defaults to False.
         delay_secs (float, optional): The time in seconds to wait between
-            checking for new images. A smaller value will make the process
-            more responsive but may use more resources. Defaults to 0.1.
-        verbose (bool, optional): If True, enables verbose logging, which can
-            be useful for debugging. Defaults to False.
+            checking for new images. A smaller value is more responsive but
+            may use more resources. Defaults to 0.1.
+        verbose (bool, optional): If True, enables verbose logging for
+            debugging. Defaults to False.
 
     Raises:
         NotImplementedError: If writing to the clipboard is attempted on a
-            Wayland-based Linux system without the `wl-clipboard` utility
-            installed.
+            Wayland-based Linux system without `wl-clipboard` installed.
         ValueError: If `read_from` is not "clipboard" or a valid directory
             path.
     """
@@ -136,63 +150,57 @@ def run(
     mocr = MangaOcr(pretrained_model_name_or_path, force_cpu)
 
     if sys.platform not in ("darwin", "win32") and write_to == "clipboard":
-        # Check if the system is using Wayland
+        # Check if the system is using Wayland and set up pyperclip
         import os
 
         if os.environ.get("WAYLAND_DISPLAY"):
-            # Check if the wl-clipboard package is installed
             if os.system("which wl-copy > /dev/null") == 0:
                 pyperclip.set_clipboard("wl-clipboard")
             else:
                 msg = (
-                    "Your session uses wayland and does not have wl-clipboard installed. "
-                    "Install wl-clipboard for write in clipboard to work."
+                    "Your session uses Wayland and does not have wl-clipboard "
+                    "installed. Please install it for clipboard functionality."
                 )
                 raise NotImplementedError(msg)
 
     if read_from == "clipboard":
-        from PIL import ImageGrab
-
         logger.info("Reading from clipboard")
-
         img = None
         while True:
             old_img = img
-
             try:
                 img = ImageGrab.grabclipboard()
             except OSError as error:
                 if not verbose and "cannot identify image file" in str(error):
-                    # Pillow error when clipboard hasn't changed since last grab (Linux)
+                    # Pillow error when clipboard hasn't changed (Linux)
                     pass
                 elif not verbose and "target image/png not available" in str(error):
                     # Pillow error when clipboard contains text (Linux, X11)
                     pass
                 else:
-                    logger.warning("Error while reading from clipboard ({})".format(error))
+                    logger.warning(f"Error while reading from clipboard: {error}")
             else:
-                if isinstance(img, Image.Image) and not are_images_identical(img, old_img):
+                if isinstance(img, Image.Image) and not are_images_identical(
+                    img, old_img
+                ):
                     process_and_write_results(mocr, img, write_to)
-
             time.sleep(delay_secs)
 
     else:
         read_from = Path(read_from)
         if not read_from.is_dir():
-            raise ValueError('read_from must be either "clipboard" or a path to a directory')
+            raise ValueError(
+                'read_from must be either "clipboard" or a path to a directory'
+            )
 
-        logger.info(f"Reading from directory {read_from}")
-
-        old_paths = set()
-        for path in read_from.iterdir():
-            old_paths.add(get_path_key(path))
+        logger.info(f"Reading from directory: {read_from}")
+        old_paths = {get_path_key(path) for path in read_from.iterdir()}
 
         while True:
             for path in read_from.iterdir():
                 path_key = get_path_key(path)
                 if path_key not in old_paths:
                     old_paths.add(path_key)
-
                     try:
                         img = Image.open(path)
                         img.load()
@@ -200,7 +208,6 @@ def run(
                         logger.warning(f"Error while reading file {path}: {e}")
                     else:
                         process_and_write_results(mocr, img, write_to)
-
             time.sleep(delay_secs)
 
 

@@ -7,7 +7,7 @@ import numpy as np
 # Since scan_fonts.py loads vocab at import time, we need to patch it here
 with patch('manga_ocr_dev.synthetic_data_generator.scan_fonts.pd.read_csv') as mock_read_csv:
     mock_read_csv.return_value = pd.DataFrame({'char': ['a', 'b', 'c']})
-    from manga_ocr_dev.synthetic_data_generator.scan_fonts import has_glyph, process, main
+    from manga_ocr_dev.synthetic_data_generator.scan_fonts import has_glyph, process_font, main
 
 def test_has_glyph():
     mock_font = MagicMock()
@@ -31,7 +31,7 @@ def test_has_glyph_exception():
 @patch('manga_ocr_dev.synthetic_data_generator.scan_fonts.PIL.Image.new')
 @patch('manga_ocr_dev.synthetic_data_generator.scan_fonts.ImageDraw.Draw')
 @patch('manga_ocr_dev.synthetic_data_generator.scan_fonts.has_glyph')
-def test_process(mock_has_glyph, mock_draw, mock_new, mock_truetype, mock_ttfont, mock_read_csv):
+def test_process_font(mock_has_glyph, mock_draw, mock_new, mock_truetype, mock_ttfont, mock_read_csv):
     mock_read_csv.return_value = pd.DataFrame({'char': ['a', 'b', 'c']})
     mock_has_glyph.side_effect = lambda font, char: char in ['a', 'b']
 
@@ -52,15 +52,15 @@ def test_process(mock_has_glyph, mock_draw, mock_new, mock_truetype, mock_ttfont
 
     mock_draw_instance.text.side_effect = draw_side_effect
 
-    result = process('dummy_font.ttf')
+    result = process_font('dummy_font.ttf')
     assert result == 'a'
 
 @patch('manga_ocr_dev.synthetic_data_generator.scan_fonts.pd.read_csv')
 @patch('manga_ocr_dev.synthetic_data_generator.scan_fonts.TTFont', side_effect=Exception('Test Error'))
 @patch('builtins.print')
-def test_process_handles_exception(mock_print, mock_ttfont, mock_read_csv):
+def test_process_font_handles_exception(mock_print, mock_ttfont, mock_read_csv):
     mock_read_csv.return_value = pd.DataFrame({'char': ['a', 'b', 'c']})
-    result = process('dummy_font.ttf')
+    result = process_font('dummy_font.ttf')
     assert result == ''
     mock_print.assert_called_once()
 
