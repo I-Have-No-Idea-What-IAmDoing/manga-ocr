@@ -58,16 +58,12 @@ class TestSyntheticDataGenerator(unittest.TestCase):
         kanji_pos2 = processed_line2.find('字')
         self.assertLess(kanji_pos2, a_pos2, f"For input '{line2}', '字' should appear before 'a' in the output: '{processed_line2}'")
 
-    def test_process_empty_text(self):
-        # Test that providing text with unsupported characters results in an empty image
+    def test_process_unsupported_text_raises_error(self):
+        # Test that providing text with unsupported characters raises a ValueError
         self.generator.font_map[str(FONTS_ROOT / self.font_path)] = set("a字b")
         with patch.object(self.generator, 'get_random_font', return_value=str(FONTS_ROOT / self.font_path)):
-            img, text_gt, params = self.generator.process(text="xyz")
-            self.assertEqual(text_gt, "")
-            # Check that render was called with an empty list of lines
-            self.mock_renderer.render.assert_called_once()
-            self.assertEqual(self.mock_renderer.render.call_args[0][0], [])
-            self.assertEqual(img.shape, (1, 1))
+            with self.assertRaises(ValueError):
+                self.generator.process(text="xyz")
 
     def test_words_to_lines(self):
         # Test the line splitting logic
