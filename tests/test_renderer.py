@@ -73,7 +73,7 @@ def test_render_background(renderer):
 
 def test_get_css():
     """Tests the `get_css` function for correct CSS string generation."""
-    css = get_css(font_size=12, font_path='dummy.ttf', vertical=True, shadow_size=1, stroke_size=1, letter_spacing=0.1, text_orientation='upright')
+    css = get_css(font_size=12, font_path='dummy.ttf', vertical=True, glow_size=1, stroke_size=1, letter_spacing=0.1, text_orientation='upright')
     assert 'font-size: 12px;' in css
     assert 'writing-mode: vertical-rl;' in css
     assert 'text-shadow' in css
@@ -144,3 +144,34 @@ def test_rounded_rectangle():
     img = np.zeros((100, 100, 3), dtype=np.uint8)
     result_img = rounded_rectangle(img, (10, 10), (90, 90), radius=0.5, color=(255, 255, 255), thickness=-1)
     assert np.any(result_img > 0)
+
+def test_get_css_stroke():
+    """Tests that get_css generates a correct stroke effect."""
+    css = get_css(
+        font_size=48,
+        font_path='dummy.ttf',
+        stroke_size=1,
+        stroke_color='black'
+    )
+    # A correct implementation should create a hard-edged stroke.
+    # This can be done with multiple shadows at different offsets and 0 blur.
+    expected_shadows = [
+        "-1px -1px 0 black", "1px -1px 0 black", "-1px 1px 0 black", "1px 1px 0 black",
+        "-1px 0px 0 black", "1px 0px 0 black", "0px -1px 0 black", "0px 1px 0 black"
+    ]
+
+    for shadow in expected_shadows:
+        assert shadow in css
+
+    # Also, ensure that the glow effect is not present for a stroke.
+    assert "0 0 1px" not in css
+
+def test_get_css_glow():
+    """Tests that get_css generates a correct glow effect."""
+    css = get_css(
+        font_size=48,
+        font_path='dummy.ttf',
+        glow_size=5,
+        glow_color='blue'
+    )
+    assert 'text-shadow: 0 0 5px blue;' in css
