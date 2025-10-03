@@ -143,7 +143,16 @@ class SyntheticDataGenerator:
             if lines:
                 lines = [self.add_random_furigana(line, word_prob, vocab) for line in lines]
 
+        # Resolve font path to absolute for renderer
+        if "font_path" in override_css_params:
+            override_css_params["font_path"] = str(FONTS_ROOT / override_css_params["font_path"])
+
         img, params = self.renderer.render(lines, override_css_params)
+
+        # Return relative font path in params
+        if "font_path" in params:
+            params["font_path"] = font_path
+
         return img, text_gt, params
 
     def get_random_words(self, vocab):
@@ -327,8 +336,7 @@ class SyntheticDataGenerator:
             True if the font supports all characters in the text, False
             otherwise.
         """
-        font_path_abs = str(FONTS_ROOT / font_path)
-        chars = self.font_map[font_path_abs]
+        chars = self.font_map[font_path]
         for c in text:
             if c.isspace():
                 continue
@@ -379,7 +387,7 @@ class SyntheticDataGenerator:
         label = np.random.choice(self.font_labels, p=self.font_p)
         df = self.fonts_df[self.fonts_df.label == label]
         if text is None:
-            return str(FONTS_ROOT / df.sample(1).iloc[0].font_path)
+            return df.sample(1).iloc[0].font_path
         valid_mask = df.font_path.apply(lambda x: self.is_font_supporting_text(x, text))
         if not valid_mask.any():
             # If text has chars not supported by any font, try again with all fonts
@@ -394,7 +402,7 @@ class SyntheticDataGenerator:
                 raise ValueError(
                     f"Text contains unsupported characters: {''.join(unsupported_chars)}"
                 )
-        return str(FONTS_ROOT / df[valid_mask].sample(1).iloc[0].font_path)
+        return df[valid_mask].sample(1).iloc[0].font_path
 
     def is_char_supported_by_any_font(self, char):
         """Checks if a character is supported by at least one font.
