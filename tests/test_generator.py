@@ -55,3 +55,42 @@ def test_generator_handles_missing_font_data_after_fix(
     # We patch `get_random_words` to avoid a separate bug.
     with patch.object(generator, 'get_random_words', return_value=['a']):
         generator.process()
+
+
+@patch('manga_ocr_dev.synthetic_data_generator.generator.get_font_meta')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.budoux.load_default_japanese_parser')
+def test_generator_raises_value_error_for_unsupported_chars(
+    mock_budoux, mock_gen_read_csv, mock_get_charsets, mock_renderer, mock_get_font_meta
+):
+    """Test that SyntheticDataGenerator raises ValueError for unsupported characters."""
+    # Mock dependencies for SyntheticDataGenerator initialization
+    mock_get_charsets.return_value = (set('abc'), set('a'), set('b'))
+    mock_gen_read_csv.return_value = pd.DataFrame({'len': [10], 'p': [1.0]})
+    mock_budoux.return_value.parse.return_value = ['abcX']
+
+    # Mock the return of `get_font_meta`. The mock fonts do not support 'X'.
+    mock_fonts_df = pd.DataFrame({
+        'font_path': ['font1.ttf', 'font2.ttf'],
+        'supported_chars': ['ab', 'c'],
+        'label': ['regular', 'regular'],
+        'num_chars': [2, 1]
+    })
+    mock_font_map = {
+        str(FONTS_ROOT / 'font1.ttf'): set('ab'),
+        str(FONTS_ROOT / 'font2.ttf'): set('c'),
+    }
+    mock_get_font_meta.return_value = (mock_fonts_df, mock_font_map)
+
+    # Configure the mock renderer to return a tuple
+    mock_renderer.return_value.render.return_value = (MagicMock(), {})
+
+    # Initialize the generator
+    generator = SyntheticDataGenerator()
+
+    # The text 'abcX' contains 'X', which is not supported by any of the mock
+    # fonts. The `process` method should raise a ValueError.
+    with pytest.raises(ValueError, match="Text contains unsupported characters: X"):
+        generator.process(text='abcX')

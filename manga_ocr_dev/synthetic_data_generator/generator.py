@@ -7,6 +7,8 @@ text styling (e.g., furigana) to produce a diverse and realistic dataset that
 mimics the appearance of text in manga.
 """
 
+from pathlib import Path
+
 import budoux
 import numpy as np
 import pandas as pd
@@ -121,10 +123,12 @@ class SyntheticDataGenerator:
         font_path = override_css_params.get("font_path")
         if font_path:
             vocab = self.font_map.get(font_path)
-
-            # Remove unsupported characters.
-            lines = ["".join([c for c in line if c in vocab]) for line in lines]
-            text_gt = "\n".join(lines)
+            unsupported_chars = {c for c in text_gt if c not in vocab and not c.isspace()}
+            if unsupported_chars:
+                raise ValueError(
+                    f"Text contains unsupported characters for font "
+                    f"{Path(font_path).name}: {''.join(unsupported_chars)}"
+                )
         else:
             vocab = None
 
@@ -155,7 +159,7 @@ class SyntheticDataGenerator:
             A list of randomly generated words.
         """
         vocab = list(vocab)
-        max_text_len = np.random.choice(self.len_to_p.len, p=self.len_to_p.p)
+        max_text_len = np.random.choice(self.len_to_p["len"], p=self.len_to_p["p"])
 
         words = []
         text_len = 0
@@ -181,7 +185,7 @@ class SyntheticDataGenerator:
         Returns:
             A list of words from the truncated text.
         """
-        max_text_len = np.random.choice(self.len_to_p.len, p=self.len_to_p.p)
+        max_text_len = np.random.choice(self.len_to_p["len"], p=self.len_to_p["p"])
 
         words = []
         text_len = 0
@@ -377,7 +381,27 @@ class SyntheticDataGenerator:
             return str(FONTS_ROOT / df.sample(1).iloc[0].font_path)
         valid_mask = df.font_path.apply(lambda x: self.is_font_supporting_text(x, text))
         if not valid_mask.any():
-            # If text has chars not supported by any font, use capable fonts.
+            # If text has chars not supported by any font, try again with all fonts
+            valid_mask = self.fonts_df.font_path.apply(
+                lambda x: self.is_font_supporting_text(x, text)
+            )
             df = self.fonts_df
-            valid_mask = df.num_chars >= 4000
+            if not valid_mask.any():
+                unsupported_chars = {
+                    c for c in text if not self.is_char_supported_by_any_font(c)
+                }
+                raise ValueError(
+                    f"Text contains unsupported characters: {''.join(unsupported_chars)}"
+                )
         return str(FONTS_ROOT / df[valid_mask].sample(1).iloc[0].font_path)
+
+    def is_char_supported_by_any_font(self, char):
+        """Checks if a character is supported by at least one font.
+
+        Args:
+            char (str): The character to check.
+
+        Returns:
+            True if the character is supported, False otherwise.
+        """
+        return any(char in font_chars for font_chars in self.font_map.values())

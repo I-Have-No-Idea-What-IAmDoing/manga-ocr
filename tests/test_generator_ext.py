@@ -181,20 +181,7 @@ def test_get_random_font(generator):
         font_path = generator.get_random_font(text='a')
         assert font_path is not None
 
-    # Test with text that has no full support (should fallback)
-    with patch.object(generator, 'is_font_supporting_text', return_value=False):
-        font_path = generator.get_random_font(text='unsupported')
-        assert font_path == font3_path_abs
-
-def test_process_with_unsupported_chars(generator):
-    """
-    Tests that `process` removes characters not supported by the selected font.
-
-    This test ensures that when a font is chosen that does not support all
-    characters in the input text, the unsupported characters are correctly
-
-    stripped from the ground truth text.
-    """
-    font_path = str(FONTS_ROOT / 'font1.ttf')
-    img, text_gt, params = generator.process('abcdexyz', override_css_params={'font_path': font_path})
-    assert text_gt == 'abcde'
+    # Test with text that has no full support (should raise ValueError)
+    with patch.object(generator, 'is_font_supporting_text', return_value=False), \
+         pytest.raises(ValueError, match="Text contains unsupported characters"):
+        generator.get_random_font(text='unsupported')

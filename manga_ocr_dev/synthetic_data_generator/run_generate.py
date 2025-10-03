@@ -54,12 +54,19 @@ def worker_fn(args, generator):
         filename = f"{id_}.jpg"
         img, text_gt, params = generator.process(text)
 
+        if img is None or img.size == 0:
+            print(f"Skipping empty image for text: {text}")
+            return None
+
         cv2.imwrite(str(OUT_DIR / filename), img)
 
         font_path = Path(params["font_path"]).relative_to(FONTS_ROOT)
         ret = source, id_, text_gt, params["vertical"], str(font_path)
         return ret
 
+    except ValueError as e:
+        print(f"Skipping due to error: {e}")
+        return None
     except Exception:
         print(traceback.format_exc())
         raise
@@ -116,10 +123,11 @@ def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
     with Renderer(cdp_port=cdp_port, browser_executable=browser_executable) as renderer:
         generator = SyntheticDataGenerator(renderer=renderer)
         f_with_generator = partial(worker_fn, generator=generator)
-        data = thread_map(
+        results = thread_map(
             f_with_generator, args, max_workers=max_workers, desc=f"Processing package {package_id}"
         )
 
+    data = [res for res in results if res is not None]
     data = pd.DataFrame(data, columns=["source", "id", "text", "vertical", "font_path"])
     meta_path = DATA_SYNTHETIC_ROOT / f"meta/{package_id}.csv"
     meta_path.parent.mkdir(parents=True, exist_ok=True)
