@@ -171,7 +171,6 @@ def get_font_meta():
               supported by that font.
     """
     df = pd.read_csv(ASSETS_PATH / "fonts.csv")
-    df["font_path"] = df["font_path"].apply(lambda x: str(FONTS_ROOT / x))
     df = df.dropna()
     font_map = {row.font_path: set(row.supported_chars) for row in df.itertuples()}
     return df, font_map

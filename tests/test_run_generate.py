@@ -28,7 +28,7 @@ def test_worker_fn(mock_imwrite):
     mock_generator.process.return_value = (
         MagicMock(),
         'test_text',
-        {'font_path': str(FONTS_ROOT / 'dummy.ttf'), 'vertical': True}
+            {'font_path': 'dummy.ttf', 'vertical': True}
     )
 
     # Set the global OUT_DIR for the test

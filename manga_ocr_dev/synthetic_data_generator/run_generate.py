@@ -60,7 +60,7 @@ def worker_fn(args, generator):
 
         cv2.imwrite(str(OUT_DIR / filename), img)
 
-        font_path = Path(params["font_path"]).relative_to(FONTS_ROOT)
+        font_path = params["font_path"]
         ret = source, id_, text_gt, params["vertical"], str(font_path)
         return ret
 

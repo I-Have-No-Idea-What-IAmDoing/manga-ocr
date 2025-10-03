@@ -42,10 +42,11 @@ def test_synthetic_data_generator_with_given_text(mock_get_background_df, mock_g
     browser_executable = os.environ.get('CHROME_EXECUTABLE_PATH',
                                         '/home/jules/.cache/ms-playwright/chromium-1181/chrome-linux/chrome')
     os.environ['CHROME_EXECUTABLE_PATH'] = browser_executable
-    font_path = str(FONTS_ROOT / 'NotoSansJP-Regular.ttf')
+    font_path_abs = str(FONTS_ROOT / 'NotoSansJP-Regular.ttf')
+    font_path_rel = 'NotoSansJP-Regular.ttf'
 
     # Get the character set for the font to use in the mock
-    font = TTFont(font_path)
+    font = TTFont(font_path_abs)
     valid_chars = set()
     for cmap in font['cmap'].tables:
         if cmap.isUnicode():
@@ -53,11 +54,11 @@ def test_synthetic_data_generator_with_given_text(mock_get_background_df, mock_g
                 valid_chars.add(chr(code))
 
     mock_fonts_df = pd.DataFrame([{
-        'font_path': font_path,
+        'font_path': font_path_rel,
         'label': 'regular',
         'num_chars': len(valid_chars)
     }])
-    mock_font_map = {font_path: valid_chars}
+    mock_font_map = {font_path_rel: valid_chars}
     mock_get_font_meta.return_value = (mock_fonts_df, mock_font_map)
 
     input_text = 'test text'
@@ -69,7 +70,7 @@ def test_synthetic_data_generator_with_given_text(mock_get_background_df, mock_g
         generator = SyntheticDataGenerator(renderer=renderer)
         img, text, params = generator.process(
             input_text,
-            override_css_params={'font_path': font_path}
+            override_css_params={'font_path': font_path_rel}
         )
 
         assert isinstance(img, np.ndarray)
@@ -104,7 +105,6 @@ def test_synthetic_data_generator_with_random_text(mock_get_background_df, mock_
     browser_executable = os.environ.get('CHROME_EXECUTABLE_PATH',
                                         '/home/jules/.cache/ms-playwright/chromium-1181/chrome-linux/chrome')
     os.environ['CHROME_EXECUTABLE_PATH'] = browser_executable
-    font_path = str(FONTS_ROOT / 'NotoSansJP-Regular.ttf')
     rel_font_path = 'NotoSansJP-Regular.ttf'
 
     valid_chars = set('test ')
@@ -113,7 +113,7 @@ def test_synthetic_data_generator_with_random_text(mock_get_background_df, mock_
         'label': 'regular',
         'num_chars': len(valid_chars)
     }])
-    mock_font_map = {font_path: valid_chars}
+    mock_font_map = {rel_font_path: valid_chars}
     mock_get_font_meta.return_value = (mock_fonts_df, mock_font_map)
 
     with Renderer(browser_executable=browser_executable) as renderer:

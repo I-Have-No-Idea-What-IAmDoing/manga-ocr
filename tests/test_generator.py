@@ -79,8 +79,8 @@ def test_generator_raises_value_error_for_unsupported_chars(
         'num_chars': [2, 1]
     })
     mock_font_map = {
-        str(FONTS_ROOT / 'font1.ttf'): set('ab'),
-        str(FONTS_ROOT / 'font2.ttf'): set('c'),
+            'font1.ttf': set('ab'),
+            'font2.ttf': set('c'),
     }
     mock_get_font_meta.return_value = (mock_fonts_df, mock_font_map)
 
