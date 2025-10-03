@@ -1,3 +1,10 @@
+"""Tests for the Manga109-s dataset processing script.
+
+This module contains unit tests for the `process_manga109s.py` script, which
+is responsible for parsing the Manga109-s dataset's XML annotations,
+extracting metadata, and generating cropped images for training.
+"""
+
 import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
@@ -39,18 +46,21 @@ DUMMY_XML_CROPS = """
 """
 
 class TestProcessManga109s(unittest.TestCase):
+    """A test suite for the Manga109-s processing functions."""
 
     def setUp(self):
+        """Sets up a temporary directory to simulate the Manga109-s dataset root."""
         self.tmpdir = tempfile.TemporaryDirectory()
         self.manga109_root = Path(self.tmpdir.name)
         self.manga109s_root = self.manga109_root / "Manga109s_released_2021_02_28"
         self.manga109s_root.mkdir()
 
     def tearDown(self):
+        """Cleans up the temporary directory after tests are complete."""
         self.tmpdir.cleanup()
 
     def test_get_books(self):
-        """Test that get_books reads book list and constructs paths correctly."""
+        """Tests that `get_books` correctly reads the book list and constructs paths."""
         with patch('manga_ocr_dev.data.process_manga109s.MANGA109_ROOT', self.manga109_root):
             (self.manga109s_root / 'books.txt').write_text('TestBook\n')
 
@@ -64,7 +74,7 @@ class TestProcessManga109s(unittest.TestCase):
     @patch('xml.etree.ElementTree.parse')
     @patch('manga_ocr_dev.data.process_manga109s.get_books')
     def test_export_frames(self, mock_get_books, mock_et_parse):
-        """Test that export_frames correctly parses XML and saves frame data."""
+        """Tests that `export_frames` correctly parses XML and saves frame data."""
         with patch('manga_ocr_dev.data.process_manga109s.MANGA109_ROOT', self.manga109_root):
             mock_get_books.return_value = pd.DataFrame([
                 {'book': 'TestBook', 'annotations': 'dummy.xml', 'images': 'dummy_images'}
@@ -85,7 +95,7 @@ class TestProcessManga109s(unittest.TestCase):
     @patch('xml.etree.ElementTree.parse')
     @patch('manga_ocr_dev.data.process_manga109s.get_books')
     def test_export_crops(self, mock_get_books, mock_et_parse, mock_imread, mock_imwrite):
-        """Test that export_crops parses XML, processes data, and saves crops."""
+        """Tests that `export_crops` parses XML, creates splits, and saves crops."""
         np.random.seed(0)
         with patch('manga_ocr_dev.data.process_manga109s.MANGA109_ROOT', self.manga109_root):
             images_dir = self.manga109s_root / "images" / "TestBook"

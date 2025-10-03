@@ -1,4 +1,13 @@
-"""
+"""A vendored copy of the html2image library's main file.
+
+This file is part of a third-party library included directly in the project to
+ensure stability and avoid dependency conflicts. It is used by the synthetic
+data generator to render HTML and CSS into images.
+
+For the original library, see: https://github.com/vladkens/html2image
+
+---
+
 Main file of the html2image package.
 
 html2image is a package acting as a wrapper around the

@@ -1,3 +1,11 @@
+"""Tests for the command-line interface and background monitoring.
+
+This module contains tests for the functions in `manga_ocr.run`, which
+implements the clipboard and directory monitoring logic for the `manga_ocr`
+command-line tool. The tests cover image comparison, result writing, and the
+main `run` loop's behavior under various conditions.
+"""
+
 import time
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -9,12 +17,17 @@ from manga_ocr.run import (
     are_images_identical,
     get_path_key,
     process_and_write_results,
+    run,
 )
 
 
 def test_are_images_identical():
     """
-    Tests the are_images_identical function with various image comparison scenarios.
+    Tests the `are_images_identical` function with various scenarios.
+
+    This test covers comparisons between identical images, images with different
+    colors or sizes, images with different modes (RGB vs. RGBA), and comparisons
+    involving `None`.
     """
     img1 = Image.new("RGB", (100, 100), color="red")
     img2 = Image.new("RGB", (100, 100), color="red")
@@ -34,7 +47,11 @@ def test_are_images_identical():
 
 def test_get_path_key(tmp_path):
     """
-    Tests the get_path_key function to ensure it returns the correct key for a path.
+    Tests that `get_path_key` returns a correct and unique key for a file path.
+
+    The key should be a tuple containing the path object and its modification
+    time, which is used to detect new or updated files in directory monitoring
+    mode.
     """
     test_file = tmp_path / "test.txt"
     test_file.touch()
@@ -45,9 +62,9 @@ def test_get_path_key(tmp_path):
 
 
 @patch("pyperclip.copy")
-def test_process_and_write_results_clipboard(mock_copy):
+def test_process_and_write_results_to_clipboard(mock_copy):
     """
-    Tests process_and_write_results with clipboard output.
+    Tests that `process_and_write_results` correctly writes OCR output to the clipboard.
     """
     mocr = Mock()
     mocr.return_value = "test text"
@@ -59,9 +76,9 @@ def test_process_and_write_results_clipboard(mock_copy):
     mock_copy.assert_called_once_with("test text")
 
 
-def test_process_and_write_results_file(tmp_path):
+def test_process_and_write_results_to_file(tmp_path):
     """
-    Tests process_and_write_results with file output.
+    Tests that `process_and_write_results` correctly appends OCR output to a file.
     """
     mocr = Mock()
     mocr.return_value = "test text"
@@ -74,12 +91,9 @@ def test_process_and_write_results_file(tmp_path):
     assert output_file.read_text(encoding="utf-8") == "test text\n"
 
 
-from manga_ocr.run import run
-
-
-def test_process_and_write_results_invalid_path():
+def test_process_and_write_results_raises_for_invalid_path():
     """
-    Tests that process_and_write_results raises ValueError for an invalid file type.
+    Tests that `process_and_write_results` raises a ValueError for an invalid file type.
     """
     mocr = Mock()
     img = Image.new("RGB", (100, 100))
@@ -92,9 +106,13 @@ def test_process_and_write_results_invalid_path():
 @patch("PIL.ImageGrab.grabclipboard")
 @patch("pyperclip.copy")
 @patch("time.sleep")
-def test_run_clipboard(mock_sleep, mock_pyperclip_copy, mock_grabclipboard, mock_mocr):
+def test_run_in_clipboard_mode(mock_sleep, mock_pyperclip_copy, mock_grabclipboard, mock_mocr):
     """
-    Tests the run function in clipboard mode.
+    Tests the main `run` function's behavior in clipboard monitoring mode.
+
+    This test simulates a sequence of clipboard events, including a new image,
+    a duplicate image, and another new image, to verify that the OCR is
+    triggered only for new, unique images.
     """
     mock_mocr_instance = mock_mocr.return_value
     mock_mocr_instance.return_value = "test ocr"
@@ -109,6 +127,7 @@ def test_run_clipboard(mock_sleep, mock_pyperclip_copy, mock_grabclipboard, mock
         run(read_from="clipboard", write_to="clipboard")
 
     assert mock_grabclipboard.call_count == 4
+    # OCR should be called for img1 and img2, but not the duplicate img1
     assert mock_mocr_instance.call_count == 2
     mock_pyperclip_copy.assert_called_with("test ocr")
 
@@ -117,9 +136,13 @@ def test_run_clipboard(mock_sleep, mock_pyperclip_copy, mock_grabclipboard, mock
 @patch("pathlib.Path.iterdir")
 @patch("pyperclip.copy")
 @patch("time.sleep")
-def test_run_directory(mock_sleep, mock_pyperclip_copy, mock_iterdir, mock_mocr, tmp_path):
+def test_run_in_directory_mode(mock_sleep, mock_pyperclip_copy, mock_iterdir, mock_mocr, tmp_path):
     """
-    Tests the run function in directory mode.
+    Tests the main `run` function's behavior in directory monitoring mode.
+
+    This test simulates the discovery of new image files in a directory over
+    several polling cycles to ensure that the OCR is triggered correctly for
+    each new file.
     """
     mock_mocr_instance = mock_mocr.return_value
     mock_mocr_instance.return_value = "test ocr"
@@ -150,26 +173,22 @@ def test_run_directory(mock_sleep, mock_pyperclip_copy, mock_iterdir, mock_mocr,
 @patch("sys.platform", "linux")
 @patch("os.system", return_value=1)  # wl-copy not found
 @patch("manga_ocr.run.MangaOcr")
-def test_run_wayland_not_installed(mock_mocr, mock_os_system, monkeypatch):
+def test_run_raises_on_wayland_without_wl_clipboard(mock_mocr, mock_os_system, monkeypatch):
     """
-    Tests that the run function raises NotImplementedError on Wayland without wl-clipboard.
+    Tests that `run` raises NotImplementedError on Wayland without wl-clipboard.
     """
     monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-1")
     with pytest.raises(NotImplementedError):
         run(read_from="clipboard", write_to="clipboard")
 
 
-
-
-
-
 @patch("manga_ocr.run.MangaOcr")
 @patch("PIL.ImageGrab.grabclipboard")
 @patch("time.sleep")
 @patch("loguru.logger.warning")
-def test_run_clipboard_oserror_verbose(mock_logger_warning, mock_sleep, mock_grabclipboard, mock_mocr):
+def test_run_logs_clipboard_oserror_when_verbose(mock_logger_warning, mock_sleep, mock_grabclipboard, mock_mocr):
     """
-    Tests that the run function logs a warning on OSError when verbose is True.
+    Tests that `run` logs a warning on OSError from clipboard when `verbose=True`.
     """
     mock_grabclipboard.side_effect = [OSError("test error"), KeyboardInterrupt]
 
@@ -184,9 +203,9 @@ def test_run_clipboard_oserror_verbose(mock_logger_warning, mock_sleep, mock_gra
 @patch("pyperclip.set_clipboard")
 @patch("manga_ocr.run.MangaOcr")
 @patch("PIL.ImageGrab.grabclipboard")
-def test_run_wayland_installed(mock_grabclipboard, mock_mocr, mock_set_clipboard, mock_os_system, monkeypatch):
+def test_run_sets_up_wayland_clipboard(mock_grabclipboard, mock_mocr, mock_set_clipboard, mock_os_system, monkeypatch):
     """
-    Tests that the run function sets the clipboard to wl-clipboard on Wayland.
+    Tests that `run` correctly configures `pyperclip` for Wayland when available.
     """
     monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-1")
 
@@ -202,9 +221,13 @@ def test_run_wayland_installed(mock_grabclipboard, mock_mocr, mock_set_clipboard
 @patch("PIL.ImageGrab.grabclipboard")
 @patch("time.sleep")
 @patch("loguru.logger.warning")
-def test_run_clipboard_oserror_no_image(mock_logger_warning, mock_sleep, mock_grabclipboard, mock_mocr):
+def test_run_handles_clipboard_non_image_error(mock_logger_warning, mock_sleep, mock_grabclipboard, mock_mocr):
     """
-    Tests that the run function handles 'cannot identify image file' error gracefully.
+    Tests that `run` gracefully handles the 'cannot identify image file' OSError.
+
+    This error commonly occurs on Linux when the clipboard content changes but
+    is not an image. The test ensures that this specific error is ignored and
+    does not produce a warning log when `verbose=False`.
     """
     mock_grabclipboard.side_effect = [OSError("cannot identify image file"), KeyboardInterrupt]
 
@@ -230,9 +253,12 @@ def test_run_raises_on_invalid_read_from_path(tmp_path):
 @patch("pathlib.Path.iterdir")
 @patch("time.sleep", side_effect=KeyboardInterrupt)
 @patch("loguru.logger.warning")
-def test_run_logs_warning_on_invalid_image_file(mock_logger_warning, mock_sleep, mock_iterdir, mock_mocr, tmp_path):
+def test_run_logs_warning_on_unopenable_image_file(mock_logger_warning, mock_sleep, mock_iterdir, mock_mocr, tmp_path):
     """
-    Tests that `run` logs a warning when it encounters a file that cannot be opened as an image.
+    Tests that `run` logs a warning for files that cannot be opened as images.
+
+    This test simulates the discovery of a non-image file in directory mode
+    and ensures that a warning is logged when `PIL` fails to open it.
     """
     invalid_file = tmp_path / "invalid_image.txt"
     invalid_file.write_text("this is not an image")
@@ -255,9 +281,13 @@ def test_run_logs_warning_on_invalid_image_file(mock_logger_warning, mock_sleep,
 @patch("PIL.ImageGrab.grabclipboard")
 @patch("time.sleep")
 @patch("loguru.logger.warning")
-def test_run_clipboard_oserror_no_png(mock_logger_warning, mock_sleep, mock_grabclipboard, mock_mocr):
+def test_run_handles_clipboard_no_png_error(mock_logger_warning, mock_sleep, mock_grabclipboard, mock_mocr):
     """
-    Tests that the run function handles 'target image/png not available' error gracefully.
+    Tests that `run` gracefully handles the 'target image/png not available' OSError.
+
+    This error can occur on Linux (X11) when the clipboard contains text. The
+    test ensures this error is ignored and does not produce a warning log when
+    `verbose=False`.
     """
     mock_grabclipboard.side_effect = [OSError("target image/png not available"), KeyboardInterrupt]
 

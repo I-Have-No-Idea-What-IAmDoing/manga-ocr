@@ -1,3 +1,11 @@
+"""Tests for the synthetic data rendering engine.
+
+This module contains unit tests for the `Renderer` class and its associated
+utility functions, which are responsible for generating synthetic text images.
+These tests verify the functionality of text rendering, background composition,
+and various image manipulation helpers.
+"""
+
 import numpy as np
 import pytest
 from unittest.mock import patch, MagicMock
@@ -9,8 +17,14 @@ from manga_ocr_dev.synthetic_data_generator.renderer import Renderer, get_css, c
 @patch('manga_ocr_dev.vendored.html2image.browsers.chrome_cdp.find_chrome')
 @patch('manga_ocr_dev.synthetic_data_generator.renderer.get_background_df')
 def renderer(mock_get_background_df, mock_find_chrome):
-    """
-    Provides a Renderer instance with mocked dependencies for testing.
+    """Provides a `Renderer` instance with mocked dependencies for testing.
+
+    This pytest fixture initializes the `Renderer` while mocking its external
+    dependencies, such as browser discovery and background data loading. This
+    allows for isolated testing of the renderer's logic.
+
+    Returns:
+        A `Renderer` instance ready for testing.
     """
     mock_find_chrome.return_value = 'dummy_chrome_path'
     mock_get_background_df.return_value = MagicMock()
@@ -19,12 +33,17 @@ def renderer(mock_get_background_df, mock_find_chrome):
     return r
 
 def test_renderer_initialization(renderer):
+    """Tests that the Renderer initializes correctly."""
     assert renderer.hti is not None
     assert renderer.background_df is not None
 
 def test_render_text(renderer):
     """
-    Tests the render_text method.
+    Tests the `render_text` method for correct image and parameter output.
+
+    This test ensures that `render_text` successfully produces an image with
+    the correct format (BGRA) and returns a dictionary of the CSS parameters
+    used for rendering.
     """
     renderer.hti.screenshot_as_bytes.return_value = cv2.imencode('.png', np.zeros((100, 100, 3), dtype=np.uint8))[1].tobytes()
 
@@ -36,11 +55,13 @@ def test_render_text(renderer):
     assert isinstance(params, dict)
 
 def test_get_random_css_params():
+    """Tests the generation of random CSS parameters."""
     params = Renderer.get_random_css_params()
     assert isinstance(params, dict)
     assert 'font_size' in params
 
 def test_render_background(renderer):
+    """Tests the `render_background` method for compositing images."""
     img = np.zeros((100, 100, 4), dtype=np.uint8)
 
     with patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread') as mock_imread:
@@ -51,6 +72,7 @@ def test_render_background(renderer):
         assert isinstance(result_img, np.ndarray)
 
 def test_get_css():
+    """Tests the `get_css` function for correct CSS string generation."""
     css = get_css(font_size=12, font_path='dummy.ttf', vertical=True, shadow_size=1, stroke_size=1, letter_spacing=0.1, text_orientation='upright')
     assert 'font-size: 12px;' in css
     assert 'writing-mode: vertical-rl;' in css
@@ -59,6 +81,7 @@ def test_get_css():
     assert 'text-orientation' in css
 
 def test_crop_by_alpha():
+    """Tests the `crop_by_alpha` function with various image scenarios."""
     # Test case 1: Standard crop with margin
     img = np.zeros((100, 100, 4), dtype=np.uint8)
     content_rgba = (128, 150, 170, 255)
@@ -107,6 +130,7 @@ def test_crop_by_alpha():
     assert np.array_equal(cropped_border, expected_content)
 
 def test_blend():
+    """Tests the `blend` function for correct alpha compositing."""
     fg = np.zeros((100, 100, 4), dtype=np.uint8)
     fg[:, :, 3] = 128 # 50% transparent
     bg = np.full((100, 100, 3), 255, dtype=np.uint8) # white background
@@ -116,6 +140,7 @@ def test_blend():
     assert np.all(blended_img[0, 0] == [127, 127, 127])
 
 def test_rounded_rectangle():
+    """Tests the `rounded_rectangle` drawing function."""
     img = np.zeros((100, 100, 3), dtype=np.uint8)
     result_img = rounded_rectangle(img, (10, 10), (90, 90), radius=0.5, color=(255, 255, 255), thickness=-1)
     assert np.any(result_img > 0)

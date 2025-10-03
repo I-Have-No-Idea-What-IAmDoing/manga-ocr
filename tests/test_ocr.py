@@ -1,3 +1,11 @@
+"""Tests for the core OCR functionality.
+
+This module contains tests for the `MangaOcr` class and its associated
+functions. It includes integration tests that verify the OCR performance
+against a baseline, as well as unit tests for text post-processing, device
+selection logic, and input validation.
+"""
+
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -10,13 +18,14 @@ from manga_ocr.ocr import post_process
 TEST_DATA_ROOT = Path(__file__).parent / "data"
 
 
-def test_ocr():
+def test_ocr_integration():
     """
-    Tests the MangaOcr model by comparing its output against a set of expected results.
+    Performs an integration test of the MangaOcr model.
 
-    This test loads the pre-generated expected results from a JSON file, runs the
-    OCR model on the corresponding test images, and asserts that the output
-    matches the expected text.
+    This test compares the model's output against a set of pre-generated,
+    expected results from a JSON file. It runs the OCR on each test image
+    and asserts that the output matches the expected text, ensuring that
+    model changes do not cause performance regressions.
     """
     mocr = MangaOcr()
 
@@ -27,15 +36,14 @@ def test_ocr():
         assert result == item["result"]
 
 
-
-
 def test_post_process():
     """
-    Tests the text post-processing function.
+    Tests the text post-processing function for correct normalization.
 
     This test verifies that the `post_process` function correctly handles
-    specific text replacements, such as converting standard ellipsis and dots
-    to full-width Japanese characters.
+    various text cleaning and normalization tasks, such as removing whitespace,
+    standardizing punctuation, and converting half-width characters to
+    full-width.
     """
     assert post_process("…") == "．．．"
     assert post_process("・・") == "．．"
@@ -53,9 +61,9 @@ def test_post_process():
 @patch("manga_ocr.ocr.MangaOcrModel.cuda")
 @patch("manga_ocr.ocr.MangaOcr.__call__")
 @patch("loguru.logger.info")
-def test_manga_ocr_cuda_available(mock_logger_info, mock_call, mock_model_cuda, mock_mps, mock_cuda):
+def test_manga_ocr_uses_cuda_when_available(mock_logger_info, mock_call, mock_model_cuda, mock_mps, mock_cuda):
     """
-    Tests that MangaOcr uses CUDA when available.
+    Tests that MangaOcr correctly selects the CUDA device when it is available.
     """
     MangaOcr()
     mock_logger_info.assert_any_call("Using CUDA")
@@ -67,9 +75,9 @@ def test_manga_ocr_cuda_available(mock_logger_info, mock_call, mock_model_cuda, 
 @patch("manga_ocr.ocr.MangaOcrModel.to")
 @patch("manga_ocr.ocr.MangaOcr.__call__")
 @patch("loguru.logger.info")
-def test_manga_ocr_mps_available(mock_logger_info, mock_call, mock_model_to, mock_mps, mock_cuda):
+def test_manga_ocr_uses_mps_when_available(mock_logger_info, mock_call, mock_model_to, mock_mps, mock_cuda):
     """
-    Tests that MangaOcr uses MPS when available.
+    Tests that MangaOcr correctly selects the MPS device when it is available.
     """
     MangaOcr()
     mock_logger_info.assert_any_call("Using MPS")
@@ -80,9 +88,9 @@ def test_manga_ocr_mps_available(mock_logger_info, mock_call, mock_model_to, moc
 @patch("torch.backends.mps.is_available", return_value=False)
 @patch("manga_ocr.ocr.MangaOcr.__call__")
 @patch("loguru.logger.info")
-def test_manga_ocr_cpu_fallback(mock_logger_info, mock_call, mock_mps, mock_cuda):
+def test_manga_ocr_falls_back_to_cpu(mock_logger_info, mock_call, mock_mps, mock_cuda):
     """
-    Tests that MangaOcr falls back to CPU when no GPU is available.
+    Tests that MangaOcr correctly falls back to CPU when no GPU is available.
     """
     MangaOcr()
     mock_logger_info.assert_any_call("Using CPU")
@@ -91,17 +99,21 @@ def test_manga_ocr_cpu_fallback(mock_logger_info, mock_call, mock_mps, mock_cuda
 @patch("torch.cuda.is_available", return_value=True)
 @patch("manga_ocr.ocr.MangaOcr.__call__")
 @patch("loguru.logger.info")
-def test_manga_ocr_force_cpu(mock_logger_info, mock_call, mock_cuda):
+def test_manga_ocr_force_cpu_option(mock_logger_info, mock_call, mock_cuda):
     """
-    Tests that MangaOcr uses CPU when force_cpu is True, even if a GPU is available.
+    Tests that MangaOcr uses CPU when `force_cpu=True`, even if a GPU is available.
     """
     MangaOcr(force_cpu=True)
     mock_logger_info.assert_any_call("Using CPU")
 
 
-def test_ocr_raises_on_invalid_input_type():
+def test_ocr_raises_value_error_for_invalid_input_type():
     """
-    Tests that MangaOcr raises a ValueError when the input is not a path or PIL Image.
+    Tests that MangaOcr raises a ValueError for unsupported input types.
+
+    This test ensures that the `__call__` method validates its input and
+    raises a `ValueError` if the provided argument is not a file path or a
+    PIL Image object.
     """
     mocr = MangaOcr()
     with pytest.raises(ValueError, match="img_or_path must be a path or PIL.Image"):

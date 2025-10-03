@@ -1,3 +1,11 @@
+"""Extended tests for the synthetic data generator.
+
+This module provides a comprehensive suite of unit tests for the
+`SyntheticDataGenerator` class, covering its initialization, text processing,
+font selection, and styling capabilities. These tests use extensive mocking to
+isolate the generator's logic and verify its behavior under various conditions.
+"""
+
 import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock, Mock
@@ -13,6 +21,10 @@ from manga_ocr_dev.env import FONTS_ROOT
 def test_generator_initialization(mock_renderer, mock_budoux, mock_read_csv, mock_get_charsets, mock_get_font_meta):
     """
     Tests that the SyntheticDataGenerator initializes correctly with mocked dependencies.
+
+    This test ensures that the generator's constructor successfully loads all
+    necessary assets (e.g., fonts, charsets) and correctly initializes its
+    internal state, including the renderer and text parser.
     """
     # Mock dependencies
     mock_get_font_meta.return_value = (
@@ -45,7 +57,14 @@ def test_generator_initialization(mock_renderer, mock_budoux, mock_read_csv, moc
 @patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
 def generator(mock_renderer, mock_budoux, mock_read_csv, mock_get_charsets, mock_get_font_meta):
     """
-    Provides a SyntheticDataGenerator instance with mocked dependencies for testing.
+    Provides a pytest fixture for a SyntheticDataGenerator instance.
+
+    This fixture creates a `SyntheticDataGenerator` with all its external
+    dependencies mocked. This allows for isolated testing of the generator's
+    methods without needing to load real assets or use a real renderer.
+
+    Returns:
+        An instance of `SyntheticDataGenerator` ready for testing.
     """
     font1_path_rel = 'font1.ttf'
     font2_path_rel = 'font2.ttf'
@@ -75,6 +94,7 @@ def generator(mock_renderer, mock_budoux, mock_read_csv, mock_get_charsets, mock
     return SyntheticDataGenerator(renderer=mock_renderer_instance)
 
 def test_process_with_given_text(generator):
+    """Tests the `process` method with a predefined text string."""
     img, text_gt, params = generator.process('abcde', override_css_params={'font_path': str(FONTS_ROOT / 'font1.ttf')})
     assert img is not None
     assert text_gt == 'abcde'
@@ -82,6 +102,7 @@ def test_process_with_given_text(generator):
     generator.renderer.render.assert_called()
 
 def test_process_with_random_text(generator):
+    """Tests the `process` method's ability to generate random text."""
     font1_path_abs = str(FONTS_ROOT / 'font1.ttf')
     with patch.object(generator, 'get_random_font', return_value=font1_path_abs), \
          patch.object(generator, 'get_random_words', return_value=['abc']):
@@ -92,22 +113,26 @@ def test_process_with_random_text(generator):
         generator.renderer.render.assert_called()
 
 def test_get_random_words(generator):
+    """Tests the `get_random_words` method for generating random text."""
     words = generator.get_random_words(vocab=list('abc'))
     assert isinstance(words, list)
     assert all(isinstance(word, str) for word in words)
     assert len(''.join(words)) > 0
 
 def test_split_into_words(generator):
+    """Tests the `split_into_words` method's text splitting logic."""
     words = generator.split_into_words('test text')
     assert words == ['test', 'text']
     generator.parser.parse.assert_called_with('test text')
 
 def test_words_to_lines(generator):
+    """Tests the `words_to_lines` method for formatting words into lines."""
     lines = generator.words_to_lines(['a', 'b', 'c', 'd', 'e', 'f', 'g'])
     assert isinstance(lines, list)
     assert ''.join(lines) == 'abcdefg'
 
 def test_add_random_furigana(generator):
+    """Tests the `add_random_furigana` method for adding ruby text and styling."""
     # Test with kanji and furigana
     with patch('manga_ocr_dev.synthetic_data_generator.generator.is_kanji', return_value=True), \
          patch('manga_ocr_dev.synthetic_data_generator.generator.is_ascii', return_value=False), \
@@ -140,12 +165,14 @@ def test_add_random_furigana(generator):
         assert result == '日本語'
 
 def test_is_font_supporting_text(generator):
+    """Tests the `is_font_supporting_text` method for verifying character support."""
     font_path = str(FONTS_ROOT / 'font1.ttf')
     assert generator.is_font_supporting_text(font_path, 'abc')
     assert not generator.is_font_supporting_text(font_path, 'xyz')
     assert generator.is_font_supporting_text(font_path, ' a b ')
 
 def test_get_random_font(generator):
+    """Tests the `get_random_font` method's font selection logic."""
     font1_path_abs = str(FONTS_ROOT / 'font1.ttf')
     font3_path_abs = str(FONTS_ROOT / 'font3.ttf')
 
@@ -162,6 +189,11 @@ def test_get_random_font(generator):
 def test_process_with_unsupported_chars(generator):
     """
     Tests that `process` removes characters not supported by the selected font.
+
+    This test ensures that when a font is chosen that does not support all
+    characters in the input text, the unsupported characters are correctly
+
+    stripped from the ground truth text.
     """
     font_path = str(FONTS_ROOT / 'font1.ttf')
     img, text_gt, params = generator.process('abcdexyz', override_css_params={'font_path': font_path})

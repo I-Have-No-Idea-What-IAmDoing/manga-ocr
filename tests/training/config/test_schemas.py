@@ -1,3 +1,11 @@
+"""Tests for the Pydantic configuration schemas.
+
+This module contains unit tests for the Pydantic models defined in
+`manga_ocr_dev.training.config.schemas`. These tests ensure that the
+configuration schemas correctly validate input data, handle missing fields,
+apply default values, and process field aliases as expected.
+"""
+
 import unittest
 import pytest
 from pydantic import ValidationError
@@ -44,29 +52,31 @@ VALID_CONFIG = {
 
 
 class TestConfigSchemas(unittest.TestCase):
+    """A test suite for the configuration Pydantic schemas."""
+
     def test_valid_config_parses_correctly(self):
-        """Ensure a valid configuration is parsed without errors."""
+        """Tests that a complete and valid configuration is parsed without errors."""
         try:
             schemas.AppConfig(**copy.deepcopy(VALID_CONFIG))
         except ValidationError as e:
             self.fail(f"Valid configuration failed to parse: {e}")
 
     def test_missing_required_field_raises_error(self):
-        """Test that a missing required field raises a validation error."""
+        """Tests that omitting a required field raises a `ValidationError`."""
         invalid_config = copy.deepcopy(VALID_CONFIG)
         del invalid_config["model"]
         with self.assertRaises(ValidationError):
             schemas.AppConfig(**invalid_config)
 
     def test_incorrect_data_type_raises_error(self):
-        """Test that an incorrect data type raises a validation error."""
+        """Tests that providing an incorrect data type for a field raises a `ValidationError`."""
         invalid_config = copy.deepcopy(VALID_CONFIG)
         invalid_config["training"]["num_train_epochs"] = "three"  # Should be an int
         with self.assertRaises(ValidationError):
             schemas.AppConfig(**invalid_config)
 
     def test_default_values_are_applied(self):
-        """Check that default values are correctly set for optional fields."""
+        """Tests that default values are correctly applied for optional fields."""
         config_dict = copy.deepcopy(VALID_CONFIG)
         # Remove a field that has a default value to test if it's applied
         del config_dict["training"]["report_to"]
@@ -78,7 +88,7 @@ class TestConfigSchemas(unittest.TestCase):
         self.assertEqual(config.training.report_to, "wandb")
 
     def test_field_aliases_work_correctly(self):
-        """Verify that Pydantic field aliases are correctly handled."""
+        """Tests that Pydantic field aliases are correctly handled during parsing."""
         config_dict = copy.deepcopy(VALID_CONFIG)
 
         # Use the alias for a field
@@ -90,7 +100,7 @@ class TestConfigSchemas(unittest.TestCase):
         self.assertEqual(config.training.batch_size, 16)
 
     def test_augmentation_probabilities_defaults(self):
-        """Test that augmentation probabilities use defaults if not specified."""
+        """Tests that augmentation probabilities use defaults if not specified."""
         config_dict = copy.deepcopy(VALID_CONFIG)
         del config_dict["dataset"]["augmentations"]["probabilities"]
 

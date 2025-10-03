@@ -1,3 +1,11 @@
+"""Integration tests for the synthetic data generator.
+
+This module contains integration-style tests for the `SyntheticDataGenerator`,
+verifying its ability to produce complete image-text pairs. These tests use
+mocking for file I/O and browser interactions but test the generator's core
+logic in a more integrated fashion.
+"""
+
 import os
 import numpy as np
 from unittest.mock import patch
@@ -16,10 +24,14 @@ from manga_ocr_dev.env import FONTS_ROOT
 @patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
 @patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
 @patch('manga_ocr_dev.synthetic_data_generator.renderer.get_background_df')
-def test_synthetic_data_generator(mock_get_background_df, mock_get_charsets, mock_read_csv, mock_get_font_meta, mock_imread, mock_screenshot):
+def test_synthetic_data_generator_with_given_text(mock_get_background_df, mock_get_charsets, mock_read_csv, mock_get_font_meta, mock_imread, mock_screenshot):
     """
-    Tests that the synthetic data generator can successfully produce an image-text pair
-    and correctly filters characters not present in the font.
+    Tests the data generator's ability to produce an image from a given text.
+
+    This integration test verifies that the `SyntheticDataGenerator` can
+    successfully produce an image-text pair from a provided input string. It
+    also ensures that the generator correctly filters out characters from the
+    text that are not supported by the specified font.
     """
     mock_get_background_df.return_value = pd.DataFrame([{'path': 'dummy.jpg', 'h': 100, 'w': 100, 'ratio': 1.0}])
     mock_get_charsets.return_value = (np.array(['t', 'e', 's', ' ']), np.array([]), np.array([]))
@@ -73,10 +85,15 @@ def test_synthetic_data_generator(mock_get_background_df, mock_get_charsets, moc
 @patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
 @patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
 @patch('manga_ocr_dev.synthetic_data_generator.renderer.get_background_df')
-def test_synthetic_data_generator_random_text(mock_get_background_df, mock_get_charsets, mock_read_csv, mock_get_font_meta, mock_imread, mock_screenshot):
+def test_synthetic_data_generator_with_random_text(mock_get_background_df, mock_get_charsets, mock_read_csv, mock_get_font_meta, mock_imread, mock_screenshot):
     """
-    Tests that the synthetic data generator can successfully produce an image-text pair
-    with randomly generated text.
+    Tests the data generator's ability to produce an image from random text.
+
+    This integration test verifies that the `SyntheticDataGenerator` can
+    successfully produce an image-text pair when no input text is provided,
+    forcing it to generate random text. It checks that the output is valid
+    and that the generated text only contains characters supported by the
+    selected font.
     """
     mock_get_background_df.return_value = pd.DataFrame([{'path': 'dummy.jpg', 'h': 100, 'w': 100, 'ratio': 1.0}])
     mock_get_charsets.return_value = (np.array(['t', 'e', 's', ' ']), np.array(['t']), np.array(['e']))
