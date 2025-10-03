@@ -310,7 +310,7 @@ def find_firefox(user_given_executable=None):
                 [user_given_executable, '--version']
             ).decode('utf-8').lower()
 
-            if 'Mozilla Firefox' in version_output:
+            if 'mozilla firefox' in version_output:
                 return user_given_executable
             else:
                 print(
