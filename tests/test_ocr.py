@@ -29,10 +29,12 @@ def test_ocr_integration():
     """
     mocr = MangaOcr()
 
-    expected_results = json.loads((TEST_DATA_ROOT / "expected_results.json").read_text(encoding="utf-8"))
+    expected_results = json.loads(
+        (Path(TEST_DATA_ROOT) / "expected_results.json").read_text(encoding="utf-8")
+    )
 
     for item in expected_results:
-        result = mocr(TEST_DATA_ROOT / "images" / item["filename"])
+        result = mocr(Path(TEST_DATA_ROOT) / "images" / item["filename"])
         assert result == item["result"]
 
 

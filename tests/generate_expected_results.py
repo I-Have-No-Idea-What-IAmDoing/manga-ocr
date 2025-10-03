@@ -30,11 +30,11 @@ def generate_expected_results():
 
     results = []
 
-    for path in tqdm(sorted((TEST_DATA_ROOT / "images").iterdir())):
+    for path in tqdm(sorted((Path(TEST_DATA_ROOT) / "images").iterdir())):
         result = mocr(path)
         results.append({"filename": path.name, "result": result})
 
-    (TEST_DATA_ROOT / "expected_results.json").write_text(
+    (Path(TEST_DATA_ROOT) / "expected_results.json").write_text(
         json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 

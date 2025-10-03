@@ -32,7 +32,7 @@ def get_books():
             - `images`: The full path to the directory containing the book's
               images.
     """
-    root = MANGA109_ROOT / "Manga109s_released_2021_02_28"
+    root = Path(MANGA109_ROOT) / "Manga109s_released_2021_02_28"
     books = (root / "books.txt").read_text().splitlines()
     books = pd.DataFrame(
         {
@@ -82,7 +82,7 @@ def export_frames():
     data = pd.DataFrame(data)
 
     data.page_path = data.page_path.apply(lambda x: "/".join(Path(x).parts[-4:]))
-    data.to_csv(MANGA109_ROOT / "frames.csv", index=False)
+    data.to_csv(Path(MANGA109_ROOT) / "frames.csv", index=False)
 
 
 def export_crops():
@@ -99,7 +99,7 @@ def export_crops():
     crops serve as the primary source of real-world data for training the
     OCR model.
     """
-    crops_root = MANGA109_ROOT / "crops"
+    crops_root = Path(MANGA109_ROOT) / "crops"
     crops_root.mkdir(parents=True, exist_ok=True)
     margin = 10
 
@@ -136,12 +136,12 @@ def export_crops():
 
     data.page_path = data.page_path.apply(lambda x: "/".join(Path(x).parts[-4:]))
     data.crop_path = data.crop_path.apply(lambda x: "/".join(Path(x).parts[-2:]))
-    data.to_csv(MANGA109_ROOT / "data.csv", index=False)
+    data.to_csv(Path(MANGA109_ROOT) / "data.csv", index=False)
 
     for page_path, boxes in tqdm(
         data.groupby("page_path"), total=data.page_path.nunique()
     ):
-        img = cv2.imread(str(MANGA109_ROOT / page_path))
+        img = cv2.imread(str(Path(MANGA109_ROOT) / page_path))
 
         for box in boxes.itertuples():
             xmin = max(box.xmin - margin, 0)

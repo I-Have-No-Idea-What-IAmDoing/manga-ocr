@@ -11,6 +11,7 @@ import numpy as np
 from unittest.mock import patch
 import pandas as pd
 import cv2
+from pathlib import Path
 from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
 from manga_ocr_dev.synthetic_data_generator.renderer import Renderer
 from fontTools.ttLib import TTFont
@@ -42,7 +43,7 @@ def test_synthetic_data_generator_with_given_text(mock_get_background_df, mock_g
     browser_executable = os.environ.get('CHROME_EXECUTABLE_PATH',
                                         '/home/jules/.cache/ms-playwright/chromium-1181/chrome-linux/chrome')
     os.environ['CHROME_EXECUTABLE_PATH'] = browser_executable
-    font_path_abs = str(FONTS_ROOT / 'NotoSansJP-Regular.ttf')
+    font_path_abs = str(Path(FONTS_ROOT) / 'NotoSansJP-Regular.ttf')
     font_path_rel = 'NotoSansJP-Regular.ttf'
 
     # Get the character set for the font to use in the mock

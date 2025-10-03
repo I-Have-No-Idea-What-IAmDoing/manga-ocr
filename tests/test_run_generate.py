@@ -75,8 +75,8 @@ def test_run(mock_os_get, mock_generator, mock_renderer, mock_thread_map, mock_m
     mock_to_csv.assert_called_once()
 
     # Verify that the output directory is created
-    assert (DATA_SYNTHETIC_ROOT / "img" / "0000").mkdir.called
-    assert (DATA_SYNTHETIC_ROOT / "meta").mkdir.called
+    assert (Path(DATA_SYNTHETIC_ROOT) / "img" / "0000").mkdir.called
+    assert (Path(DATA_SYNTHETIC_ROOT) / "meta").mkdir.called
 
 @patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite')
 @patch('builtins.print')
