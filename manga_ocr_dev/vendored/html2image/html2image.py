@@ -468,14 +468,14 @@ class Html2Image():
 
     def screenshot(
         self,
-        html_str=[],  # html_str: Union[str, list] = [],
-        html_file=[],
-        css_str=[],
-        css_file=[],
-        other_file=[],
-        url=[],
+        html_str=None,
+        html_file=None,
+        css_str=None,
+        css_file=None,
+        other_file=None,
+        url=None,
         save_as='screenshot.png',
-        size=[],
+        size=None,
     ):
         """ Takes a screenshot using different resources.
 
@@ -518,9 +518,13 @@ class Html2Image():
         - `FileNotFoundError`
         """
 
-        # TODO / NOTE : This does not pose any problem for now but setting
-        # mutables (here empty lists) as default arguments of a function
-        # can cause unwanted behaviours.
+        html_str = [] if html_str is None else html_str
+        html_file = [] if html_file is None else html_file
+        css_str = [] if css_str is None else css_str
+        css_file = [] if css_file is None else css_file
+        other_file = [] if other_file is None else other_file
+        url = [] if url is None else url
+        size = [] if size is None else size
 
         screenshot_paths = []
 
