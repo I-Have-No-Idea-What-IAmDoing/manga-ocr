@@ -1,3 +1,11 @@
+"""Tests for the synthetic data generator.
+
+This module contains tests for the `SyntheticDataGenerator` class, which is
+responsible for creating synthetic training data. These tests verify that the
+generator can handle various conditions, such as malformed font metadata,
+and that it correctly processes text and styles.
+"""
+
 import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock

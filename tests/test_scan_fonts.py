@@ -1,3 +1,11 @@
+"""Tests for the font scanning and metadata generation utility.
+
+This module contains tests for the `scan_fonts.py` script, which is responsible
+for scanning font files, determining which characters they support, and generating
+a metadata file. The tests cover individual utility functions and the main
+orchestration logic.
+"""
+
 import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock, Mock
@@ -10,6 +18,7 @@ with patch('manga_ocr_dev.synthetic_data_generator.scan_fonts.pd.read_csv') as m
     from manga_ocr_dev.synthetic_data_generator.scan_fonts import has_glyph, process_font, main
 
 def test_has_glyph():
+    """Tests the `has_glyph` function for correct glyph detection."""
     mock_font = MagicMock()
     mock_table = MagicMock()
     mock_table.cmap.keys.return_value = [ord('a')]
@@ -18,7 +27,8 @@ def test_has_glyph():
     assert has_glyph(mock_font, 'a')
     assert not has_glyph(mock_font, 'b')
 
-def test_has_glyph_exception():
+def test_has_glyph_exception_handling():
+    """Tests that `has_glyph` correctly handles exceptions and returns False."""
     mock_font = MagicMock()
     mock_table = MagicMock()
     mock_table.cmap.keys.side_effect = Exception("Test exception")
@@ -32,6 +42,13 @@ def test_has_glyph_exception():
 @patch('manga_ocr_dev.synthetic_data_generator.scan_fonts.ImageDraw.Draw')
 @patch('manga_ocr_dev.synthetic_data_generator.scan_fonts.has_glyph')
 def test_process_font(mock_has_glyph, mock_draw, mock_new, mock_truetype, mock_ttfont, mock_read_csv):
+    """
+    Tests the `process_font` function for character support and blank glyph detection.
+
+    This test verifies that `process_font` correctly identifies supported
+    characters in a font file while also filtering out characters that have a
+    glyph but render as a blank image (a common issue with some fonts).
+    """
     mock_read_csv.return_value = pd.DataFrame({'char': ['a', 'b', 'c']})
     mock_has_glyph.side_effect = lambda font, char: char in ['a', 'b']
 
@@ -58,7 +75,8 @@ def test_process_font(mock_has_glyph, mock_draw, mock_new, mock_truetype, mock_t
 @patch('manga_ocr_dev.synthetic_data_generator.scan_fonts.pd.read_csv')
 @patch('manga_ocr_dev.synthetic_data_generator.scan_fonts.TTFont', side_effect=Exception('Test Error'))
 @patch('builtins.print')
-def test_process_font_handles_exception(mock_print, mock_ttfont, mock_read_csv):
+def test_process_font_exception_handling(mock_print, mock_ttfont, mock_read_csv):
+    """Tests that `process_font` handles exceptions gracefully."""
     mock_read_csv.return_value = pd.DataFrame({'char': ['a', 'b', 'c']})
     result = process_font('dummy_font.ttf')
     assert result == ''
@@ -69,6 +87,13 @@ def test_process_font_handles_exception(mock_print, mock_ttfont, mock_read_csv):
 @patch('pathlib.Path.glob')
 @patch('manga_ocr_dev.synthetic_data_generator.scan_fonts.FONTS_ROOT', new=Path('/dummy/fonts'))
 def test_main(mock_glob, mock_process_map, mock_dataframe_class):
+    """
+    Tests the `main` function for orchestrating the font scanning process.
+
+    This test verifies that the `main` function correctly finds font files,
+    uses a parallel map to process them, and saves the resulting metadata to
+    a CSV file in the correct location.
+    """
     mock_glob.return_value = [Path('/dummy/fonts/font1.ttf')]
     mock_process_map.return_value = ['abc']
     mock_df_instance = mock_dataframe_class.return_value

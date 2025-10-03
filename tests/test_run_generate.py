@@ -1,3 +1,11 @@
+"""Tests for the main synthetic data generation script.
+
+This module contains tests for the `run_generate.py` script, which orchestrates
+the entire synthetic data generation process. The tests cover the parallel
+worker function and the main `run` function, ensuring that data is processed
+correctly and that exceptions are handled properly.
+"""
+
 import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock
@@ -9,7 +17,12 @@ from manga_ocr_dev.env import FONTS_ROOT, DATA_SYNTHETIC_ROOT
 @patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite')
 def test_worker_fn(mock_imwrite):
     """
-    Tests the worker_fn worker function.
+    Tests the `worker_fn` for correct data processing.
+
+    This test verifies that the `worker_fn`, which is executed in parallel,
+    correctly processes a single data sample. It ensures that the function
+    calls the data generator, saves the resulting image, and returns the
+    correct metadata for the generated sample.
     """
     mock_generator = MagicMock()
     mock_generator.process.return_value = (
@@ -37,7 +50,12 @@ def test_worker_fn(mock_imwrite):
 @patch('manga_ocr_dev.synthetic_data_generator.run_generate.os.environ.get')
 def test_run(mock_os_get, mock_generator, mock_renderer, mock_thread_map, mock_mkdir, mock_to_csv, mock_read_csv, mock_exists):
     """
-    Tests the run function.
+    Tests the main `run` function for orchestrating data generation.
+
+    This test provides an end-to-end check of the `run` function, verifying
+    that it correctly reads input data, sets up the necessary directories,
+    invokes the parallel processing map, and saves the final metadata CSV
+    file. It uses extensive mocking to isolate the function's logic.
     """
     # Mock input data
     mock_read_csv.return_value = pd.DataFrame({
@@ -62,9 +80,14 @@ def test_run(mock_os_get, mock_generator, mock_renderer, mock_thread_map, mock_m
 
 @patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite')
 @patch('builtins.print')
-def test_worker_fn_exception(mock_print, mock_imwrite):
+def test_worker_fn_exception_handling(mock_print, mock_imwrite):
     """
-    Tests that the worker_fn worker function catches and prints exceptions.
+    Tests that the `worker_fn` correctly handles exceptions.
+
+    This test ensures that if an exception occurs within the `worker_fn`
+    (e.g., during image generation), the exception is caught, the traceback
+    is printed, and the exception is re-raised to be handled by the main
+    process.
     """
     mock_generator = MagicMock()
     mock_generator.process.side_effect = Exception("Test exception")

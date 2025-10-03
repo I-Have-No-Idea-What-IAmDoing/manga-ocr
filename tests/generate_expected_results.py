@@ -1,3 +1,12 @@
+"""A script to generate expected OCR results for the test suite.
+
+This script is used to create a baseline of expected results for the OCR model
+on a set of test images. It runs the OCR on each image in the `tests/data/images`
+directory and saves the output to `expected_results.json`. This JSON file is
+then used by the integration tests to ensure that changes to the model do not
+cause unexpected regressions in performance.
+"""
+
 import json
 from pathlib import Path
 

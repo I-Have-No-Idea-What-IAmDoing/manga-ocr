@@ -1,3 +1,10 @@
+"""Tests for the synthetic data generator's utility functions.
+
+This module contains unit tests for the helper functions used in the synthetic
+data generation pipeline. It covers character type checking, asset loading,
+and metadata processing.
+"""
+
 import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock
@@ -14,6 +21,7 @@ from manga_ocr_dev.synthetic_data_generator.utils import (
 )
 
 def test_is_kanji():
+    """Tests the `is_kanji` function for correct character identification."""
     assert is_kanji('日')
     assert not is_kanji('a')
     assert not is_kanji('あ')
@@ -23,6 +31,7 @@ def test_is_kanji():
     assert not is_kanji('日本')
 
 def test_is_hiragana():
+    """Tests the `is_hiragana` function for correct character identification."""
     assert is_hiragana('あ')
     assert not is_hiragana('a')
     assert not is_hiragana('日')
@@ -32,6 +41,7 @@ def test_is_hiragana():
     assert not is_hiragana('あいう')
 
 def test_is_katakana():
+    """Tests the `is_katakana` function for correct character identification."""
     assert is_katakana('ア')
     assert not is_katakana('a')
     assert not is_katakana('日')
@@ -41,6 +51,7 @@ def test_is_katakana():
     assert not is_katakana('アイウ')
 
 def test_is_ascii():
+    """Tests the `is_ascii` function for correct character identification."""
     assert is_ascii('a')
     assert is_ascii('1')
     assert is_ascii('!')
@@ -51,6 +62,7 @@ def test_is_ascii():
     assert not is_ascii('ab')
 
 def test_get_background_df(tmp_path):
+    """Tests the `get_background_df` function for correct parsing of filenames."""
     # Create dummy background files
     (tmp_path / "bg1_0_100_0_100.png").touch()
     (tmp_path / "bg2_50_150_50_150.png").touch()
@@ -68,6 +80,7 @@ def test_get_background_df(tmp_path):
 
 @patch('manga_ocr_dev.synthetic_data_generator.utils.pd.read_csv')
 def test_get_charsets(mock_read_csv):
+    """Tests the `get_charsets` function for correct character categorization."""
     mock_read_csv.return_value = pd.DataFrame({'char': ['日', 'あ', 'ア', 'a']})
 
     with patch('manga_ocr_dev.synthetic_data_generator.utils.is_hiragana', side_effect=lambda c: c == 'あ'), \
@@ -80,6 +93,7 @@ def test_get_charsets(mock_read_csv):
 
 @patch('manga_ocr_dev.synthetic_data_generator.utils.pd.read_csv')
 def test_get_font_meta(mock_read_csv):
+    """Tests the `get_font_meta` function for correct metadata loading."""
     mock_df = pd.DataFrame({
         'font_path': ['font1.ttf', 'font2.ttf'],
         'supported_chars': ['abc', 'def'],
