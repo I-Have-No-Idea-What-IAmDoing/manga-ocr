@@ -128,11 +128,11 @@ dataset:
         params:
           always_apply: true
 training:
-  batch_size: 64
-  num_epochs: 8
+  per_device_train_batch_size: 64
+  num_train_epochs: 8
   fp16: true
   predict_with_generate: true
-  eval_strategy: "steps"
+  evaluation_strategy: "steps"
   save_strategy: "steps"
   dataloader_num_workers: 16
   logging_steps: 10
