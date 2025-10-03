@@ -581,7 +581,33 @@ class Html2Image():
 
             screenshot_paths.append(os.path.join(self.output_path, name))
 
-        for screenshot_target in html_files + other_files:
+        for html_filepath in html_files:
+            name = save_as_filenames.pop(0)
+            current_size = sizes.pop(0)
+
+            if not os.path.isfile(html_filepath):
+                raise FileNotFoundError(html_filepath)
+
+            with open(html_filepath, 'r', encoding='utf-8') as f:
+                html_body = f.read()
+
+            content = Html2Image._prepare_html_string(html_body, css_style_string)
+
+            base_name, _ = os.path.splitext(name)
+            temp_html_filename = base_name + '.html'
+
+            self.load_str(content=content, as_filename=temp_html_filename)
+            self.screenshot_loaded_file(
+                file=temp_html_filename,
+                output_file=name,
+                size=current_size,
+            )
+            if not self.keep_temp_files:
+                self._remove_temp_file(temp_html_filename)
+
+            screenshot_paths.append(os.path.join(self.output_path, name))
+
+        for screenshot_target in other_files:
 
             name = save_as_filenames.pop(0)
             current_size = sizes.pop(0)
