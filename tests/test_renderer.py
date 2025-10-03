@@ -68,7 +68,8 @@ def test_render_background(renderer):
         mock_imread.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
         renderer.background_df.sample.return_value.iloc[0].path = 'dummy.png'
 
-        result_img = renderer.render_background(img)
+        params = {'text_color': 'black'}
+        result_img = renderer.render_background(img, params)
         assert isinstance(result_img, np.ndarray)
 
 def test_get_css():
