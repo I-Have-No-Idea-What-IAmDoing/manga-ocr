@@ -198,6 +198,9 @@ def run(
 
         while True:
             for path in read_from.iterdir():
+                if not path.is_file():
+                    continue
+
                 path_key = get_path_key(path)
                 if path_key not in old_paths:
                     old_paths.add(path_key)
