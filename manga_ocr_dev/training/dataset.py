@@ -144,6 +144,10 @@ class MangaDataset(Dataset):
         df["synthetic"] = False
         return df
 
+    def disable_augmentations(self):
+        """Disables data augmentation for this dataset."""
+        self.config.augment = False
+
     def __len__(self):
         """Returns the total number of samples in the dataset."""
         return len(self.data)

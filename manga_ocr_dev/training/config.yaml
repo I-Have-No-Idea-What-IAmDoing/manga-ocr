@@ -1,4 +1,3 @@
-run_name: "debug"
 model:
   encoder_name: "apple/MobileCLIP2-S2"
   decoder_name: "jhu-clsp/mmBERT-base"
@@ -127,18 +126,3 @@ dataset:
       - name: ToGray
         params:
           always_apply: true
-training:
-  per_device_train_batch_size: 64
-  num_train_epochs: 8
-  fp16: true
-  predict_with_generate: true
-  evaluation_strategy: "steps"
-  save_strategy: "steps"
-  dataloader_num_workers: 16
-  logging_steps: 10
-  report_to: "wandb"
-  save_steps: 20000
-  eval_steps: 20000
-  load_best_model_at_end: true
-  save_total_limit: 3
-  include_inputs_for_metrics: true
