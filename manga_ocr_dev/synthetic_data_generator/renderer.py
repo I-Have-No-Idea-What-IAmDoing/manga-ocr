@@ -99,7 +99,10 @@ class Renderer:
         """
         with self.lock:
             img, params = self.render_text(lines, override_css_params)
-        img = self.render_background(img)
+        if img is None:
+            return np.zeros((100, 100), dtype=np.uint8), params
+
+        img = self.render_background(img, params)
         img = A.LongestMaxSize(self.max_size)(image=img)["image"]
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         return img, params
@@ -130,6 +133,9 @@ class Renderer:
         css = get_css(**params)
 
         # This is just a rough estimate; the image is cropped later anyway.
+        if not lines or not "".join(lines):
+            return None, params
+
         size = (
             int(max(len(line) for line in lines) * params["font_size"] * 1.5),
             int(len(lines) * params["font_size"] * (3 + params["line_height"])),
@@ -173,29 +179,31 @@ class Renderer:
             A dictionary of randomly generated CSS parameters.
         """
         params = {
-            "font_size": 48,
+            "font_size": np.random.randint(36, 60),
             "vertical": np.random.rand() < 0.7,
-            "line_height": 0.5,
+            "line_height": np.random.uniform(0.4, 0.8),
             "background_color": "transparent",
-            "text_color": "black",
+            "text_color": "black" if np.random.rand() < 0.7 else "white",
         }
 
         if np.random.rand() < 0.7:
             params["text_orientation"] = "upright"
+        if np.random.rand() < 0.2:
+            params["letter_spacing"] = np.random.uniform(-0.05, 0.1)
 
         effect = np.random.choice(
             ["stroke", "glow", "none"], p=[0.8, 0.15, 0.05]
         )
         if effect == "stroke":
             params["stroke_size"] = np.random.choice([1, 2, 3, 4])
-            params["stroke_color"] = "white"
+            params["stroke_color"] = "white" if params["text_color"] == "black" else "black"
         elif effect == "glow":
             params["glow_size"] = np.random.choice([2, 5, 10])
             params["glow_color"] = "white" if np.random.rand() < 0.8 else "black"
 
         return params
 
-    def render_background(self, img):
+    def render_background(self, img, params):
         """Adds a background and optionally a text bubble to an image.
 
         This method takes a BGRA image with text on a transparent background,
@@ -205,6 +213,8 @@ class Renderer:
 
         Args:
             img (np.ndarray): The input BGRA image with a transparent background.
+            params (dict): A dictionary of rendering parameters, used to
+                determine bubble color and other style aspects.
 
         Returns:
             The final BGR image with text composited onto a background.
@@ -234,10 +244,10 @@ class Renderer:
         background = A.Compose(t)(image=background)["image"]
 
         if not draw_bubble:
-            if np.random.rand() < 0.5:
+            if params["text_color"] == "white":
                 img[:, :, :3] = 255 - img[:, :, :3]
         else:
-            bubble = self.create_bubble(img.shape, m0)
+            bubble = self.create_bubble(img.shape, m0, params)
             background = blend(bubble, background)
 
         img = blend(img, background)
@@ -249,12 +259,14 @@ class Renderer:
         img = img[ymin:ymax, xmin:xmax]
         return img
 
-    def create_bubble(self, shape, margin):
+    def create_bubble(self, shape, margin, params):
         """Creates a distorted, rounded rectangle to serve as a text bubble.
 
         Args:
             shape (tuple): The shape of the target image for the bubble.
             margin (int): The base margin for positioning the bubble.
+            params (dict): A dictionary of rendering parameters, used to
+                determine bubble color.
 
         Returns:
             An RGBA NumPy array containing the generated text bubble.
@@ -270,11 +282,19 @@ class Renderer:
         xmax = shape[1] - margin + int(min(shape[:2]) * np.random.uniform(0.07, 0.12))
 
         bubble = np.zeros((shape[0], shape[1], 4), dtype=np.uint8)
+
+        if params["text_color"] == "black":
+            bubble_fill_color = (255, 255, 255, 255)
+            bubble_border_color = (0, 0, 0, 255)
+        else:
+            bubble_fill_color = (0, 0, 0, 255)
+            bubble_border_color = (255, 255, 255, 255)
+
         bubble = rounded_rectangle(
-            bubble, (xmin, ymin), (xmax, ymax), radius=radius, color=(255, 255, 255, 255), thickness=-1
+            bubble, (xmin, ymin), (xmax, ymax), radius=radius, color=bubble_fill_color, thickness=-1
         )
         bubble = rounded_rectangle(
-            bubble, (xmin, ymin), (xmax, ymax), radius=radius, color=(0, 0, 0, 255), thickness=thickness
+            bubble, (xmin, ymin), (xmax, ymax), radius=radius, color=bubble_border_color, thickness=thickness
         )
 
         t = [A.ElasticTransform(alpha=alpha, sigma=sigma, p=0.8)]

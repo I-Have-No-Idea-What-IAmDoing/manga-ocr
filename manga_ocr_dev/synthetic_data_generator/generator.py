@@ -128,9 +128,15 @@ class SyntheticDataGenerator:
         else:
             vocab = None
 
+        if not text_gt.strip():
+            # Return empty image if no text is left after filtering
+            img, params = self.renderer.render([], override_css_params)
+            return img, "", params
+
         if np.random.random() < 0.5:
             word_prob = np.random.choice([0.33, 1.0], p=[0.3, 0.7])
-            lines = [self.add_random_furigana(line, word_prob, vocab) for line in lines]
+            if lines:
+                lines = [self.add_random_furigana(line, word_prob, vocab) for line in lines]
 
         img, params = self.renderer.render(lines, override_css_params)
         return img, text_gt, params
@@ -203,18 +209,23 @@ class SyntheticDataGenerator:
         text = "".join(words)
 
         max_num_lines = 10
-        min_line_len = len(text) // max_num_lines
+        min_line_len = len(text) // max_num_lines if text else 0
         max_line_len = 20
+        if min_line_len > max_line_len:
+            max_line_len = min_line_len + 5
         max_line_len = np.clip(np.random.poisson(6), min_line_len, max_line_len)
+
         lines = []
-        line = ""
+        current_line = ""
         for word in words:
-            line += word
-            if len(line) >= max_line_len:
-                lines.append(line)
-                line = ""
-        if line:
-            lines.append(line)
+            if len(current_line) + len(word) > max_line_len:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+            else:
+                current_line += word
+        if current_line:
+            lines.append(current_line)
 
         return lines
 
