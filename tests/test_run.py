@@ -237,6 +237,48 @@ def test_run_handles_clipboard_non_image_error(mock_logger_warning, mock_sleep, 
     mock_logger_warning.assert_not_called()
 
 
+@patch("manga_ocr.run.MangaOcr")
+@patch("pathlib.Path.iterdir")
+@patch("time.sleep", side_effect=KeyboardInterrupt)
+@patch("loguru.logger.warning")
+def test_run_in_directory_mode_ignores_subdirectories(
+    mock_logger_warning, mock_sleep, mock_iterdir, mock_mocr, tmp_path
+):
+    """
+    Tests that directory monitoring mode correctly processes image files while
+    ignoring subdirectories.
+
+    This test simulates the discovery of a directory containing both an image
+    file and a subdirectory. It verifies that the OCR is triggered only for the
+    image and that no warnings are logged for the subdirectory.
+    """
+    mock_mocr_instance = mock_mocr.return_value
+    mock_mocr_instance.return_value = "test ocr"
+
+    # Create a dummy image file and a subdirectory
+    img_path = tmp_path / "img.png"
+    Image.new("RGB", (100, 100)).save(img_path)
+    subdir_path = tmp_path / "subdir"
+    subdir_path.mkdir()
+
+    output_file = tmp_path / "output.txt"
+
+    # Simulate directory scanning
+    mock_iterdir.side_effect = [
+        [],  # Initial scan is empty
+        [img_path, subdir_path],  # Second scan finds both items
+    ]
+
+    with pytest.raises(KeyboardInterrupt):
+        run(read_from=str(tmp_path), write_to=str(output_file))
+
+    # Verify that OCR was called only for the image file
+    mock_mocr_instance.assert_called_once()
+
+    # Verify that no warning was logged for the subdirectory
+    mock_logger_warning.assert_not_called()
+
+
 def test_run_raises_on_invalid_read_from_path(tmp_path):
     """
     Tests that `run` raises a ValueError if `read_from` is a file instead of a directory.
