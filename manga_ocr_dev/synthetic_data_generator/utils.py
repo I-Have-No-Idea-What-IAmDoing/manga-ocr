@@ -6,6 +6,7 @@ backgrounds, as well as character-level utilities for identifying different
 Japanese character types (kanji, hiragana, katakana) and ASCII characters.
 """
 
+from pathlib import Path
 import pandas as pd
 import unicodedata
 
@@ -172,5 +173,14 @@ def get_font_meta():
     """
     df = pd.read_csv(ASSETS_PATH / "fonts.csv")
     df = df.dropna()
+
+    def resolve_font_path(p):
+        path = Path(p)
+        if path.is_absolute():
+            return str(path)
+        return str(FONTS_ROOT / path)
+
+    df["font_path"] = df["font_path"].apply(resolve_font_path)
+
     font_map = {row.font_path: set(row.supported_chars) for row in df.itertuples()}
     return df, font_map
