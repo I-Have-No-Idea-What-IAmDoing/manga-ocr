@@ -124,6 +124,11 @@ class Renderer:
             return np.zeros((100, 100), dtype=np.uint8), params
 
         img = self.render_background(img, params)
+
+        # render_background can return an empty image on failure, which will crash albumentations
+        if img.size == 0:
+            return np.zeros((100, 100), dtype=np.uint8), params
+
         img = A.LongestMaxSize(self.max_size)(image=img)["image"]
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         return img, params
