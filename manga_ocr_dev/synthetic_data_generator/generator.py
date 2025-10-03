@@ -241,53 +241,62 @@ class SyntheticDataGenerator:
         if vocab is None:
             vocab = self.vocab
 
+        def flush_kanji_group(group):
+            if not group:
+                return ""
+            if np.random.uniform() < word_prob:
+                furigana_len = int(
+                    np.clip(np.random.normal(1.5, 0.5), 1, 4) * len(group)
+                )
+                char_source = np.random.choice(
+                    ["hiragana", "katakana", "all"], p=[0.8, 0.15, 0.05]
+                )
+                char_source = {
+                    "hiragana": self.hiragana,
+                    "katakana": self.katakana,
+                    "all": vocab,
+                }[char_source]
+                furigana = "".join(np.random.choice(char_source, furigana_len))
+                return f"<ruby>{group}<rt>{furigana}</rt></ruby>"
+            else:
+                return group
+
+        def flush_ascii_group(group):
+            if not group:
+                return ""
+            if len(group) <= 3 and np.random.uniform() < 0.7:
+                return f'<span style="text-combine-upright: all">{group}</span>'
+            else:
+                return group
+
         processed = ""
         kanji_group = ""
         ascii_group = ""
-        for i, c in enumerate(line):
+
+        for c in line:
             if is_kanji(c):
-                c_type = "kanji"
+                if ascii_group:
+                    processed += flush_ascii_group(ascii_group)
+                    ascii_group = ""
                 kanji_group += c
             elif is_ascii(c):
-                c_type = "ascii"
+                if kanji_group:
+                    processed += flush_kanji_group(kanji_group)
+                    kanji_group = ""
                 ascii_group += c
             else:
-                c_type = "other"
-
-            if c_type != "kanji" or i == len(line) - 1:
                 if kanji_group:
-                    if np.random.uniform() < word_prob:
-                        furigana_len = int(
-                            np.clip(np.random.normal(1.5, 0.5), 1, 4)
-                            * len(kanji_group)
-                        )
-                        char_source = np.random.choice(
-                            ["hiragana", "katakana", "all"], p=[0.8, 0.15, 0.05]
-                        )
-                        char_source = {
-                            "hiragana": self.hiragana,
-                            "katakana": self.katakana,
-                            "all": vocab,
-                        }[char_source]
-                        furigana = "".join(np.random.choice(char_source, furigana_len))
-                        processed += f"<ruby>{kanji_group}<rt>{furigana}</rt></ruby>"
-                    else:
-                        processed += kanji_group
+                    processed += flush_kanji_group(kanji_group)
                     kanji_group = ""
-
-            if c_type != "ascii" or i == len(line) - 1:
                 if ascii_group:
-                    if len(ascii_group) <= 3 and np.random.uniform() < 0.7:
-                        processed += (
-                            f'<span style="text-combine-upright: all">'
-                            f"{ascii_group}</span>"
-                        )
-                    else:
-                        processed += ascii_group
+                    processed += flush_ascii_group(ascii_group)
                     ascii_group = ""
-
-            if c_type == "other":
                 processed += c
+
+        if kanji_group:
+            processed += flush_kanji_group(kanji_group)
+        if ascii_group:
+            processed += flush_ascii_group(ascii_group)
 
         return processed
 
