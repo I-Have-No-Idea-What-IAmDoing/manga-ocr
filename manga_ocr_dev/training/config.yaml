@@ -126,3 +126,5 @@ dataset:
       - name: ToGray
         params:
           always_apply: true
+training:
+  torch_compile: false

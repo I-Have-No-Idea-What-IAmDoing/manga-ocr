@@ -10,6 +10,7 @@ the path to the configuration file as an argument.
 from pathlib import Path
 from typing import Optional
 
+import torch
 import typer
 import wandb
 from transformers import (
@@ -54,6 +55,9 @@ def main(
         run_name = wandb.run.name
 
     model, processor = get_model(config.model)
+
+    if config.training.torch_compile:
+        model = torch.compile(model)
 
     train_dataset = MangaDataset(
         processor,

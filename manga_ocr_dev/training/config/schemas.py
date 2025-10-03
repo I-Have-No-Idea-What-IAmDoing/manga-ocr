@@ -101,6 +101,7 @@ class TrainingConfig(BaseSettings):
     load_best_model_at_end: bool = Field(True, description="Whether to load the best model found during training at the end.")
     save_total_limit: int = Field(3, description="The total number of checkpoints to keep.")
     include_inputs_for_metrics: bool = Field(True, description="Whether to pass the inputs to `compute_metrics`.")
+    torch_compile: bool = Field(False, description="Whether to use `torch.compile` to speed up training.")
 
 
 class AppConfig(BaseSettings):

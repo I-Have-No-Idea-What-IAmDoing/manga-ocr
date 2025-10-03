@@ -110,5 +110,19 @@ class TestConfigSchemas(unittest.TestCase):
         self.assertEqual(config.dataset.augmentations.probabilities.medium, 0.8)
         self.assertEqual(config.dataset.augmentations.probabilities.heavy, 0.02)
 
+    def test_torch_compile_option(self):
+        """Tests that the torch_compile option is handled correctly."""
+        # Test default value
+        config_dict_default = copy.deepcopy(VALID_CONFIG)
+        config_default = schemas.AppConfig(**config_dict_default)
+        self.assertFalse(config_default.training.torch_compile)
+
+        # Test setting to True
+        config_dict_true = copy.deepcopy(VALID_CONFIG)
+        config_dict_true["training"]["torch_compile"] = True
+        config_true = schemas.AppConfig(**config_dict_true)
+        self.assertTrue(config_true.training.torch_compile)
+
+
 if __name__ == "__main__":
     unittest.main()

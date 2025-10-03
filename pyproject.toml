@@ -36,6 +36,9 @@ dev = [
     "pytest",
     "pytest-cov",
     "ruff",
+    "pydantic-settings",
+    "typer",
+    "wandb",
 ]
 
 [project.urls]
