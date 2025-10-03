@@ -22,6 +22,111 @@ dataset:
       - type: manga109
         params:
           split: "test"
+  augmentations:
+    probabilities:
+      medium: 0.8
+      heavy: 0.02
+    medium:
+      - name: Rotate
+        params:
+          limit: 5
+          border_mode: "cv2.BORDER_REPLICATE"
+          p: 0.2
+      - name: Perspective
+        params:
+          scale: [0.01, 0.05]
+          pad_mode: "cv2.BORDER_REPLICATE"
+          p: 0.2
+      - name: InvertImg
+        params:
+          p: 0.05
+      - name: OneOf
+        params:
+          p: 0.1
+          transforms:
+            - name: Downscale
+              params:
+                scale_min: 0.25
+                scale_max: 0.5
+                interpolation: "cv2.INTER_LINEAR"
+            - name: Downscale
+              params:
+                scale_min: 0.25
+                scale_max: 0.5
+                interpolation: "cv2.INTER_NEAREST"
+      - name: Blur
+        params:
+          p: 0.2
+      - name: Sharpen
+        params:
+          p: 0.2
+      - name: RandomBrightnessContrast
+        params:
+          p: 0.5
+      - name: GaussNoise
+        params:
+          var_limit: [50, 200]
+          p: 0.3
+      - name: ImageCompression
+        params:
+          quality_lower: 1
+          quality_upper: 30
+          p: 0.1
+      - name: ToGray
+        params:
+          always_apply: true
+    heavy:
+      - name: Rotate
+        params:
+          limit: 10
+          border_mode: "cv2.BORDER_REPLICATE"
+          p: 0.2
+      - name: Perspective
+        params:
+          scale: [0.01, 0.05]
+          pad_mode: "cv2.BORDER_REPLICATE"
+          p: 0.2
+      - name: InvertImg
+        params:
+          p: 0.05
+      - name: OneOf
+        params:
+          p: 0.1
+          transforms:
+            - name: Downscale
+              params:
+                scale_min: 0.1
+                scale_max: 0.2
+                interpolation: "cv2.INTER_LINEAR"
+            - name: Downscale
+              params:
+                scale_min: 0.1
+                scale_max: 0.2
+                interpolation: "cv2.INTER_NEAREST"
+      - name: Blur
+        params:
+          blur_limit: [3, 9]
+          p: 0.5
+      - name: Sharpen
+        params:
+          p: 0.5
+      - name: RandomBrightnessContrast
+        params:
+          brightness_limit: 0.8
+          contrast_limit: 0.8
+          p: 1
+      - name: GaussNoise
+        params:
+          var_limit: [1000, 10000]
+          p: 0.3
+      - name: ImageCompression
+        params:
+          quality_lower: 1
+          quality_upper: 10
+          p: 0.5
+      - name: ToGray
+        params:
+          always_apply: true
 training:
   batch_size: 64
   num_epochs: 8

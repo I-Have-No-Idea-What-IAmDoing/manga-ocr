@@ -7,6 +7,7 @@ from transformers import (
     AutoTokenizer,
     VisionEncoderDecoderConfig,
 )
+from manga_ocr_dev.training.config.schemas import ModelConfig
 
 
 class TrOCRProcessorCustom:
@@ -20,8 +21,6 @@ class TrOCRProcessorCustom:
         feature_extractor: An image feature extractor (e.g.,
             `AutoImageProcessor`).
         tokenizer: A tokenizer for processing text (e.g., `AutoTokenizer`).
-        current_processor: The currently active processor, which defaults to the
-            feature extractor.
     """
 
     def __init__(self, feature_extractor, tokenizer):
@@ -34,86 +33,60 @@ class TrOCRProcessorCustom:
         """
         self.feature_extractor = feature_extractor
         self.tokenizer = tokenizer
-        self.current_processor = self.feature_extractor
 
 
-def get_processor(encoder_name, decoder_name):
-    """Initializes and returns a custom processor for the OCR model.
-
-    This function creates a feature extractor from a pre-trained encoder model
-    and a tokenizer from a pre-trained decoder model. It then wraps them in a
-    `TrOCRProcessorCustom` instance.
-
-    Args:
-        encoder_name (str): The name or path of the pre-trained encoder model
-            (e.g., 'facebook/deit-tiny-patch16-224').
-        decoder_name (str): The name or path of the pre-trained decoder model
-            (e.g., 'cl-tohoku/bert-base-japanese-char-v2').
-
-    Returns:
-        TrOCRProcessorCustom: A custom processor instance containing the
-        initialized feature extractor and tokenizer.
-    """
-    feature_extractor = AutoImageProcessor.from_pretrained(encoder_name, use_fast=True)
-    tokenizer = AutoTokenizer.from_pretrained(decoder_name)
-    processor = TrOCRProcessorCustom(feature_extractor, tokenizer)
-    return processor
-
-
-def get_model(encoder_name, decoder_name, max_length, num_decoder_layers=None):
-    """Constructs and returns a `VisionEncoderDecoderModel` for OCR.
+def get_model(model_config: ModelConfig):
+    """Constructs and returns a `VisionEncoderDecoderModel` and processor for OCR.
 
     This function sets up an encoder and a decoder from pre-trained models,
     configures them for a vision-encoder-decoder architecture, and
     initializes the `VisionEncoderDecoderModel`. It also configures special
     tokens and beam search parameters for text generation.
 
-    If `num_decoder_layers` is specified, the decoder will be truncated to
-    that number of layers.
+    If `num_decoder_layers` is specified in the config, the decoder will be
+    truncated to that number of layers.
 
     Args:
-        encoder_name (str): The name or path of the pre-trained vision model
-            to be used as the encoder.
-        decoder_name (str): The name or path of the pre-trained language model
-            to be used as the decoder.
-        max_length (int): The maximum length for generated text sequences.
-        num_decoder_layers (int | None, optional): If specified, truncates the
-            decoder to this number of layers. Defaults to None.
+        model_config (ModelConfig): The model configuration object.
 
     Returns:
         tuple[VisionEncoderDecoderModel, TrOCRProcessorCustom]: A tuple
         containing the configured OCR model and its processor.
     """
-    encoder_config = AutoConfig.from_pretrained(encoder_name)
+    # Create processor
+    feature_extractor = AutoImageProcessor.from_pretrained(model_config.encoder_name, use_fast=True)
+    tokenizer = AutoTokenizer.from_pretrained(model_config.decoder_name)
+    processor = TrOCRProcessorCustom(feature_extractor, tokenizer)
+
+    # Create model
+    encoder_config = AutoConfig.from_pretrained(model_config.encoder_name)
     encoder_config.is_decoder = False
     encoder_config.add_cross_attention = False
     encoder = AutoModel.from_config(encoder_config)
 
-    decoder_config = AutoConfig.from_pretrained(decoder_name)
-    decoder_config.max_length = max_length
+    decoder_config = AutoConfig.from_pretrained(model_config.decoder_name)
+    decoder_config.max_length = model_config.max_len
     decoder_config.is_decoder = True
     decoder_config.add_cross_attention = True
     decoder = AutoModelForCausalLM.from_config(decoder_config)
 
-    if num_decoder_layers is not None:
+    if model_config.num_decoder_layers is not None:
         if decoder_config.model_type == "bert":
-            decoder.bert.encoder.layer = decoder.bert.encoder.layer[-num_decoder_layers:]
+            decoder.bert.encoder.layer = decoder.bert.encoder.layer[-model_config.num_decoder_layers:]
         elif decoder_config.model_type in ("roberta", "xlm-roberta"):
-            decoder.roberta.encoder.layer = decoder.roberta.encoder.layer[-num_decoder_layers:]
+            decoder.roberta.encoder.layer = decoder.roberta.encoder.layer[-model_config.num_decoder_layers:]
         elif decoder_config.model_type in ("modernbert"):
-            decoder.modernbert.encoder.layer = decoder.modernbert.encoder.layer[-num_decoder_layers:]
+            decoder.modernbert.encoder.layer = decoder.modernbert.encoder.layer[-model_config.num_decoder_layers:]
         else:
             raise ValueError(f"Unsupported model_type: {decoder_config.model_type}")
 
-        decoder_config.num_hidden_layers = num_decoder_layers
+        decoder_config.num_hidden_layers = model_config.num_decoder_layers
 
     config = VisionEncoderDecoderConfig.from_encoder_decoder_configs(encoder_config, decoder_config)
     config.tie_word_embeddings = False
     model = VisionEncoderDecoderModel(encoder=encoder, decoder=decoder, config=config)
 
-    processor = get_processor(encoder_name, decoder_name)
-
-    # set special tokens used for creating the decoder_input_ids from the labels
+    # Set special tokens used for creating the decoder_input_ids from the labels
     model.config.decoder_start_token_id = processor.tokenizer.cls_token_id
     model.config.pad_token_id = processor.tokenizer.pad_token_id
     # make sure vocab size is set correctly
@@ -121,7 +94,7 @@ def get_model(encoder_name, decoder_name, max_length, num_decoder_layers=None):
 
     # set beam search parameters
     model.config.eos_token_id = processor.tokenizer.sep_token_id
-    model.config.max_length = max_length
+    model.config.max_length = model_config.max_len
     model.config.early_stopping = True
     model.config.no_repeat_ngram_size = 3
     model.config.length_penalty = 2.0
