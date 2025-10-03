@@ -167,7 +167,7 @@ class SyntheticDataGenerator:
             word = "".join(np.random.choice(vocab, np.random.randint(1, 4)))
             words.append(word)
             text_len += len(word)
-            if text_len + len(word) >= max_text_len:
+            if text_len >= max_text_len:
                 break
 
         return words
@@ -192,7 +192,7 @@ class SyntheticDataGenerator:
         for word in self.parser.parse(text):
             words.append(word)
             text_len += len(word)
-            if text_len + len(word) >= max_text_len:
+            if text_len >= max_text_len:
                 break
 
         return words

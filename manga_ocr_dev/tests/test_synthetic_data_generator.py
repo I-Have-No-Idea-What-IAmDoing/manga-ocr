@@ -58,16 +58,13 @@ class TestSyntheticDataGenerator(unittest.TestCase):
         kanji_pos2 = processed_line2.find('字')
         self.assertLess(kanji_pos2, a_pos2, f"For input '{line2}', '字' should appear before 'a' in the output: '{processed_line2}'")
 
-    def test_process_empty_text(self):
-        # Test that providing text with unsupported characters results in an empty image
+    def test_process_unsupported_chars_raises_error(self):
+        # Test that providing text with unsupported characters raises a ValueError
         self.generator.font_map[str(FONTS_ROOT / self.font_path)] = set("a字b")
         with patch.object(self.generator, 'get_random_font', return_value=str(FONTS_ROOT / self.font_path)):
-            img, text_gt, params = self.generator.process(text="xyz")
-            self.assertEqual(text_gt, "")
-            # Check that render was called with an empty list of lines
-            self.mock_renderer.render.assert_called_once()
-            self.assertEqual(self.mock_renderer.render.call_args[0][0], [])
-            self.assertEqual(img.shape, (1, 1))
+            with self.assertRaises(ValueError) as cm:
+                self.generator.process(text="xyz")
+            self.assertIn("unsupported characters", str(cm.exception))
 
     def test_words_to_lines(self):
         # Test the line splitting logic
@@ -99,6 +96,56 @@ class TestSyntheticDataGenerator(unittest.TestCase):
         self.assertAlmostEqual(params['letter_spacing'], -0.02)
         self.assertEqual(params['stroke_size'], 2)
         self.assertEqual(params['stroke_color'], 'black')
+
+
+    def test_get_random_words_length(self):
+        """
+        Tests that get_random_words generates text of the expected length,
+        addressing a bug where the loop terminated prematurely.
+        """
+        # Arrange: Mock the length distribution to always return a fixed max length
+        fixed_max_len = 20
+        self.generator.len_to_p = pd.DataFrame({"len": [fixed_max_len], "p": [1.0]})
+
+        # Act
+        words = self.generator.get_random_words(vocab=self.generator.vocab)
+        generated_text = "".join(words)
+
+        # Assert: The fix ensures the loop continues until the accumulated length
+        # reaches the target, so the final length should be >= max_text_len.
+        self.assertGreaterEqual(
+            len(generated_text),
+            fixed_max_len,
+            f"Generated text is shorter than the expected minimum length of {fixed_max_len}.",
+        )
+
+    def test_split_into_words_length(self):
+        """
+        Tests that split_into_words truncates text to the expected length,
+        addressing a bug where the loop terminated prematurely.
+        """
+        # Arrange
+        # Mock budoux parser to return one word at a time for consistent testing
+        mock_parser = MagicMock()
+        long_text = "a" * 50
+        mock_parser.parse.return_value = list(long_text)
+        self.generator.parser = mock_parser
+
+        # Mock the length distribution to always return a fixed max length
+        fixed_max_len = 30
+        self.generator.len_to_p = pd.DataFrame({"len": [fixed_max_len], "p": [1.0]})
+
+        # Act
+        words = self.generator.split_into_words(long_text)
+        generated_text = "".join(words)
+
+        # Assert: The fix ensures the loop continues until the accumulated length
+        # reaches the target, so the final length should be >= max_text_len.
+        self.assertGreaterEqual(
+            len(generated_text),
+            fixed_max_len,
+            f"Generated text is shorter than the expected minimum length of {fixed_max_len}.",
+        )
 
 
 if __name__ == '__main__':
