@@ -167,7 +167,7 @@ class Renderer:
         This method creates a set of randomized CSS properties to introduce
         variety into the synthetic data. It randomizes properties like font
         size, orientation (vertical/horizontal), and text effects like
-        strokes or shadows.
+        strokes or glows.
 
         Returns:
             A dictionary of randomly generated CSS parameters.
@@ -183,15 +183,15 @@ class Renderer:
         if np.random.rand() < 0.7:
             params["text_orientation"] = "upright"
 
-        stroke_variant = np.random.choice(
-            ["stroke", "shadow", "none"], p=[0.8, 0.15, 0.05]
+        effect = np.random.choice(
+            ["stroke", "glow", "none"], p=[0.8, 0.15, 0.05]
         )
-        if stroke_variant == "stroke":
-            params["stroke_size"] = np.random.choice([1, 2, 3, 4, 8])
+        if effect == "stroke":
+            params["stroke_size"] = np.random.choice([1, 2, 3, 4])
             params["stroke_color"] = "white"
-        elif stroke_variant == "shadow":
-            params["shadow_size"] = np.random.choice([2, 5, 10])
-            params["shadow_color"] = "white" if np.random.rand() < 0.8 else "black"
+        elif effect == "glow":
+            params["glow_size"] = np.random.choice([2, 5, 10])
+            params["glow_color"] = "white" if np.random.rand() < 0.8 else "black"
 
         return params
 
@@ -384,8 +384,8 @@ def get_css(
     vertical=True,
     background_color="white",
     text_color="black",
-    shadow_size=0,
-    shadow_color="black",
+    glow_size=0,
+    glow_color="black",
     stroke_size=0,
     stroke_color="black",
     letter_spacing=None,
@@ -397,7 +397,7 @@ def get_css(
     This function constructs a CSS string that can be used to style text in
     an HTML document. It includes properties for font size, font family,
     writing mode (vertical/horizontal), colors, and various text effects like
-    shadows and strokes.
+    glows and strokes.
 
     Args:
         font_size (int): The font size in pixels.
@@ -405,8 +405,8 @@ def get_css(
         vertical (bool, optional): If True, sets writing mode to vertical-rl.
         background_color (str, optional): The background color of the text.
         text_color (str, optional): The color of the text.
-        shadow_size (int, optional): The size of the text shadow in pixels.
-        shadow_color (str, optional): The color of the text shadow.
+        glow_size (int, optional): The size of the text glow in pixels.
+        glow_color (str, optional): The color of the text glow.
         stroke_size (int, optional): The size of the text stroke in pixels,
             simulated using multiple text shadows.
         stroke_color (str, optional): The color of the text stroke.
@@ -432,12 +432,17 @@ def get_css(
     if vertical:
         styles.append("writing-mode: vertical-rl;")
 
-    if shadow_size > 0:
-        styles.append(f"text-shadow: 0 0 {shadow_size}px {shadow_color};")
+    if glow_size > 0:
+        styles.append(f"text-shadow: 0 0 {glow_size}px {glow_color};")
 
     if stroke_size > 0:
+        shadows = []
+        for x in range(-stroke_size, stroke_size + 1):
+            for y in range(-stroke_size, stroke_size + 1):
+                if x != 0 or y != 0:
+                    shadows.append(f"{x}px {y}px 0 {stroke_color}")
         styles.extend([
-            "text-shadow: " + ",".join([f"0 0 {stroke_size}px {stroke_color}"] * 10 * stroke_size) + ";",
+            "text-shadow: " + ",".join(shadows) + ";",
             "-webkit-font-smoothing: antialiased;",
         ])
 
