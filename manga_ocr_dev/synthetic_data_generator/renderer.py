@@ -11,7 +11,9 @@ and realistic dataset for training the OCR model.
 import os
 import uuid
 import threading
+import tempfile
 from textwrap import dedent
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 import albumentations as A
 import cv2
@@ -51,20 +53,37 @@ class Renderer:
                 executable (e.g., Chrome, Chromium). If None, `html2image`
                 will attempt to find a default installation. Defaults to None.
         """
+        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.hti = Html2Image(
             browser="chrome-cdp",
             browser_cdp_port=cdp_port,
             browser_executable=browser_executable,
-            temp_path="/tmp/html2image",
+            temp_path=self.temp_dir.name,
             custom_flags=[
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
                 "--no-zygote",
                 "--ozone-platform=headless",
+                "--disable-sync",
+                "--disable-login-screen-apps",
+                "--disable-logging",
+                "--disable-default-apps",
+                "--disable-infobars",
+                "--disable-notifications",
+                "--disable-extensions",
+                "--disable-background-networking",
+                "--disable-component-update",
+                "--disable-client-side-phishing-detection",
+                "--disable-domain-reliability",
+                "--disable-popup-blocking",
+                "--disable-hang-monitor",
+                "--disable-features=TranslateUI",
+                f"--user-data-dir={os.path.join(self.temp_dir.name, 'user-data')}",
             ],
         )
         self.lock = threading.Lock()
+        self.executor = ThreadPoolExecutor(max_workers=1)
 
         self.background_df = get_background_df(BACKGROUND_DIR)
         self.max_size = 600
@@ -77,6 +96,8 @@ class Renderer:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exits the Html2Image context manager, cleaning up resources."""
         self.hti.__exit__(exc_type, exc_val, exc_tb)
+        self.executor.shutdown(wait=False)
+        self.temp_dir.cleanup()
 
     def render(self, lines, override_css_params=None):
         """Renders the given lines of text into a styled, synthetic image.
@@ -156,11 +177,40 @@ class Renderer:
         html = dedent(html)
 
         html_filename = str(uuid.uuid4()) + ".html"
-        self.hti.load_str(html, as_filename=html_filename)
-        img_bytes = self.hti.screenshot_as_bytes(file=html_filename, size=size)
-        self.hti._remove_temp_file(html_filename)
+        img_bytes = None
+        try:
+            self.hti.load_str(html, as_filename=html_filename)
+
+            # Run screenshot in a separate thread with a timeout
+            future = self.executor.submit(
+                self.hti.screenshot_as_bytes, file=html_filename, size=size
+            )
+            try:
+                img_bytes = future.result(timeout=30)  # 30-second timeout
+            except TimeoutError:
+                print(f"Skipping render for '{''.join(lines)[:30]}...' due to timeout.")
+                future.cancel()
+                return None, params
+            except Exception as e:
+                print(f"Screenshot failed with an exception: {e}")
+                return None, params
+
+        finally:
+            # Ensure the temporary HTML file is always removed
+            temp_file_path = os.path.join(self.hti.temp_path, html_filename)
+            if os.path.exists(temp_file_path):
+                try:
+                    self.hti._remove_temp_file(html_filename)
+                except Exception as e:
+                    print(f"Error removing temp file: {e}")
+
+        if img_bytes is None:
+            return None, params
 
         img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_UNCHANGED)
+        if img is None:  # imdecode can fail
+            return None, params
+
         if img.shape[2] == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
 
