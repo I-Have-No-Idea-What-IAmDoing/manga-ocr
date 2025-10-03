@@ -7,8 +7,10 @@ configuration easier to manage and understand. Each class corresponds to a
 specific section of the `config.yaml` file.
 """
 
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ModelConfig(BaseModel):
@@ -63,32 +65,42 @@ class DatasetConfig(BaseModel):
     augmentations: Optional[AugmentationConfig] = Field(None, description="The augmentation pipelines and their probabilities.")
 
 
-class TrainingConfig(BaseModel):
-    """Configuration for the Hugging Face `Seq2SeqTrainingArguments`."""
+class TrainingConfig(BaseSettings):
+    """Configuration for the Hugging Face `Seq2SeqTrainingArguments`.
 
-    batch_size: int = Field(..., alias="per_device_train_batch_size", description="The batch size for training.")
-    num_epochs: int = Field(..., alias="num_train_epochs", description="The total number of training epochs.")
-    fp16: bool = Field(False, description="Whether to use 16-bit (mixed) precision training.")
+    This class inherits from `pydantic_settings.BaseSettings`, which allows it
+    to be configured not only from the YAML file but also from environment
+    variables. This is useful for settings that might change between different
+    environments, such as the number of dataloader workers.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        env_prefix="MANGA_OCR_TRAINING_",
+        populate_by_name=True,
+    )
+
+    batch_size: int = Field(64, alias="per_device_train_batch_size", description="The batch size for training.")
+    num_epochs: int = Field(8, alias="num_train_epochs", description="The total number of training epochs.")
+    fp16: bool = Field(True, description="Whether to use 16-bit (mixed) precision training.")
     predict_with_generate: bool = Field(True, description="Whether to use `generate` to calculate generative metrics.")
     eval_strategy: str = Field("steps", alias="evaluation_strategy", description="The evaluation strategy to adopt during training.")
     save_strategy: str = Field("steps", alias="save_strategy", description="The checkpoint save strategy to adopt during training.")
-    dataloader_num_workers: int = Field(..., alias="dataloader_num_workers", description="The number of workers for the dataloader.")
-    logging_steps: int = Field(..., description="Log every `logging_steps` updates.")
+    dataloader_num_workers: int = Field(16, description="The number of workers for the dataloader.")
+    logging_steps: int = Field(10, description="Log every `logging_steps` updates.")
     report_to: str = Field("wandb", description="The integration to report results and logs to.")
-    save_steps: int = Field(..., description="Save a checkpoint every `save_steps` updates.")
-    eval_steps: int = Field(..., description="Run an evaluation every `eval_steps` updates.")
+    save_steps: int = Field(20000, description="Save a checkpoint every `save_steps` updates.")
+    eval_steps: int = Field(20000, description="Run an evaluation every `eval_steps` updates.")
     load_best_model_at_end: bool = Field(True, description="Whether to load the best model found during training at the end.")
-    save_total_limit: int = Field(2, description="The total number of checkpoints to keep.")
+    save_total_limit: int = Field(3, description="The total number of checkpoints to keep.")
     include_inputs_for_metrics: bool = Field(True, description="Whether to pass the inputs to `compute_metrics`.")
-
-    class Config:
-        allow_population_by_field_name = True
 
 
 class AppConfig(BaseModel):
     """The root configuration object for the entire training application."""
 
-    run_name: str = Field(..., description="A unique name for the training run, used for logging and output directories.")
     model: ModelConfig = Field(..., description="The model configuration.")
     dataset: DatasetConfig = Field(..., description="The dataset configuration.")
-    training: TrainingConfig = Field(..., description="The training arguments.")
+    training: TrainingConfig = Field(default_factory=TrainingConfig, description="The training arguments.")

@@ -13,13 +13,42 @@ import albumentations as A
 import cv2
 
 
+def _param_preprocessor(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Preprocesses augmentation parameters from a configuration dictionary.
+
+    This function iterates through the parameters for a given augmentation
+    and resolves any special string values to their corresponding constants.
+    For example, it converts string representations of OpenCV constants like
+    "cv2.BORDER_REPLICATE" into their actual enum values. This allows for
+    a more declarative and readable configuration file.
+
+    Args:
+        params: A dictionary of parameters for an augmentation transform.
+
+    Returns:
+        A new dictionary with the processed parameters.
+
+    Raises:
+        ValueError: If an unknown OpenCV constant is encountered.
+    """
+    processed_params = params.copy()
+    for key, value in processed_params.items():
+        if isinstance(value, str) and value.startswith("cv2."):
+            constant_name = value.split(".")[-1]
+            if hasattr(cv2, constant_name):
+                processed_params[key] = getattr(cv2, constant_name)
+            else:
+                raise ValueError(f"Unknown CV2 constant: {value}")
+    return processed_params
+
+
 def build_transforms(aug_list: List[Dict[str, Any]]) -> List[A.BasicTransform]:
     """Recursively builds a list of Albumentations transforms from a config.
 
     This function parses a list of dictionaries, where each dictionary defines
     an augmentation, and constructs a corresponding list of Albumentations
-    transform objects. It supports nested transforms (e.g., for `A.OneOf`) and
-    can resolve OpenCV constants provided as strings (e.g., "cv2.BORDER_CONSTANT").
+    transform objects. It supports nested transforms (e.g., for `A.OneOf`) by
+    recursively calling itself on the nested list of transforms.
 
     Args:
         aug_list: A list of augmentation configurations. Each item is a
@@ -32,23 +61,19 @@ def build_transforms(aug_list: List[Dict[str, Any]]) -> List[A.BasicTransform]:
     transforms = []
     for aug in aug_list:
         name = aug["name"]
-        params = aug.get("params", {}).copy()
+        params = _param_preprocessor(aug.get("params", {}))
 
-        # Handle nested transforms for OneOf, etc.
+        # Handle nested transforms for composite augmentations like `OneOf`.
         if "transforms" in params:
+            # Recursively build the list of nested transforms.
             nested_transforms = build_transforms(params.pop("transforms"))
         else:
             nested_transforms = []
 
-        # Special handling for cv2 constants
-        for key, value in params.items():
-            if isinstance(value, str) and value.startswith("cv2."):
-                params[key] = getattr(cv2, value.split(".")[-1])
-
         transform_class = getattr(A, name)
 
         if nested_transforms:
-            # Assumes the nested transforms are the first positional argument
+            # Assumes the nested transforms are the first positional argument.
             instance = transform_class(nested_transforms, **params)
         else:
             instance = transform_class(**params)
@@ -65,7 +90,7 @@ def build_augmentations(
     This function serves as the main entry point for creating an augmentation
     pipeline from a configuration file. It takes a list of augmentation
     definitions and uses `build_transforms` to construct the full pipeline,
-    which is then wrapped in an `A.Compose` object.
+    which is then wrapped in an `A.Compose` object for easy application.
 
     Args:
         aug_config: A list of augmentation configurations, where each item
