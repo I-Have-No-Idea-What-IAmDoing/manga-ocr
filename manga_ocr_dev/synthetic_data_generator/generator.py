@@ -256,7 +256,7 @@ class SyntheticDataGenerator:
                     "katakana": self.katakana,
                     "all": vocab,
                 }[char_source]
-                furigana = "".join(np.random.choice(char_source, furigana_len))
+                furigana = "".join(np.random.choice(list(char_source), furigana_len))
                 return f"<ruby>{group}<rt>{furigana}</rt></ruby>"
             else:
                 return group
