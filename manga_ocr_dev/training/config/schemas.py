@@ -7,7 +7,7 @@ configuration easier to manage and understand. Each class corresponds to a
 specific section of the `config.yaml` file.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 
 
@@ -81,8 +81,7 @@ class TrainingConfig(BaseModel):
     save_total_limit: int = Field(2, description="The total number of checkpoints to keep.")
     include_inputs_for_metrics: bool = Field(True, description="Whether to pass the inputs to `compute_metrics`.")
 
-    class Config:
-        allow_population_by_field_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class AppConfig(BaseModel):
