@@ -81,7 +81,7 @@ class TestSyntheticDataGenerator(unittest.TestCase):
     @patch('numpy.random.rand')
     def test_random_css_params(self, mock_rand, mock_choice, mock_uniform, mock_randint):
         # Mock the random functions to control the output of get_random_css_params
-        mock_rand.side_effect = [0.6, 0.8, 0.1, 0.1]  # vertical, text_color, text_orientation, letter_spacing
+        mock_rand.side_effect = [0.6, 0.8, 0.4, 0.1, 0.1, 0.9]  # vertical, text_color, draw_bubble, text_orientation, letter_spacing, glow_color
         mock_randint.return_value = 48  # font_size
         mock_uniform.side_effect = [0.6, -0.02]  # line_height, letter_spacing
         mock_choice.side_effect = ["stroke", 2]  # effect, stroke_size
