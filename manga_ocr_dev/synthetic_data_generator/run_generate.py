@@ -34,19 +34,17 @@ OUT_DIR = None
 DEBUG_DIR = None
 
 
-def sanitize_for_json(data):
-    """Recursively converts NumPy types to native Python types in a dictionary."""
-    if isinstance(data, dict):
-        return {k: sanitize_for_json(v) for k, v in data.items()}
-    elif isinstance(data, list):
-        return [sanitize_for_json(i) for i in data]
-    elif isinstance(data, np.integer):
-        return int(data)
-    elif isinstance(data, np.floating):
-        return float(data)
-    elif isinstance(data, np.ndarray):
-        return data.tolist()
-    return data
+class NumpyEncoder(json.JSONEncoder):
+    """Custom JSON encoder for NumPy types."""
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NumpyEncoder, self).default(obj)
 
 
 def worker_fn(args, generator, debug=False):
@@ -85,6 +83,7 @@ def worker_fn(args, generator, debug=False):
         if debug:
             print(f"  - Saved image to {img_path}")
 
+        if debug:
             debug_info = params.copy()
             html = debug_info.pop("html", "")
             html_path = Path(DEBUG_DIR) / f"{id_}.html"
@@ -92,7 +91,9 @@ def worker_fn(args, generator, debug=False):
             print(f"  - Saved HTML to {html_path}")
 
             json_path = Path(DEBUG_DIR) / f"{id_}.json"
-            json_path.write_text(json.dumps(debug_info, indent=4), encoding="utf-8")
+            json_path.write_text(
+                json.dumps(debug_info, indent=4, cls=NumpyEncoder), encoding="utf-8"
+            )
             print(f"  - Saved params to {json_path}")
 
         font_path = params.get("font_path")
