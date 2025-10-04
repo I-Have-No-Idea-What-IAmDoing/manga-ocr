@@ -290,6 +290,11 @@ class Renderer:
         draw_bubble = np.random.random() < 0.7
 
         img = crop_by_alpha(img, margin=0)
+
+        # Pre-scale the text if it's too large to prevent it from becoming unreadable
+        if max(img.shape[:2]) > self.max_size:
+            img = A.LongestMaxSize(self.max_size)(image=img)["image"]
+
         if min(img.shape[:2]) < 10:
             return np.zeros((10, 10, 3), dtype=np.uint8)
 
@@ -322,8 +327,21 @@ class Renderer:
         background = A.Compose(t)(image=background)["image"]
 
         if not draw_bubble:
-            if params["text_color"] == "white":
-                img[:, :, :3] = 255 - img[:, :, :3]
+            # Ensure text is readable against the background
+            text_mask = img[:, :, 3] > 0
+            background_roi = background[text_mask]
+
+            # Avoid division by zero if background_roi is empty
+            if background_roi.size > 0:
+                background_brightness = background_roi.mean()
+                is_dark_text = params["text_color"] == "black"
+                is_bright_background = background_brightness > 127
+
+                # If text and background have similar brightness, invert background
+                if (is_dark_text and not is_bright_background) or (
+                    not is_dark_text and is_bright_background
+                ):
+                    background = 255 - background
         else:
             bubble = self.create_bubble(img.shape, m0, params)
             background = blend(bubble, background)
