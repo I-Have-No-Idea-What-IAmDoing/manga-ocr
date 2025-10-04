@@ -174,8 +174,8 @@ class Renderer:
             return None, params
 
         size = (
-            int(max(len(line) for line in lines) * params["font_size"] * 1.5),
-            int(len(lines) * params["font_size"] * (3 + params["line_height"])),
+            int(max(len(line) for line in lines) * params["font_size"] * 2.5),
+            int(len(lines) * params["font_size"] * (5 + params["line_height"])),
         )
         if params["vertical"]:
             size = size[::-1]
@@ -630,5 +630,6 @@ def get_css(
 
     styles_str = "\n".join(styles)
     css = f'@font-face {{font-family: custom; src: url("{font_uri}");}}\n'
-    css += f"html, body {{\n{styles_str}\nbox-sizing: border-box;\n}}"
+    css += f"html, body {{\n{styles_str}\nbox-sizing: border-box;\n}}\n"
+    css += "body::-webkit-scrollbar { display: none; }"
     return css
