@@ -9,6 +9,7 @@ be used for training the OCR model.
 This script is designed to be run from the command line using `fire`.
 """
 
+import json
 import os
 import sys
 import traceback
@@ -21,6 +22,7 @@ sys.path.insert(0, str(project_root))
 
 import cv2
 import fire
+import numpy as np
 import pandas as pd
 from tqdm.contrib.concurrent import thread_map
 
@@ -29,9 +31,25 @@ from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenera
 from manga_ocr_dev.synthetic_data_generator.renderer import Renderer
 
 OUT_DIR = None
+DEBUG_DIR = None
 
 
-def worker_fn(args, generator):
+def sanitize_for_json(data):
+    """Recursively converts NumPy types to native Python types in a dictionary."""
+    if isinstance(data, dict):
+        return {k: sanitize_for_json(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [sanitize_for_json(i) for i in data]
+    elif isinstance(data, np.integer):
+        return int(data)
+    elif isinstance(data, np.floating):
+        return float(data)
+    elif isinstance(data, np.ndarray):
+        return data.tolist()
+    return data
+
+
+def worker_fn(args, generator, debug=False):
     """A worker function for processing a single data sample in parallel.
 
     This function is designed to be used with `thread_map`. It takes a tuple of
@@ -44,6 +62,7 @@ def worker_fn(args, generator):
             ID, and text for the data sample.
         generator (SyntheticDataGenerator): An initialized instance of the
             `SyntheticDataGenerator` to be used for image generation.
+        debug (bool): If True, saves additional debug information.
 
     Returns:
         A tuple containing metadata about the generated sample:
@@ -51,6 +70,9 @@ def worker_fn(args, generator):
     """
     try:
         i, source, id_, text = args
+        if debug:
+            print(f"Processing sample {id_}: '{text}'")
+
         filename = f"{id_}.jpg"
         img, text_gt, params = generator.process(text)
 
@@ -58,9 +80,24 @@ def worker_fn(args, generator):
             print(f"Skipping render for text: {text}")
             return None
 
-        cv2.imwrite(str(Path(OUT_DIR) / filename), img)
+        img_path = Path(OUT_DIR) / filename
+        cv2.imwrite(str(img_path), img)
+        if debug:
+            print(f"  - Saved image to {img_path}")
 
-        font_path = params["font_path"]
+        if debug:
+            debug_info = params.copy()
+            html = debug_info.pop("html", "")
+            html_path = Path(DEBUG_DIR) / f"{id_}.html"
+            html_path.write_text(html, encoding="utf-8")
+            print(f"  - Saved HTML to {html_path}")
+
+            sanitized_info = sanitize_for_json(debug_info)
+            json_path = Path(DEBUG_DIR) / f"{id_}.json"
+            json_path.write_text(json.dumps(sanitized_info, indent=4), encoding="utf-8")
+            print(f"  - Saved params to {json_path}")
+
+        font_path = params.get("font_path")
         ret = source, id_, text_gt, params["vertical"], str(font_path)
         return ret
 
@@ -72,7 +109,9 @@ def worker_fn(args, generator):
         raise
 
 
-def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
+def run(
+    package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222, debug=False
+):
     """Generates a package of synthetic data, including images and metadata.
 
     This function orchestrates the generation of a complete data package. It
@@ -95,6 +134,9 @@ def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
             use for parallel image generation. Defaults to 14.
         cdp_port (int, optional): The port for the Chrome DevTools Protocol,
             used by the underlying renderer. Defaults to 9222.
+        debug (bool, optional): If True, saves additional debug information,
+            including the HTML and parameters for each generated sample.
+            Defaults to False.
     """
 
     package_id = f"{package:04d}"
@@ -115,16 +157,24 @@ def run(package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222):
         lines = lines.sample(n_limit)
     args = [(i, *values) for i, values in enumerate(lines.values)]
 
-    global OUT_DIR
+    global OUT_DIR, DEBUG_DIR
     OUT_DIR = Path(DATA_SYNTHETIC_ROOT) / "img" / package_id
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    if debug:
+        DEBUG_DIR = Path(DATA_SYNTHETIC_ROOT) / "debug" / package_id
+        DEBUG_DIR.mkdir(parents=True, exist_ok=True)
 
     browser_executable = os.environ.get("CHROME_EXECUTABLE_PATH")
-    with Renderer(cdp_port=cdp_port, browser_executable=browser_executable) as renderer:
+    with Renderer(
+        cdp_port=cdp_port, browser_executable=browser_executable, debug=debug
+    ) as renderer:
         generator = SyntheticDataGenerator(renderer=renderer)
-        f_with_generator = partial(worker_fn, generator=generator)
+        f_with_generator = partial(worker_fn, generator=generator, debug=debug)
         results = thread_map(
-            f_with_generator, args, max_workers=max_workers, desc=f"Processing package {package_id}"
+            f_with_generator,
+            args,
+            max_workers=max_workers,
+            desc=f"Processing package {package_id}",
         )
 
     data = [res for res in results if res is not None]

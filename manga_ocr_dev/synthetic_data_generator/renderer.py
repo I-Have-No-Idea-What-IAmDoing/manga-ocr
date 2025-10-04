@@ -44,7 +44,7 @@ class Renderer:
             output image.
     """
 
-    def __init__(self, cdp_port=9222, browser_executable=None):
+    def __init__(self, cdp_port=9222, browser_executable=None, debug=False):
         """Initializes the Renderer.
 
         Args:
@@ -53,37 +53,44 @@ class Renderer:
             browser_executable (str | None, optional): The path to the browser
                 executable (e.g., Chrome, Chromium). If None, `html2image`
                 will attempt to find a default installation. Defaults to None.
+            debug (bool, optional): If True, enables additional debugging
+                features, such as browser logging. Defaults to False.
         """
+        self.debug = debug
         self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+
+        flags = [
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--no-zygote",
+            "--ozone-platform=headless",
+            "--disable-sync",
+            "--disable-login-screen-apps",
+            "--disable-default-apps",
+            "--disable-infobars",
+            "--disable-notifications",
+            "--disable-extensions",
+            "--disable-background-networking",
+            "--disable-component-update",
+            "--disable-client-side-phishing-detection",
+            "--disable-domain-reliability",
+            "--disable-popup-blocking",
+            "--disable-hang-monitor",
+            "--disable-features=TranslateUI",
+            f"--user-data-dir={os.path.join(self.temp_dir.name, 'user-data')}",
+            "--disable-gcm",
+            "--remote-allow-origins=*",
+        ]
+        if not self.debug:
+            flags.append("--disable-logging")
+
         self.hti = Html2Image(
             browser="chrome-cdp",
             browser_cdp_port=cdp_port,
             browser_executable=browser_executable,
             temp_path=self.temp_dir.name,
-            custom_flags=[
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--no-zygote",
-                "--ozone-platform=headless",
-                "--disable-sync",
-                "--disable-login-screen-apps",
-                "--disable-logging",
-                "--disable-default-apps",
-                "--disable-infobars",
-                "--disable-notifications",
-                "--disable-extensions",
-                "--disable-background-networking",
-                "--disable-component-update",
-                "--disable-client-side-phishing-detection",
-                "--disable-domain-reliability",
-                "--disable-popup-blocking",
-                "--disable-hang-monitor",
-                "--disable-features=TranslateUI",
-                f"--user-data-dir={os.path.join(self.temp_dir.name, 'user-data')}",
-                "--disable-gcm",
-                "--remote-allow-origins=*",
-            ],
+            custom_flags=flags,
         )
         self.lock = threading.Lock()
         self.executor = ThreadPoolExecutor(max_workers=1)
@@ -183,6 +190,9 @@ class Renderer:
         </html>
         """
         html = dedent(html)
+
+        if self.debug:
+            params["html"] = html
 
         html_filename = str(uuid.uuid4()) + ".html"
         img_bytes = None
@@ -528,7 +538,10 @@ def get_css(
         styles.append(f"letter-spacing: {letter_spacing}em;")
 
     # Convert the font path to a file URI for the browser to load it correctly
-    font_uri = Path(font_path).as_uri()
+    path = Path(font_path)
+    if not path.is_absolute():
+        path = path.absolute()
+    font_uri = path.as_uri()
 
     styles_str = "\n".join(styles)
     css = f'@font-face {{font-family: custom; src: url("{font_uri}");}}\n'
