@@ -129,21 +129,23 @@ class Renderer:
                 - dict: A dictionary of the CSS parameters used for rendering.
         """
         with self.lock:
-            img, params = self.render_text(lines, override_css_params)
-        if img is None:
+            # First pass: render text on transparent background to get geometry
+            img_transparent, params = self._render_text_transparent(lines, override_css_params)
+        if img_transparent is None:
             return None, params
 
-        img = self.render_background(img, params)
+        # Second pass: render text on final background
+        img = self._render_final_image(img_transparent, lines, params)
 
-        # render_background can return an empty image on failure, which will crash albumentations
-        if img.size == 0:
+        # _render_final_image can return an empty image on failure, which will crash albumentations
+        if img is None or img.size == 0:
             return None, params
 
         img = A.LongestMaxSize(self.max_size)(image=img)["image"]
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         return img, params
 
-    def render_text(self, lines, override_css_params=None):
+    def _render_text_transparent(self, lines, override_css_params=None):
         """Renders text with CSS styling on a transparent background.
 
         This method takes lines of text, generates random CSS styles (with
@@ -161,12 +163,11 @@ class Renderer:
                 - np.ndarray: The rendered text as a BGRA image.
                 - dict: The dictionary of CSS parameters used for rendering.
         """
-
         params = self.get_random_css_params()
         if override_css_params:
             params.update(override_css_params)
 
-        css = get_css(**params)
+        css = get_css(background_color="transparent", **params)
 
         # This is just a rough estimate; the image is cropped later anyway.
         if not lines or not "".join(lines):
@@ -250,7 +251,6 @@ class Renderer:
             "font_size": np.random.randint(48, 96),
             "vertical": np.random.rand() < 0.7,
             "line_height": np.random.uniform(1.4, 2.0),
-            "background_color": "transparent",
             "text_color": "black" if np.random.rand() < 0.7 else "white",
         }
 
@@ -271,25 +271,25 @@ class Renderer:
 
         return params
 
-    def render_background(self, img, params):
-        """Adds a background and optionally a text bubble to an image.
+    def _render_final_image(self, text_img, lines, params):
+        """Renders the text onto a final background.
 
-        This method takes a BGRA image with text on a transparent background,
-        composites it onto a randomly selected background image, and can also
-        draw a text bubble around the text. The final image is cropped and
-        returned as a BGR image.
+        This is the second stage of the rendering process. It takes the geometry
+        of the text from the first rendering pass, prepares a background
+        (with optional bubbles), and then re-renders the text directly onto
+        this background to avoid transparency issues.
 
         Args:
-            img (np.ndarray): The input BGRA image with a transparent background.
-            params (dict): A dictionary of rendering parameters, used to
-                determine bubble color and other style aspects.
+            text_img (np.ndarray): The transparent text image from the first pass.
+            lines (list[str]): The original lines of text.
+            params (dict): The CSS parameters used for rendering.
 
         Returns:
-            The final BGR image with text composited onto a background.
+            The final BGR image.
         """
         draw_bubble = np.random.random() < 0.7
 
-        img = crop_by_alpha(img, margin=0)
+        img = crop_by_alpha(text_img, margin=0)
 
         # Pre-scale the text if it's too large to prevent it from becoming unreadable
         if max(img.shape[:2]) > self.max_size:
@@ -346,7 +346,53 @@ class Renderer:
             bubble = self.create_bubble(img.shape, m0, params)
             background = blend(bubble, background)
 
-        img = blend(img, background)
+        # Instead of blending, we re-render with the background
+        background_file_path = os.path.join(self.hti.temp_path, f"background_{uuid.uuid4()}.png")
+        cv2.imwrite(background_file_path, background)
+        background_uri = Path(background_file_path).as_uri()
+
+        # Calculate padding to center the text area in the new background
+        padding_y = (background.shape[0] - img.shape[0]) // 2
+        padding_x = (background.shape[1] - img.shape[1]) // 2
+
+        # Second render pass onto the prepared background
+        params["background_image_uri"] = background_uri
+        params["padding"] = (padding_y, padding_x)
+        final_css = get_css(**params)
+
+        lines_str = "\n".join([f"<p>{line}</p>" for line in lines])
+        html = f"""\
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>{final_css}</style>
+        </head>
+        <body>{lines_str}</body>
+        </html>
+        """
+        html = dedent(html)
+
+        html_filename = str(uuid.uuid4()) + ".html"
+        img_bytes = None
+        try:
+            self.hti.load_str(html, as_filename=html_filename)
+            future = self.executor.submit(
+                self.hti.screenshot_as_bytes, file=html_filename, size=(background.shape[1], background.shape[0])
+            )
+            img_bytes = future.result(timeout=30)
+        finally:
+            temp_file_path = os.path.join(self.hti.temp_path, html_filename)
+            if os.path.exists(temp_file_path):
+                self.hti._remove_temp_file(html_filename)
+            if os.path.exists(background_file_path):
+                os.remove(background_file_path)
+
+        if img_bytes is None:
+            return None
+
+        img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            return None
 
         # Final random crop to make the framing less predictable
         h, w, _ = img.shape
@@ -509,6 +555,8 @@ def get_css(
     letter_spacing=None,
     line_height=0.5,
     text_orientation=None,
+    background_image_uri=None,
+    padding=None,
 ):
     """Generates a CSS string for styling text rendered in a browser.
 
@@ -531,18 +579,30 @@ def get_css(
         letter_spacing (float, optional): The letter spacing in 'em' units.
         line_height (float, optional): The line height as a multiple of font size.
         text_orientation (str, optional): The text orientation (e.g., 'upright').
+        background_image_uri (str, optional): A URI for a background image.
+        padding (tuple[int, int], optional): Top/bottom and left/right padding.
 
     Returns:
         The generated CSS string.
     """
     styles = [
-        f"background-color: {background_color};",
         f"font-size: {font_size}px;",
         f"color: {text_color};",
         "font-family: custom;",
         f"line-height: {line_height};",
-        "margin: 20px;",
     ]
+
+    if background_image_uri:
+        styles.append(f"background-image: url('{background_image_uri}');")
+        styles.append("background-size: cover;")
+    else:
+        styles.append(f"background-color: {background_color};")
+
+    if padding:
+        styles.append(f"padding: {padding[0]}px {padding[1]}px;")
+        styles.append("margin: 0;")
+    else:
+        styles.append("margin: 20px;")
 
     if text_orientation:
         styles.append(f"text-orientation: {text_orientation};")
@@ -575,5 +635,5 @@ def get_css(
 
     styles_str = "\n".join(styles)
     css = f'@font-face {{font-family: custom; src: url("{font_uri}");}}\n'
-    css += f"body {{\n{styles_str}\n}}"
+    css += f"body {{\n{styles_str}\nbox-sizing: border-box;\n}}"
     return css

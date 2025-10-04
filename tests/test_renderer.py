@@ -17,7 +17,7 @@ from manga_ocr_dev.synthetic_data_generator.renderer import Renderer, get_css, c
 @pytest.fixture
 @patch('manga_ocr_dev.vendored.html2image.browsers.chrome_cdp.find_chrome')
 @patch('manga_ocr_dev.synthetic_data_generator.renderer.get_background_df')
-def renderer(mock_get_background_df, mock_find_chrome):
+def renderer(mock_get_background_df, mock_find_chrome, tmp_path):
     """Provides a `Renderer` instance with mocked dependencies for testing.
 
     This pytest fixture initializes the `Renderer` while mocking its external
@@ -29,8 +29,10 @@ def renderer(mock_get_background_df, mock_find_chrome):
     """
     mock_find_chrome.return_value = 'dummy_chrome_path'
     mock_get_background_df.return_value = MagicMock()
-    r = Renderer()
+    # Use a real tempfile.TemporaryDirectory to avoid issues with path handling
+    r = Renderer(debug=True)
     r.hti = MagicMock()
+    r.hti.temp_path = str(tmp_path)
     return r
 
 def test_renderer_initialization(renderer):
@@ -38,22 +40,23 @@ def test_renderer_initialization(renderer):
     assert renderer.hti is not None
     assert renderer.background_df is not None
 
-def test_render_text(renderer):
+def test_render_text_transparent(renderer):
     """
-    Tests the `render_text` method for correct image and parameter output.
+    Tests the `_render_text_transparent` method for correct image and parameter output.
 
-    This test ensures that `render_text` successfully produces an image with
+    This test ensures that `_render_text_transparent` successfully produces an image with
     the correct format (BGRA) and returns a dictionary of the CSS parameters
     used for rendering.
     """
     renderer.hti.screenshot_as_bytes.return_value = cv2.imencode('.png', np.zeros((100, 100, 3), dtype=np.uint8))[1].tobytes()
 
     lines = ['test']
-    img, params = renderer.render_text(lines, override_css_params={'font_path': 'dummy.ttf'})
+    img, params = renderer._render_text_transparent(lines, override_css_params={'font_path': 'dummy.ttf'})
 
     assert isinstance(img, np.ndarray)
     assert img.shape[2] == 4
     assert isinstance(params, dict)
+
 
 def test_get_random_css_params():
     """Tests the generation of random CSS parameters."""
@@ -61,17 +64,37 @@ def test_get_random_css_params():
     assert isinstance(params, dict)
     assert 'font_size' in params
 
-def test_render_background(renderer):
-    """Tests the `render_background` method for compositing images."""
-    img = np.zeros((100, 100, 4), dtype=np.uint8)
 
-    with patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread') as mock_imread:
-        mock_imread.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
-        renderer.background_df.sample.return_value.iloc[0].path = 'dummy.png'
+@patch('os.path.exists', return_value=True)
+@patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imwrite')
+@patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread')
+@patch('os.remove')
+def test_render_final_image(mock_remove, mock_imread, mock_imwrite, mock_exists, renderer, tmp_path):
+    """Tests the `_render_final_image` method for rendering text on a background."""
+    # Setup
+    text_img = np.zeros((50, 50, 4), dtype=np.uint8)
+    text_img[:, :, 3] = 255  # Opaque text area
+    lines = ['test']
+    params = {
+        'font_path': 'dummy.ttf', 'font_size': 12, 'text_color': 'black', 'line_height': 1.5,
+        'vertical': False, 'glow_size': 0, 'stroke_size': 0, 'letter_spacing': None,
+        'text_orientation': None
+    }
+    renderer.background_df.sample.return_value.iloc[0].path = 'dummy.png'
+    mock_imread.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
 
-        params = {'text_color': 'black'}
-        result_img = renderer.render_background(img, params)
-        assert isinstance(result_img, np.ndarray)
+    # Mock the second rendering pass
+    final_img_bytes = cv2.imencode('.png', np.full((100, 100, 3), 255, dtype=np.uint8))[1].tobytes()
+    with patch.object(renderer.executor, 'submit') as mock_submit:
+        mock_submit.return_value.result.return_value = final_img_bytes
+        result_img = renderer._render_final_image(text_img, lines, params)
+
+    # Assertions
+    assert isinstance(result_img, np.ndarray)
+    mock_imwrite.assert_called_once()
+    mock_remove.assert_called_once()
+    assert result_img is not None
+
 
 def test_get_css():
     """Tests the `get_css` function for correct CSS string generation."""
@@ -81,6 +104,18 @@ def test_get_css():
     assert 'text-shadow' in css
     assert 'letter-spacing' in css
     assert 'text-orientation' in css
+
+    # Test new parameters
+    css_with_bg = get_css(
+        font_size=12,
+        font_path='dummy.ttf',
+        background_image_uri='file:///dummy.png',
+        padding=(10, 20)
+    )
+    assert "background-image: url('file:///dummy.png');" in css_with_bg
+    assert "padding: 10px 20px;" in css_with_bg
+    assert "box-sizing: border-box;" in css_with_bg
+
 
 def test_crop_by_alpha():
     """Tests the `crop_by_alpha` function with various image scenarios."""
@@ -131,6 +166,7 @@ def test_crop_by_alpha():
     expected_content = img_border[0:1, :, :]
     assert np.array_equal(cropped_border, expected_content)
 
+
 def test_blend():
     """Tests the `blend` function for correct alpha compositing."""
     fg = np.zeros((100, 100, 4), dtype=np.uint8)
@@ -141,11 +177,13 @@ def test_blend():
     assert blended_img.shape == (100, 100, 3)
     assert np.all(blended_img[0, 0] == [127, 127, 127])
 
+
 def test_rounded_rectangle():
     """Tests the `rounded_rectangle` drawing function."""
     img = np.zeros((100, 100, 3), dtype=np.uint8)
     result_img = rounded_rectangle(img, (10, 10), (90, 90), radius=0.5, color=(255, 255, 255), thickness=-1)
     assert np.any(result_img > 0)
+
 
 def test_get_css_stroke():
     """Tests that get_css generates a correct stroke effect."""
@@ -167,6 +205,7 @@ def test_get_css_stroke():
 
     # Also, ensure that the glow effect is not present for a stroke.
     assert "0 0 1px" not in css
+
 
 def test_get_css_glow():
     """Tests that get_css generates a correct glow effect."""
@@ -223,119 +262,41 @@ class TestRendererParams(unittest.TestCase):
         self.assertEqual(params["stroke_size"], 2)
 
 
-def test_render_background_contrast_adjustment_and_prescaling(renderer):
+@patch('albumentations.Compose')
+@patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imwrite')
+@patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread')
+@patch('os.remove')
+def test_render_final_image_contrast_adjustment(mock_remove, mock_imread, mock_imwrite, mock_compose, renderer, tmp_path):
     """
-    Tests that the background is inverted for better contrast and that oversized
-    images are pre-scaled.
+    Tests that the background is inverted for better contrast before being used
+    in the final render.
     """
     # 1. Setup
-    renderer.max_size = 500
-    # Text image is larger than max_size to trigger pre-scaling
-    img = np.zeros((600, 600, 4), dtype=np.uint8)
-    img[100:500, 100:500, 3] = 255  # Opaque text area
-
-    dark_bg = np.full((100, 100, 3), 20, dtype=np.uint8)
-    params = {'text_color': 'black'}
-
-    # 2. Mocks
-    # Mock file system and random operations to make the test deterministic
-    with patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread', return_value=dark_bg), \
-         patch('numpy.random.random', return_value=0.9), \
-         patch('manga_ocr_dev.synthetic_data_generator.renderer.crop_by_alpha', side_effect=lambda x, margin: x), \
-         patch('albumentations.Compose') as mock_compose, \
-         patch('albumentations.LongestMaxSize') as mock_scaler, \
-         patch('manga_ocr_dev.synthetic_data_generator.renderer.blend') as mock_blend:
-
-        # Mock the transformations to have predictable outputs
-        # The scaler will reduce the image to max_size, preserving an alpha channel
-        scaled_img_with_alpha = np.zeros((500, 500, 4), dtype=np.uint8)
-        scaled_img_with_alpha[:, :, 3] = 255
-        mock_scaler.return_value.return_value = {'image': scaled_img_with_alpha}
-        # The background transform will resize the background to match the (padded) text image
-        # After pre-scaling to 500 and padding with 0.1*500 on each side, the size is 600.
-        padded_size = 600
-        mock_compose.return_value = lambda **kwargs: {'image': cv2.resize(kwargs['image'], (padded_size, padded_size))}
-        # The final blend will return a simple black image
-        mock_blend.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
-
-        # 3. Execution
-        with patch('numpy.random.uniform', return_value=0.1): # Control padding
-             renderer.render_background(img, params)
-
-        # 4. Assertions
-        # Assert that pre-scaling was called because the image was too large
-        mock_scaler.assert_called_with(500)
-
-        # Assert that the background was inverted
-        # The background passed to the first blend call should be inverted (bright)
-        # because the original background was dark, and the text was black.
-        first_call_args, _ = mock_blend.call_args_list[0]
-        blended_background = first_call_args[1]
-        assert blended_background.mean() > 230 # Should be 235 (255-20)
-
-
-def test_render_background_no_prescaling(renderer):
-    """Tests that pre-scaling is skipped for images smaller than max_size."""
-    # 1. Setup
-    renderer.max_size = 500
-    # Text image is smaller than max_size
-    img_size = 400
-    img = np.zeros((img_size, img_size, 4), dtype=np.uint8)
-    params = {'text_color': 'black'}
-
-    # 2. Mocks
-    with patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread'), \
-         patch('numpy.random.random', return_value=0.9), \
-         patch('manga_ocr_dev.synthetic_data_generator.renderer.crop_by_alpha', side_effect=lambda x, margin: x), \
-         patch('numpy.random.uniform', return_value=0.1), \
-         patch('albumentations.Compose') as mock_compose, \
-         patch('albumentations.LongestMaxSize') as mock_scaler, \
-         patch('manga_ocr_dev.synthetic_data_generator.renderer.blend', return_value=np.zeros((10, 10, 3), dtype=np.uint8)):
-
-        # Calculate expected size after padding.
-        pad_ratio = 0.1
-        padded_size = int(img_size + (img_size * pad_ratio) + (img_size * pad_ratio))
-        mock_compose.return_value = lambda **kwargs: {'image': np.zeros((padded_size, padded_size, 3))}
-
-        # 3. Execution
-        renderer.render_background(img, params)
-
-        # 4. Assertions
-        # Assert that pre-scaling was NOT called
-        mock_scaler.assert_not_called()
-
-
-def test_render_background_final_random_crop(renderer):
-    """Tests that the final random crop is applied correctly."""
-    # 1. Setup
-    # An arbitrary text image to pass into the function.
     text_img = np.zeros((50, 50, 4), dtype=np.uint8)
-    text_img[:, :, 3] = 255  # Make it opaque so crop_by_alpha doesn't shrink it
-    params = {'text_color': 'black'}
+    text_img[:, :, 3] = 255
+    dark_bg = np.full((100, 100, 3), 20, dtype=np.uint8)
+    params = {
+        'text_color': 'black', 'font_path': 'dummy.ttf', 'font_size': 12,
+        'line_height': 1.5, 'vertical': False, 'glow_size': 0, 'stroke_size': 0,
+        'letter_spacing': None, 'text_orientation': None
+    }
 
     # 2. Mocks
-    with patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread', return_value=np.zeros((100, 100, 3))), \
-         patch('numpy.random.random', return_value=0.9), \
-         patch('numpy.random.uniform') as mock_uniform:
+    mock_imread.return_value = dark_bg
+    # Mock the Compose pipeline to resize the image, isolating the contrast logic from other transforms
+    # Padded size will be 60x60 (50 + 2 * 50 * 0.1)
+    mock_compose.return_value = lambda **kwargs: {'image': cv2.resize(kwargs['image'], (60, 60))}
+    final_img_bytes = cv2.imencode('.png', np.zeros((10, 10, 3), dtype=np.uint8))[1].tobytes()
 
-        # Mock the uniform distribution to control padding and crop sizes.
-        # `draw_bubble` is false, so padding is calculated with 4 calls to uniform.
-        # Then, the final crop makes 2 more calls.
-        mock_uniform.side_effect = [
-            0.2, 0.2, 0.2, 0.2,  # padding ratios
-            0.8, 0.8             # crop ratios
-        ]
-
-        # 3. Execution
-        result_img = renderer.render_background(text_img, params)
+    # 3. Execution
+    # No bubble (random > 0.7), so contrast check is performed
+    with patch('numpy.random.random', return_value=0.9), \
+         patch.object(renderer.executor, 'submit') as mock_submit, \
+         patch('numpy.random.uniform', return_value=0.1): # for padding
+        mock_submit.return_value.result.return_value = final_img_bytes
+        renderer._render_final_image(text_img, ['test'], params)
 
     # 4. Assertions
-    # Initial size: 50x50
-    # Padding: top=50*0.2=10, bottom=10, left=10, right=10.
-    # Padded size: (50+10+10, 50+10+10) = (70, 70)
-    # The blended image will have this size (70, 70).
-    # Final crop:
-    # target_h = int(70 * 0.8) = 56
-    # target_w = int(70 * 0.8) = 56
-    # The result of A.RandomCrop should have this shape.
-    assert result_img.shape == (56, 56, 3)
+    # Assert that the background passed to imwrite was inverted
+    written_image = mock_imwrite.call_args[0][1]
+    assert written_image.mean() > 230  # Should be inverted (255-20)
