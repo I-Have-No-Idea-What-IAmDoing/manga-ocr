@@ -80,6 +80,8 @@ class Renderer:
                 "--disable-hang-monitor",
                 "--disable-features=TranslateUI",
                 f"--user-data-dir={os.path.join(self.temp_dir.name, 'user-data')}",
+                "--disable-gcm",
+                "--remote-allow-origins=*",
             ],
         )
         self.lock = threading.Lock()
