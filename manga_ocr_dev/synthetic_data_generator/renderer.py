@@ -350,14 +350,10 @@ class Renderer:
 
         # Final random crop to make the framing less predictable
         h, w, _ = img.shape
-        crop_top = int(h * np.random.uniform(0.05, 0.15))
-        crop_bottom = h - int(h * np.random.uniform(0.05, 0.15))
-        crop_left = int(w * np.random.uniform(0.05, 0.15))
-        crop_right = w - int(w * np.random.uniform(0.05, 0.15))
-
-        # Ensure we don't crop too much and create an empty image
-        if crop_top < crop_bottom and crop_left < crop_right:
-            img = img[crop_top:crop_bottom, crop_left:crop_right]
+        if h > 10 and w > 10:
+            target_h = int(h * np.random.uniform(0.7, 0.95))
+            target_w = int(w * np.random.uniform(0.7, 0.95))
+            img = A.RandomCrop(height=target_h, width=target_w)(image=img)["image"]
 
         return img
 
