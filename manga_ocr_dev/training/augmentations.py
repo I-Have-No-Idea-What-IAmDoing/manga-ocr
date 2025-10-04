@@ -10,6 +10,7 @@ without changing the training code.
 from typing import Any, Dict, List, Optional
 
 import albumentations as A
+import albumentations.pytorch as AP
 import cv2
 
 
@@ -70,7 +71,10 @@ def build_transforms(aug_list: List[Dict[str, Any]]) -> List[A.BasicTransform]:
         else:
             nested_transforms = []
 
-        transform_class = getattr(A, name)
+        if name == "ToTensorV2":
+            transform_class = getattr(AP, name)
+        else:
+            transform_class = getattr(A, name)
 
         if nested_transforms:
             # Assumes the nested transforms are the first positional argument.
