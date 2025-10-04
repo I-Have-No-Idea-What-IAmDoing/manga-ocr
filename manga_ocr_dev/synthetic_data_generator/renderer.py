@@ -357,7 +357,11 @@ class Renderer:
         # Second render pass onto the prepared background
         params["background_image_uri"] = background_uri
         params["padding"] = (padding_y, padding_x)
-        final_css = get_css(**params)
+
+        css_params = params.copy()
+        css_params.pop("html", None)
+
+        final_css = get_css(**css_params)
 
         lines_str = "\n".join([f"<p>{line}</p>" for line in lines])
         html = f'''        <html>
