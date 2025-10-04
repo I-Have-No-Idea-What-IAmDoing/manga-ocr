@@ -85,16 +85,14 @@ def worker_fn(args, generator, debug=False):
         if debug:
             print(f"  - Saved image to {img_path}")
 
-        if debug:
             debug_info = params.copy()
             html = debug_info.pop("html", "")
             html_path = Path(DEBUG_DIR) / f"{id_}.html"
             html_path.write_text(html, encoding="utf-8")
             print(f"  - Saved HTML to {html_path}")
 
-            sanitized_info = sanitize_for_json(debug_info)
             json_path = Path(DEBUG_DIR) / f"{id_}.json"
-            json_path.write_text(json.dumps(sanitized_info, indent=4), encoding="utf-8")
+            json_path.write_text(json.dumps(debug_info, indent=4), encoding="utf-8")
             print(f"  - Saved params to {json_path}")
 
         font_path = params.get("font_path")
