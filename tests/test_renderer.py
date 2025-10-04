@@ -303,3 +303,39 @@ def test_render_background_no_prescaling(renderer):
         # 4. Assertions
         # Assert that pre-scaling was NOT called
         mock_scaler.assert_not_called()
+
+
+def test_render_background_final_random_crop(renderer):
+    """Tests that the final random crop is applied correctly."""
+    # 1. Setup
+    # An arbitrary text image to pass into the function.
+    text_img = np.zeros((50, 50, 4), dtype=np.uint8)
+    text_img[:, :, 3] = 255  # Make it opaque so crop_by_alpha doesn't shrink it
+    params = {'text_color': 'black'}
+
+    # 2. Mocks
+    with patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread', return_value=np.zeros((100, 100, 3))), \
+         patch('numpy.random.random', return_value=0.9), \
+         patch('numpy.random.uniform') as mock_uniform:
+
+        # Mock the uniform distribution to control padding and crop sizes.
+        # `draw_bubble` is false, so padding is calculated with 4 calls to uniform.
+        # Then, the final crop makes 2 more calls.
+        mock_uniform.side_effect = [
+            0.2, 0.2, 0.2, 0.2,  # padding ratios
+            0.8, 0.8             # crop ratios
+        ]
+
+        # 3. Execution
+        result_img = renderer.render_background(text_img, params)
+
+    # 4. Assertions
+    # Initial size: 50x50
+    # Padding: top=50*0.2=10, bottom=10, left=10, right=10.
+    # Padded size: (50+10+10, 50+10+10) = (70, 70)
+    # The blended image will have this size (70, 70).
+    # Final crop:
+    # target_h = int(70 * 0.8) = 56
+    # target_w = int(70 * 0.8) = 56
+    # The result of A.RandomCrop should have this shape.
+    assert result_img.shape == (56, 56, 3)
