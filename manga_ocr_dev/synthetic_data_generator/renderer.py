@@ -12,6 +12,7 @@ import os
 import uuid
 import threading
 import tempfile
+from pathlib import Path
 from textwrap import dedent
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
@@ -526,8 +527,10 @@ def get_css(
     if letter_spacing:
         styles.append(f"letter-spacing: {letter_spacing}em;")
 
-    font_path = font_path.replace("\\", "/")
+    # Convert the font path to a file URI for the browser to load it correctly
+    font_uri = Path(font_path).as_uri()
+
     styles_str = "\n".join(styles)
-    css = f'@font-face {{font-family: custom; src: url("{font_path}");}}\n'
+    css = f'@font-face {{font-family: custom; src: url("{font_uri}");}}\n'
     css += f"body {{\n{styles_str}\n}}"
     return css
