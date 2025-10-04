@@ -34,13 +34,13 @@ def test_build_transforms_parses_cv2_constants():
     """Tests that `build_transforms` correctly parses and resolves `cv2` constants."""
     aug_list = [
         {
-            "name": "ShiftScaleRotate",
+            "name": "Affine",
             "params": {"border_mode": "cv2.BORDER_CONSTANT"},
         }
     ]
     transforms = build_transforms(aug_list)
     assert len(transforms) == 1
-    assert isinstance(transforms[0], A.ShiftScaleRotate)
+    assert isinstance(transforms[0], A.Affine)
     assert transforms[0].border_mode == cv2.BORDER_CONSTANT
 
 
