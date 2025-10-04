@@ -9,6 +9,7 @@ and realistic dataset for training the OCR model.
 """
 
 import os
+import base64
 import uuid
 import threading
 import tempfile
@@ -145,10 +146,10 @@ class Renderer:
         ]
         background = A.Compose(t)(image=background)["image"]
 
-        # Save the augmented background to a temporary file for the browser to access
-        temp_background_path = Path(self.temp_dir.name) / f"{uuid.uuid4()}.png"
-        cv2.imwrite(str(temp_background_path), background)
-        params["background_image_path"] = temp_background_path
+        # Encode the augmented background to a base64 data URI
+        _, buffer = cv2.imencode(".png", background)
+        bg_base64 = base64.b64encode(buffer).decode("utf-8")
+        params["background_image_data_uri"] = f"data:image/png;base64,{bg_base64}"
 
         # Render HTML with text on top of the background image
         with self.lock:
@@ -315,7 +316,7 @@ def get_css(
     letter_spacing=None,
     line_height=0.5,
     text_orientation=None,
-    background_image_path=None,
+    background_image_data_uri=None,
     draw_bubble=False,
     bubble_background_color="white",
     bubble_padding=20,
@@ -404,12 +405,8 @@ def get_css(
         "align-items: center;",
         "width: 100vw; height: 100vh;",
     ]
-    if background_image_path:
-        bg_path = Path(background_image_path)
-        if not bg_path.is_absolute():
-            bg_path = bg_path.absolute()
-        bg_uri = bg_path.as_uri()
-        html_styles.append(f'background-image: url("{bg_uri}");')
+    if background_image_data_uri:
+        html_styles.append(f'background-image: url("{background_image_data_uri}");')
         html_styles.append("background-size: cover;")
         html_styles.append("background-position: center;")
     else:

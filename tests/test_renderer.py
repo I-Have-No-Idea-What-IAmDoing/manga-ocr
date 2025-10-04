@@ -54,8 +54,6 @@ def test_render(renderer):
     ) as mock_render_html, patch(
         "manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread",
         return_value=np.zeros((100, 100, 3), dtype=np.uint8),
-    ), patch(
-        "manga_ocr_dev.synthetic_data_generator.renderer.cv2.imwrite"
     ):
         lines = ["test"]
         # Provide font_path as it's required by get_css
@@ -67,10 +65,13 @@ def test_render(renderer):
         assert len(img.shape) == 2  # Grayscale
         assert isinstance(params, dict)
         mock_render_html.assert_called_once()
-        # Check that background_image_path was added to the params for rendering
+        # Check that background_image_data_uri was added to the params for rendering
         rendered_params = mock_render_html.call_args[0][1]
-        assert "background_image_path" in rendered_params
-        assert isinstance(rendered_params["background_image_path"], Path)
+        assert "background_image_data_uri" in rendered_params
+        assert isinstance(rendered_params["background_image_data_uri"], str)
+        assert rendered_params["background_image_data_uri"].startswith(
+            "data:image/png;base64,"
+        )
 
 
 def test_get_random_css_params():
@@ -93,7 +94,7 @@ def test_get_css():
         stroke_size=1,
         letter_spacing=0.1,
         text_orientation="upright",
-        background_image_path=Path("bg.png"),
+        background_image_data_uri="data:image/png;base64,dummy",
         draw_bubble=True,
         bubble_border_color="red",
     )
@@ -102,7 +103,7 @@ def test_get_css():
     assert "text-shadow" in css
     assert "letter-spacing" in css
     assert "text-orientation" in css
-    assert "background-image: url" in css
+    assert 'background-image: url("data:image/png;base64,dummy")' in css
     assert "border:" in css
     assert "solid red" in css
 
