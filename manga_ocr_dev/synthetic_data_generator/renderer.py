@@ -635,5 +635,5 @@ def get_css(
 
     styles_str = "\n".join(styles)
     css = f'@font-face {{font-family: custom; src: url("{font_uri}");}}\n'
-    css += f"body {{\n{styles_str}\nbox-sizing: border-box;\n}}"
+    css += f"html, body {{\n{styles_str}\nbox-sizing: border-box;\n}}"
     return css

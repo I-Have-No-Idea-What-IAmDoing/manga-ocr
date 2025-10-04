@@ -116,6 +116,12 @@ def test_get_css():
     assert "padding: 10px 20px;" in css_with_bg
     assert "box-sizing: border-box;" in css_with_bg
 
+def test_get_css_transparent_background():
+    """Tests that get_css generates CSS for a transparent background."""
+    css = get_css(font_size=12, font_path='dummy.ttf', background_color='transparent')
+    assert 'background-color: transparent;' in css
+    assert 'html, body {' in css
+
 
 def test_crop_by_alpha():
     """Tests the `crop_by_alpha` function with various image scenarios."""
@@ -300,3 +306,70 @@ def test_render_final_image_contrast_adjustment(mock_remove, mock_imread, mock_i
     # Assert that the background passed to imwrite was inverted
     written_image = mock_imwrite.call_args[0][1]
     assert written_image.mean() > 230  # Should be inverted (255-20)
+    # Initial size: 50x50
+    # Padding: top=50*0.2=10, bottom=10, left=10, right=10.
+    # Padded size: (50+10+10, 50+10+10) = (70, 70)
+    # The blended image will have this size (70, 70).
+    # Final crop:
+    # target_h = int(70 * 0.8) = 56
+    # target_w = int(70 * 0.8) = 56
+    # The result of A.RandomCrop should have this shape.
+    assert result_img.shape == (56, 56, 3)
+
+
+from manga_ocr_dev.vendored.html2image.browsers.chrome_cdp import ChromeCDP
+import json
+
+@patch('manga_ocr_dev.vendored.html2image.browsers.chrome_cdp.find_chrome')
+@patch('manga_ocr_dev.vendored.html2image.browsers.chrome_cdp.requests.get')
+@patch('manga_ocr_dev.vendored.html2image.browsers.chrome_cdp.create_connection')
+def test_chrome_cdp_screenshot_sets_transparent_background(mock_create_conn, mock_requests_get, mock_find_chrome):
+    """
+    Tests that the modified ChromeCDP screenshot method injects JavaScript
+    to set a transparent background before taking the screenshot.
+    """
+    # Arrange
+    mock_find_chrome.return_value = 'dummy_chrome_path'
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = [{'type': 'page', 'webSocketDebuggerUrl': 'ws://dummy'}]
+    mock_requests_get.return_value = mock_response
+
+    mock_ws = MagicMock()
+    mock_create_conn.return_value = mock_ws
+
+    cdp = ChromeCDP()
+
+    mock_ws.recv.side_effect = [
+        json.dumps({'method': 'Page.loadEventFired'}),
+        json.dumps({'result': {'data': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='}})
+    ]
+
+    # Act
+    with patch('pathlib.Path.is_absolute', return_value=True):
+        cdp.screenshot_as_bytes('dummy_input.html')
+
+    # Assert
+    # 1. Check that ws.send was called with Runtime.evaluate with the correct expression
+    runtime_evaluate_calls = []
+    call_methods = []
+    for call in mock_ws.send.call_args_list:
+        payload = json.loads(call.args[0])
+        method = payload.get('method')
+        call_methods.append(method)
+        if method == 'Runtime.evaluate':
+            runtime_evaluate_calls.append(payload)
+
+    assert len(runtime_evaluate_calls) == 1
+    expression = runtime_evaluate_calls[0]['params']['expression']
+    assert "document.documentElement.style.background = 'transparent'" in expression
+    assert "document.body.style.background = 'transparent'" in expression
+
+    # 2. Check the order of key CDP calls
+    try:
+        evaluate_index = call_methods.index('Runtime.evaluate')
+        screenshot_index = call_methods.index('Page.captureScreenshot')
+        assert evaluate_index < screenshot_index
+    except (ValueError, IndexError):
+        pytest.fail("Expected 'Runtime.evaluate' and 'Page.captureScreenshot' to be called in order.")
