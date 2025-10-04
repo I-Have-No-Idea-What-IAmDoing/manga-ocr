@@ -65,36 +65,47 @@ def test_get_random_css_params():
     assert 'font_size' in params
 
 
-@patch('os.path.exists', return_value=True)
-@patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imwrite')
 @patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread')
-@patch('os.remove')
-def test_render_final_image(mock_remove, mock_imread, mock_imwrite, mock_exists, renderer, tmp_path):
+@patch('albumentations.Compose')
+def test_render_final_image(mock_compose, mock_imread, renderer):
     """Tests the `_render_final_image` method for rendering text on a background."""
     # Setup
+    # Create a 50x50 solid white square with a transparent background
     text_img = np.zeros((50, 50, 4), dtype=np.uint8)
-    text_img[:, :, 3] = 255  # Opaque text area
-    lines = ['test']
-    params = {
-        'font_path': 'dummy.ttf', 'font_size': 12, 'text_color': 'black', 'line_height': 1.5,
-        'vertical': False, 'glow_size': 0, 'stroke_size': 0, 'letter_spacing': None,
-        'text_orientation': None
-    }
-    renderer.background_df.sample.return_value.iloc[0].path = 'dummy.png'
-    mock_imread.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
+    text_img[:, :, :3] = 255  # White color
+    text_img[:, :, 3] = 255   # Opaque
 
-    # Mock the second rendering pass
-    final_img_bytes = cv2.imencode('.png', np.full((100, 100, 3), 255, dtype=np.uint8))[1].tobytes()
-    with patch.object(renderer.executor, 'submit') as mock_submit, \
-         patch('numpy.random.uniform', return_value=0.1): # for padding
-        mock_submit.return_value.result.return_value = final_img_bytes
+    lines = ['test']
+    params = {'text_color': 'white'}
+
+    # Mock the background to be a solid grey image
+    grey_background = np.full((100, 100, 3), 128, dtype=np.uint8)
+    mock_imread.return_value = grey_background
+    renderer.background_df.sample.return_value.iloc[0].path = 'dummy.png'
+
+    # Mock the Compose pipeline to only perform resizing to a predictable size
+    mock_compose.return_value = lambda **kwargs: {'image': cv2.resize(kwargs['image'], (60, 60))}
+
+    # Mock random values to get predictable padding, and ensure no bubble is drawn
+    with patch('numpy.random.uniform', return_value=0.1), \
+         patch('numpy.random.random', return_value=0.9):
         result_img = renderer._render_final_image(text_img, lines, params)
 
     # Assertions
+    # With uniform padding of 0.1, a 50x50 image becomes 60x60.
+    # The background is mocked to be resized to 60x60 as well.
+    assert result_img.shape == (60, 60, 3)
     assert isinstance(result_img, np.ndarray)
-    mock_imwrite.assert_called_once()
-    mock_remove.assert_called_once()
-    assert result_img is not None
+
+    # The text was padded by 5px on each side (50 * 0.1).
+    # The center of the image should be white, where the text was blended.
+    center_pixel = result_img[30, 30]
+    assert np.all(center_pixel == 255)
+
+    # The corners should be the grey from the background, where there was padding.
+    # We use allclose with a tolerance to account for minor interpolation artifacts from resizing.
+    corner_pixel = result_img[3, 3]
+    assert np.allclose(corner_pixel, 128, atol=1)
 
 
 def test_get_css():
@@ -121,8 +132,7 @@ def test_get_css_transparent_background():
     """Tests that get_css generates CSS for a transparent background."""
     css = get_css(font_size=12, font_path='dummy.ttf', background_color='transparent')
     assert 'background-color: transparent;' in css
-    assert 'html {' in css
-    assert 'body {' in css
+    assert 'html, body {' in css
 
 
 def test_crop_by_alpha():
@@ -271,44 +281,40 @@ class TestRendererParams(unittest.TestCase):
 
 
 @patch('albumentations.Compose')
-@patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imwrite')
 @patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread')
-@patch('os.remove')
-def test_render_final_image_contrast_adjustment(mock_remove, mock_imread, mock_imwrite, mock_compose, renderer, tmp_path):
+def test_render_final_image_contrast_adjustment(mock_imread, mock_compose, renderer):
     """
-    Tests that the background is inverted for better contrast before being used
-    in the final render.
+    Tests that the background is inverted for better contrast when blending.
     """
-    # 1. Setup
+    # 1. Setup: Black text on a dark background (low contrast)
+    # Create a 50x50 solid black square with a transparent background
     text_img = np.zeros((50, 50, 4), dtype=np.uint8)
-    text_img[:, :, 3] = 255
+    text_img[:, :, 3] = 255  # Opaque alpha
+    params = {'text_color': 'black'}
+
+    # Mock a dark background
     dark_bg = np.full((100, 100, 3), 20, dtype=np.uint8)
-    params = {
-        'text_color': 'black', 'font_path': 'dummy.ttf', 'font_size': 12,
-        'line_height': 1.5, 'vertical': False, 'glow_size': 0, 'stroke_size': 0,
-        'letter_spacing': None, 'text_orientation': None
-    }
-
-    # 2. Mocks
     mock_imread.return_value = dark_bg
-    # Mock the Compose pipeline to resize the image, isolating the contrast logic from other transforms
-    # Padded size will be 60x60 (50 + 2 * 50 * 0.1)
-    mock_compose.return_value = lambda **kwargs: {'image': cv2.resize(kwargs['image'], (60, 60))}
-    final_img_bytes = cv2.imencode('.png', np.zeros((60, 60, 3), dtype=np.uint8))[1].tobytes()
+    renderer.background_df.sample.return_value.iloc[0].path = 'dummy.png'
 
-    # 3. Execution
-    # No bubble (random > 0.7), so contrast check is performed
-    with patch('numpy.random.random', return_value=0.9), \
-         patch.object(renderer.executor, 'submit') as mock_submit, \
-         patch('numpy.random.uniform', return_value=0.1): # for padding
-        mock_submit.return_value.result.return_value = final_img_bytes
+    # Mock the Compose pipeline to only perform resizing
+    mock_compose.return_value = lambda **kwargs: {'image': cv2.resize(kwargs['image'], (60, 60))}
+
+    # 2. Execution
+    # Mock random values to ensure no bubble is drawn, triggering the contrast check
+    with patch('numpy.random.uniform', return_value=0.1), \
+         patch('numpy.random.random', return_value=0.9):
         result_img = renderer._render_final_image(text_img, ['test'], params)
 
-    # 4. Assertions
-    # Assert that the background passed to imwrite was inverted
-    written_image = mock_imwrite.call_args[0][1]
-    assert written_image.mean() > 230  # Should be inverted (255-20)
-    assert result_img.shape[:2] == (60, 60)
+    # 3. Assertions
+    # The text area (center) should be black
+    center_pixel = result_img[30, 30]
+    assert np.all(center_pixel == 0)
+
+    # The background area (corners) should be inverted (255 - 20 = 235)
+    # This confirms the contrast adjustment was applied before blending.
+    corner_pixel = result_img[3, 3]
+    assert np.allclose(corner_pixel, 235, atol=1)
 
 
 from manga_ocr_dev.vendored.html2image.browsers.chrome_cdp import ChromeCDP
