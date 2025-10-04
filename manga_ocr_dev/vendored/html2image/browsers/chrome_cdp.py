@@ -185,6 +185,11 @@ class ChromeCDP(CDPBrowser):
         )
 
         self.cdp_send(
+            'Runtime.evaluate',
+            expression="document.documentElement.style.background = 'transparent'; document.body.style.background = 'transparent';"
+        )
+
+        self.cdp_send(
             'Page.captureScreenshot',
         )
 
