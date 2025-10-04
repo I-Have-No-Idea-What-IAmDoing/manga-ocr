@@ -54,8 +54,8 @@ def worker_fn(args, generator):
         filename = f"{id_}.jpg"
         img, text_gt, params = generator.process(text)
 
-        if img is None or img.size == 0:
-            print(f"Skipping empty image for text: {text}")
+        if img is None:
+            print(f"Skipping render for text: {text}")
             return None
 
         cv2.imwrite(str(Path(OUT_DIR) / filename), img)
