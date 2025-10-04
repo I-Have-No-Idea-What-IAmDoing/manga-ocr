@@ -135,7 +135,7 @@ class Renderer:
             return None, params
 
         # Second pass: render text on final background
-        img = self._render_final_image(img_transparent, lines, params)
+        img = self._render_final_image(img_transparent, params)
 
         # _render_final_image can return an empty image on failure, which will crash albumentations
         if img is None or img.size == 0:
@@ -167,28 +167,26 @@ class Renderer:
         if override_css_params:
             params.update(override_css_params)
 
-        css = get_css(background_color="transparent", **params)
+        css_params = params.copy()
+        css_params.pop("html", None)
+        css = get_css(background_color="transparent", **css_params)
 
-        # This is just a rough estimate; the image is cropped later anyway.
         if not lines or not "".join(lines):
             return None, params
 
-        size = (
-            int(max(len(line) for line in lines) * params["font_size"] * 2.5),
-            int(len(lines) * params["font_size"] * (5 + params["line_height"])),
-        )
-        if params["vertical"]:
-            size = size[::-1]
+        # Use a large, fixed-size canvas to ensure the text is never clipped.
+        size = (4000, 4000)
 
         lines_str = "\n".join([f"<p>{line}</p>" for line in lines])
-        html = f'''        <html>
+        html = f"""\
+        <html>
         <head>
           <meta charset="UTF-8">
           <style>{css}</style>
         </head>
         <body>{lines_str}</body>
         </html>
-        '''
+        """
         html = dedent(html)
 
         if self.debug:
@@ -270,17 +268,15 @@ class Renderer:
 
         return params
 
-    def _render_final_image(self, text_img, lines, params):
+    def _render_final_image(self, text_img, params):
         """Renders the text onto a final background.
 
-        This is the second stage of the rendering process. It takes the geometry
-        of the text from the first rendering pass, prepares a background
-        (with optional bubbles), and then re-renders the text directly onto
-        this background to avoid transparency issues.
+        This method takes the transparent text image from the first pass,
+        composites it onto a prepared background with optional bubbles and
+        other effects.
 
         Args:
             text_img (np.ndarray): The transparent text image from the first pass.
-            lines (list[str]): The original lines of text.
             params (dict): The CSS parameters used for rendering.
 
         Returns:
@@ -345,56 +341,8 @@ class Renderer:
             bubble = self.create_bubble(img.shape, m0, params)
             background = blend(bubble, background)
 
-        # Instead of blending, we re-render with the background
-        background_file_path = os.path.join(self.hti.temp_path, f"background_{uuid.uuid4()}.png")
-        cv2.imwrite(background_file_path, background)
-        background_uri = Path(background_file_path).as_uri()
-
-        # Calculate padding to center the text area in the new background
-        padding_y = (background.shape[0] - img.shape[0]) // 2
-        padding_x = (background.shape[1] - img.shape[1]) // 2
-
-        # Second render pass onto the prepared background
-        params["background_image_uri"] = background_uri
-        params["padding"] = (padding_y, padding_x)
-
-        css_params = params.copy()
-        css_params.pop("html", None)
-
-        final_css = get_css(**css_params)
-
-        lines_str = "\n".join([f"<p>{line}</p>" for line in lines])
-        html = f'''        <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>{final_css}</style>
-        </head>
-        <body>{lines_str}</body>
-        </html>
-        '''
-        html = dedent(html)
-
-        html_filename = str(uuid.uuid4()) + ".html"
-        img_bytes = None
-        try:
-            self.hti.load_str(html, as_filename=html_filename)
-            future = self.executor.submit(
-                self.hti.screenshot_as_bytes, file=html_filename, size=(background.shape[1], background.shape[0])
-            )
-            img_bytes = future.result(timeout=30)
-        finally:
-            temp_file_path = os.path.join(self.hti.temp_path, html_filename)
-            if os.path.exists(temp_file_path):
-                self.hti._remove_temp_file(html_filename)
-            if os.path.exists(background_file_path):
-                os.remove(background_file_path)
-
-        if img_bytes is None:
-            return None
-
-        img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
-        if img is None:
-            return None
+        # Directly blend the text image onto the background
+        img = blend(img, background)
 
         return img
 
@@ -630,6 +578,5 @@ def get_css(
 
     styles_str = "\n".join(styles)
     css = f'@font-face {{font-family: custom; src: url("{font_uri}");}}\n'
-    css += f"html, body {{\n{styles_str}\nbox-sizing: border-box;\n}}\n"
-    css += "body::-webkit-scrollbar { display: none; }"
+    css += f"html, body {{\n{styles_str}\nbox-sizing: border-box;\n}}"
     return css

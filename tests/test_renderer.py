@@ -40,22 +40,19 @@ def test_renderer_initialization(renderer):
     assert renderer.hti is not None
     assert renderer.background_df is not None
 
-def test_render_text_transparent(renderer):
+@patch('manga_ocr_dev.synthetic_data_generator.renderer.get_css')
+def test_render_text_transparent_uses_fixed_canvas(mock_get_css, renderer):
     """
-    Tests the `_render_text_transparent` method for correct image and parameter output.
-
-    This test ensures that `_render_text_transparent` successfully produces an image with
-    the correct format (BGRA) and returns a dictionary of the CSS parameters
-    used for rendering.
+    Tests that _render_text_transparent uses a large, fixed-size canvas.
     """
     renderer.hti.screenshot_as_bytes.return_value = cv2.imencode('.png', np.zeros((100, 100, 3), dtype=np.uint8))[1].tobytes()
-
     lines = ['test']
-    img, params = renderer._render_text_transparent(lines, override_css_params={'font_path': 'dummy.ttf'})
 
-    assert isinstance(img, np.ndarray)
-    assert img.shape[2] == 4
-    assert isinstance(params, dict)
+    renderer._render_text_transparent(lines, override_css_params={'font_path': 'dummy.ttf'})
+
+    # Check that screenshot was called with the fixed size
+    _, kwargs = renderer.hti.screenshot_as_bytes.call_args
+    assert kwargs['size'] == (4000, 4000)
 
 
 def test_get_random_css_params():
@@ -65,16 +62,13 @@ def test_get_random_css_params():
     assert 'font_size' in params
 
 
-@patch('os.path.exists', return_value=True)
-@patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imwrite')
 @patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread')
-@patch('os.remove')
-def test_render_final_image(mock_remove, mock_imread, mock_imwrite, mock_exists, renderer, tmp_path):
-    """Tests the `_render_final_image` method for rendering text on a background."""
+@patch('manga_ocr_dev.synthetic_data_generator.renderer.blend')
+def test_render_final_image_with_bubble(mock_blend, mock_imread, renderer):
+    """Tests the `_render_final_image` method with a text bubble."""
     # Setup
     text_img = np.zeros((50, 50, 4), dtype=np.uint8)
-    text_img[:, :, 3] = 255  # Opaque text area
-    lines = ['test']
+    text_img[:, :, 3] = 255
     params = {
         'font_path': 'dummy.ttf', 'font_size': 12, 'text_color': 'black', 'line_height': 1.5,
         'vertical': False, 'glow_size': 0, 'stroke_size': 0, 'letter_spacing': None,
@@ -82,19 +76,40 @@ def test_render_final_image(mock_remove, mock_imread, mock_imwrite, mock_exists,
     }
     renderer.background_df.sample.return_value.iloc[0].path = 'dummy.png'
     mock_imread.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
+    mock_blend.return_value = np.full((100, 100, 3), 128, dtype=np.uint8)
 
-    # Mock the second rendering pass
-    final_img_bytes = cv2.imencode('.png', np.full((100, 100, 3), 255, dtype=np.uint8))[1].tobytes()
-    with patch.object(renderer.executor, 'submit') as mock_submit, \
+    # Execute
+    with patch('numpy.random.random', return_value=0.1), \
          patch('numpy.random.uniform', return_value=0.1): # for padding
-        mock_submit.return_value.result.return_value = final_img_bytes
-        result_img = renderer._render_final_image(text_img, lines, params)
+        renderer._render_final_image(text_img, params)
 
     # Assertions
-    assert isinstance(result_img, np.ndarray)
-    mock_imwrite.assert_called_once()
-    mock_remove.assert_called_once()
-    assert result_img is not None
+    assert mock_blend.call_count == 2
+
+
+@patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread')
+@patch('manga_ocr_dev.synthetic_data_generator.renderer.blend')
+def test_render_final_image_no_bubble(mock_blend, mock_imread, renderer):
+    """Tests the `_render_final_image` method without a text bubble."""
+    # Setup
+    text_img = np.zeros((50, 50, 4), dtype=np.uint8)
+    text_img[:, :, 3] = 255
+    params = {
+        'font_path': 'dummy.ttf', 'font_size': 12, 'text_color': 'black', 'line_height': 1.5,
+        'vertical': False, 'glow_size': 0, 'stroke_size': 0, 'letter_spacing': None,
+        'text_orientation': None
+    }
+    renderer.background_df.sample.return_value.iloc[0].path = 'dummy.png'
+    mock_imread.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
+    mock_blend.return_value = np.full((100, 100, 3), 128, dtype=np.uint8)
+
+    # Execute
+    with patch('numpy.random.random', return_value=0.9), \
+         patch('numpy.random.uniform', return_value=0.1): # for padding
+        renderer._render_final_image(text_img, params)
+
+    # Assertions
+    mock_blend.assert_called_once()
 
 
 def test_get_css():
@@ -105,17 +120,9 @@ def test_get_css():
     assert 'text-shadow' in css
     assert 'letter-spacing' in css
     assert 'text-orientation' in css
+    assert 'background-image' not in css
+    assert 'padding' not in css
 
-    # Test new parameters
-    css_with_bg = get_css(
-        font_size=12,
-        font_path='dummy.ttf',
-        background_image_uri='file:///dummy.png',
-        padding=(10, 20)
-    )
-    assert "background-image: url('file:///dummy.png');" in css_with_bg
-    assert "padding: 10px 20px;" in css_with_bg
-    assert "box-sizing: border-box;" in css_with_bg
 
 def test_get_css_transparent_background():
     """Tests that get_css generates CSS for a transparent background."""
@@ -269,11 +276,10 @@ class TestRendererParams(unittest.TestCase):
         self.assertEqual(params["stroke_size"], 2)
 
 
-@patch('albumentations.Compose')
-@patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imwrite')
+@patch('manga_ocr_dev.synthetic_data_generator.renderer.blend')
 @patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread')
-@patch('os.remove')
-def test_render_final_image_contrast_adjustment(mock_remove, mock_imread, mock_imwrite, mock_compose, renderer, tmp_path):
+@patch('albumentations.Compose')
+def test_render_final_image_contrast_adjustment(mock_compose, mock_imread, mock_blend, renderer):
     """
     Tests that the background is inverted for better contrast before being used
     in the final render.
@@ -281,33 +287,25 @@ def test_render_final_image_contrast_adjustment(mock_remove, mock_imread, mock_i
     # 1. Setup
     text_img = np.zeros((50, 50, 4), dtype=np.uint8)
     text_img[:, :, 3] = 255
-    dark_bg = np.full((100, 100, 3), 20, dtype=np.uint8)
+    dark_bg = np.full((60, 60, 3), 20, dtype=np.uint8)
     params = {
-        'text_color': 'black', 'font_path': 'dummy.ttf', 'font_size': 12,
-        'line_height': 1.5, 'vertical': False, 'glow_size': 0, 'stroke_size': 0,
-        'letter_spacing': None, 'text_orientation': None
+        'text_color': 'black'
     }
 
     # 2. Mocks
     mock_imread.return_value = dark_bg
-    # Mock the Compose pipeline to resize the image, isolating the contrast logic from other transforms
-    # Padded size will be 60x60 (50 + 2 * 50 * 0.1)
     mock_compose.return_value = lambda **kwargs: {'image': cv2.resize(kwargs['image'], (60, 60))}
-    final_img_bytes = cv2.imencode('.png', np.zeros((60, 60, 3), dtype=np.uint8))[1].tobytes()
 
     # 3. Execution
     # No bubble (random > 0.7), so contrast check is performed
     with patch('numpy.random.random', return_value=0.9), \
-         patch.object(renderer.executor, 'submit') as mock_submit, \
          patch('numpy.random.uniform', return_value=0.1): # for padding
-        mock_submit.return_value.result.return_value = final_img_bytes
-        result_img = renderer._render_final_image(text_img, ['test'], params)
+        renderer._render_final_image(text_img, params)
 
     # 4. Assertions
-    # Assert that the background passed to imwrite was inverted
-    written_image = mock_imwrite.call_args[0][1]
-    assert written_image.mean() > 230  # Should be inverted (255-20)
-    assert result_img.shape[:2] == (60, 60)
+    # Assert that the background passed to blend was inverted
+    _, background_arg = mock_blend.call_args[0]
+    assert background_arg.mean() > 230  # Should be inverted (255-20)
 
 
 from manga_ocr_dev.vendored.html2image.browsers.chrome_cdp import ChromeCDP

@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
+import json
 
 from manga_ocr_dev.synthetic_data_generator.run_generate import worker_fn, run
 from manga_ocr_dev.env import FONTS_ROOT, DATA_SYNTHETIC_ROOT
@@ -99,7 +100,6 @@ def test_worker_fn_exception_handling(mock_print, mock_imwrite):
 
     mock_print.assert_called()
 
-
 @patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite')
 @patch('pathlib.Path.write_text')
 @patch('builtins.print')
@@ -131,7 +131,6 @@ def test_worker_fn_debug_mode(mock_print, mock_write_text, mock_imwrite):
     json_call = mock_write_text.call_args_list[1]
     json_content = json_call.args[0]
 
-    import json
     data = json.loads(json_content)
 
     assert data['font_path'] == 'dummy/font.ttf'
