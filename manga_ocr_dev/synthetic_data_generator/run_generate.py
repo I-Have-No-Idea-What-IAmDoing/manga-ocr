@@ -22,6 +22,7 @@ sys.path.insert(0, str(project_root))
 
 import cv2
 import fire
+import numpy as np
 import pandas as pd
 from tqdm.contrib.concurrent import thread_map
 
@@ -31,6 +32,21 @@ from manga_ocr_dev.synthetic_data_generator.renderer import Renderer
 
 OUT_DIR = None
 DEBUG_DIR = None
+
+
+def sanitize_for_json(data):
+    """Recursively converts NumPy types to native Python types in a dictionary."""
+    if isinstance(data, dict):
+        return {k: sanitize_for_json(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [sanitize_for_json(i) for i in data]
+    elif isinstance(data, np.integer):
+        return int(data)
+    elif isinstance(data, np.floating):
+        return float(data)
+    elif isinstance(data, np.ndarray):
+        return data.tolist()
+    return data
 
 
 def worker_fn(args, generator, debug=False):
@@ -69,7 +85,6 @@ def worker_fn(args, generator, debug=False):
         if debug:
             print(f"  - Saved image to {img_path}")
 
-        if debug:
             debug_info = params.copy()
             html = debug_info.pop("html", "")
             html_path = Path(DEBUG_DIR) / f"{id_}.html"
