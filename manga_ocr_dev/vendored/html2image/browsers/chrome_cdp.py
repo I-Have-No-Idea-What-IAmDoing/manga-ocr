@@ -3,6 +3,7 @@ from .search_utils import find_chrome
 
 import os
 import subprocess
+from pathlib import Path
 
 import requests
 import json
@@ -106,7 +107,7 @@ class ChromeCDP(CDPBrowser):
         # "Enabling" the page allows to receive the Page.loadEventFired event
         self.cdp_send('Page.enable')
 
-        self.cdp_send('Page.navigate', url=input)
+        self.cdp_send('Page.navigate', url=Path(input).as_uri())
 
         # Wait for page to load entirely
         while True:
@@ -164,7 +165,7 @@ class ChromeCDP(CDPBrowser):
         # "Enabling" the page allows to receive the Page.loadEventFired event
         self.cdp_send('Page.enable')
 
-        self.cdp_send('Page.navigate', url=input)
+        self.cdp_send('Page.navigate', url=Path(input).as_uri())
 
         # Wait for page to load entirely
         while True:
