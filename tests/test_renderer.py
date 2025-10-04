@@ -121,7 +121,8 @@ def test_get_css_transparent_background():
     """Tests that get_css generates CSS for a transparent background."""
     css = get_css(font_size=12, font_path='dummy.ttf', background_color='transparent')
     assert 'background-color: transparent;' in css
-    assert 'html, body {' in css
+    assert 'html {' in css
+    assert 'body {' in css
 
 
 def test_crop_by_alpha():

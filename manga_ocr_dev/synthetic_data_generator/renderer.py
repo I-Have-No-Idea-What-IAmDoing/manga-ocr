@@ -580,33 +580,35 @@ def get_css(
     Returns:
         The generated CSS string.
     """
-    styles = [
+    html_styles = []
+    if background_image_uri:
+        html_styles.append(f"background-image: url('{background_image_uri}');")
+        html_styles.append("background-size: cover;")
+    else:
+        html_styles.append(f"background-color: {background_color};")
+
+    body_styles = [
         f"font-size: {font_size}px;",
         f"color: {text_color};",
         "font-family: custom;",
         f"line-height: {line_height};",
+        "background-color: transparent;",
     ]
 
-    if background_image_uri:
-        styles.append(f"background-image: url('{background_image_uri}');")
-        styles.append("background-size: cover;")
-    else:
-        styles.append(f"background-color: {background_color};")
-
     if padding:
-        styles.append(f"padding: {padding[0]}px {padding[1]}px;")
-        styles.append("margin: 0;")
+        body_styles.append(f"padding: {padding[0]}px {padding[1]}px;")
+        body_styles.append("margin: 0;")
     else:
-        styles.append("margin: 20px;")
+        body_styles.append("margin: 20px;")
 
     if text_orientation:
-        styles.append(f"text-orientation: {text_orientation};")
+        body_styles.append(f"text-orientation: {text_orientation};")
 
     if vertical:
-        styles.append("writing-mode: vertical-rl;")
+        body_styles.append("writing-mode: vertical-rl;")
 
     if glow_size > 0:
-        styles.append(f"text-shadow: 0 0 {glow_size}px {glow_color};")
+        body_styles.append(f"text-shadow: 0 0 {glow_size}px {glow_color};")
 
     if stroke_size > 0:
         shadows = []
@@ -614,13 +616,13 @@ def get_css(
             for y in range(-stroke_size, stroke_size + 1):
                 if x != 0 or y != 0:
                     shadows.append(f"{x}px {y}px 0 {stroke_color}")
-        styles.extend([
+        body_styles.extend([
             "text-shadow: " + ",".join(shadows) + ";",
             "-webkit-font-smoothing: antialiased;",
         ])
 
     if letter_spacing:
-        styles.append(f"letter-spacing: {letter_spacing}em;")
+        body_styles.append(f"letter-spacing: {letter_spacing}em;")
 
     # Convert the font path to a file URI for the browser to load it correctly
     path = Path(font_path)
@@ -628,8 +630,11 @@ def get_css(
         path = path.absolute()
     font_uri = path.as_uri()
 
-    styles_str = "\n".join(styles)
+    html_styles_str = "\n".join(html_styles)
+    body_styles_str = "\n".join(body_styles)
+
     css = f'@font-face {{font-family: custom; src: url("{font_uri}");}}\n'
-    css += f"html, body {{\n{styles_str}\nbox-sizing: border-box;\n}}\n"
+    css += f"html {{\n{html_styles_str}\nbox-sizing: border-box;\nmin-height: 100%;\n}}\n"
+    css += f"body {{\n{body_styles_str}\nbox-sizing: border-box;\n}}\n"
     css += "body::-webkit-scrollbar { display: none; }"
     return css
