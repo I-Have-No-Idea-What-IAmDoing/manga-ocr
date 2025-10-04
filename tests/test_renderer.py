@@ -8,6 +8,7 @@ and various image manipulation helpers.
 
 import numpy as np
 import pytest
+import unittest
 from unittest.mock import patch, MagicMock
 import cv2
 
@@ -176,3 +177,47 @@ def test_get_css_glow():
         glow_color='blue'
     )
     assert 'text-shadow: 0 0 5px blue;' in css
+
+
+class TestRendererParams(unittest.TestCase):
+    @patch("numpy.random.choice")
+    @patch("numpy.random.randint")
+    @patch("numpy.random.uniform")
+    @patch("numpy.random.rand")
+    def test_get_random_css_params_uses_new_ranges(
+        self, mock_rand, mock_uniform, mock_randint, mock_choice
+    ):
+        """Verify that get_random_css_params uses the updated ranges for improved readability."""
+        # Arrange
+        # Mock random values to control the parameters generated
+        # The order of calls to rand() is: vertical, text_color, text_orientation, letter_spacing
+        mock_rand.side_effect = [0.6, 0.4, 0.6, 0.1]
+        mock_uniform.side_effect = [1.4, 0.05]  # line_height, letter_spacing
+        mock_randint.return_value = 55  # font_size
+        mock_choice.side_effect = ["stroke", 2]  # effect, stroke_size
+
+        # Act
+        params = Renderer.get_random_css_params()
+
+        # Assert
+        # Check font size is called with the new range
+        mock_randint.assert_called_once_with(48, 72)
+        self.assertEqual(params["font_size"], 55)
+
+        # Check line height is called with the new range
+        mock_uniform.assert_any_call(1.2, 1.6)
+        self.assertEqual(params["line_height"], 1.4)
+
+        # Check that the effect probabilities are updated
+        effect_call_args, effect_call_kwargs = mock_choice.call_args_list[0]
+        self.assertEqual(effect_call_args[0], ["stroke", "glow", "none"])
+        np.testing.assert_array_equal(
+            effect_call_kwargs["p"], [0.4, 0.15, 0.45]
+        )
+        self.assertEqual(params["text_color"], "black")
+        self.assertEqual(params["stroke_color"], "white")
+
+        # Check that stroke size is chosen from the new range
+        stroke_size_call_args, _ = mock_choice.call_args_list[1]
+        self.assertEqual(stroke_size_call_args[0], [1, 2, 3])
+        self.assertEqual(params["stroke_size"], 2)

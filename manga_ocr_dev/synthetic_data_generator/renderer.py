@@ -247,9 +247,9 @@ class Renderer:
             A dictionary of randomly generated CSS parameters.
         """
         params = {
-            "font_size": np.random.randint(36, 60),
+            "font_size": np.random.randint(48, 72),
             "vertical": np.random.rand() < 0.7,
-            "line_height": np.random.uniform(0.4, 0.8),
+            "line_height": np.random.uniform(1.2, 1.6),
             "background_color": "transparent",
             "text_color": "black" if np.random.rand() < 0.7 else "white",
         }
@@ -260,10 +260,10 @@ class Renderer:
             params["letter_spacing"] = np.random.uniform(-0.05, 0.1)
 
         effect = np.random.choice(
-            ["stroke", "glow", "none"], p=[0.8, 0.15, 0.05]
+            ["stroke", "glow", "none"], p=[0.4, 0.15, 0.45]
         )
         if effect == "stroke":
-            params["stroke_size"] = np.random.choice([1, 2, 3, 4])
+            params["stroke_size"] = np.random.choice([1, 2, 3])
             params["stroke_color"] = "white" if params["text_color"] == "black" else "black"
         elif effect == "glow":
             params["glow_size"] = np.random.choice([2, 5, 10])
@@ -320,10 +320,10 @@ class Renderer:
 
         img = blend(img, background)
 
-        ymin = m0 - int(min(img.shape[:2]) * np.random.uniform(0.01, 0.2))
-        ymax = img.shape[0] - m0 + int(min(img.shape[:2]) * np.random.uniform(0.01, 0.2))
-        xmin = m0 - int(min(img.shape[:2]) * np.random.uniform(0.01, 0.2))
-        xmax = img.shape[1] - m0 + int(min(img.shape[:2]) * np.random.uniform(0.01, 0.2))
+        ymin = int(m0 * np.random.uniform(0.1, 0.3))
+        ymax = img.shape[0] - int(m0 * np.random.uniform(0.1, 0.3))
+        xmin = int(m0 * np.random.uniform(0.1, 0.3))
+        xmax = img.shape[1] - int(m0 * np.random.uniform(0.1, 0.3))
         img = img[ymin:ymax, xmin:xmax]
         return img
 
