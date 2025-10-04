@@ -192,8 +192,8 @@ class TestRendererParams(unittest.TestCase):
         # Mock random values to control the parameters generated
         # The order of calls to rand() is: vertical, text_color, text_orientation, letter_spacing
         mock_rand.side_effect = [0.6, 0.4, 0.6, 0.1]
-        mock_uniform.side_effect = [1.4, 0.05]  # line_height, letter_spacing
-        mock_randint.return_value = 55  # font_size
+        mock_uniform.side_effect = [1.8, 0.05]  # line_height, letter_spacing
+        mock_randint.return_value = 80  # font_size
         mock_choice.side_effect = ["stroke", 2]  # effect, stroke_size
 
         # Act
@@ -201,12 +201,12 @@ class TestRendererParams(unittest.TestCase):
 
         # Assert
         # Check font size is called with the new range
-        mock_randint.assert_called_once_with(48, 72)
-        self.assertEqual(params["font_size"], 55)
+        mock_randint.assert_called_once_with(48, 96)
+        self.assertEqual(params["font_size"], 80)
 
         # Check line height is called with the new range
-        mock_uniform.assert_any_call(1.2, 1.6)
-        self.assertEqual(params["line_height"], 1.4)
+        mock_uniform.assert_any_call(1.4, 2.0)
+        self.assertEqual(params["line_height"], 1.8)
 
         # Check that the effect probabilities are updated
         effect_call_args, effect_call_kwargs = mock_choice.call_args_list[0]
