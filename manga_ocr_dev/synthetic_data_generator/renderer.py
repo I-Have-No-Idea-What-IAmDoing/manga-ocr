@@ -181,15 +181,14 @@ class Renderer:
             size = size[::-1]
 
         lines_str = "\n".join([f"<p>{line}</p>" for line in lines])
-        html = f"""\
-        <html>
+        html = f'''        <html>
         <head>
           <meta charset="UTF-8">
           <style>{css}</style>
         </head>
         <body>{lines_str}</body>
         </html>
-        """
+        '''
         html = dedent(html)
 
         if self.debug:
@@ -361,15 +360,14 @@ class Renderer:
         final_css = get_css(**params)
 
         lines_str = "\n".join([f"<p>{line}</p>" for line in lines])
-        html = f"""\
-        <html>
+        html = f'''        <html>
         <head>
           <meta charset="UTF-8">
           <style>{final_css}</style>
         </head>
         <body>{lines_str}</body>
         </html>
-        """
+        '''
         html = dedent(html)
 
         html_filename = str(uuid.uuid4()) + ".html"
@@ -393,13 +391,6 @@ class Renderer:
         img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
         if img is None:
             return None
-
-        # Final random crop to make the framing less predictable
-        h, w, _ = img.shape
-        if h > 10 and w > 10:
-            target_h = int(h * np.random.uniform(0.7, 0.95))
-            target_w = int(w * np.random.uniform(0.7, 0.95))
-            img = A.RandomCrop(height=target_h, width=target_w)(image=img)["image"]
 
         return img
 

@@ -85,7 +85,8 @@ def test_render_final_image(mock_remove, mock_imread, mock_imwrite, mock_exists,
 
     # Mock the second rendering pass
     final_img_bytes = cv2.imencode('.png', np.full((100, 100, 3), 255, dtype=np.uint8))[1].tobytes()
-    with patch.object(renderer.executor, 'submit') as mock_submit:
+    with patch.object(renderer.executor, 'submit') as mock_submit, \
+         patch('numpy.random.uniform', return_value=0.1): # for padding
         mock_submit.return_value.result.return_value = final_img_bytes
         result_img = renderer._render_final_image(text_img, lines, params)
 
@@ -292,7 +293,7 @@ def test_render_final_image_contrast_adjustment(mock_remove, mock_imread, mock_i
     # Mock the Compose pipeline to resize the image, isolating the contrast logic from other transforms
     # Padded size will be 60x60 (50 + 2 * 50 * 0.1)
     mock_compose.return_value = lambda **kwargs: {'image': cv2.resize(kwargs['image'], (60, 60))}
-    final_img_bytes = cv2.imencode('.png', np.zeros((10, 10, 3), dtype=np.uint8))[1].tobytes()
+    final_img_bytes = cv2.imencode('.png', np.zeros((60, 60, 3), dtype=np.uint8))[1].tobytes()
 
     # 3. Execution
     # No bubble (random > 0.7), so contrast check is performed
@@ -300,21 +301,13 @@ def test_render_final_image_contrast_adjustment(mock_remove, mock_imread, mock_i
          patch.object(renderer.executor, 'submit') as mock_submit, \
          patch('numpy.random.uniform', return_value=0.1): # for padding
         mock_submit.return_value.result.return_value = final_img_bytes
-        renderer._render_final_image(text_img, ['test'], params)
+        result_img = renderer._render_final_image(text_img, ['test'], params)
 
     # 4. Assertions
     # Assert that the background passed to imwrite was inverted
     written_image = mock_imwrite.call_args[0][1]
     assert written_image.mean() > 230  # Should be inverted (255-20)
-    # Initial size: 50x50
-    # Padding: top=50*0.2=10, bottom=10, left=10, right=10.
-    # Padded size: (50+10+10, 50+10+10) = (70, 70)
-    # The blended image will have this size (70, 70).
-    # Final crop:
-    # target_h = int(70 * 0.8) = 56
-    # target_w = int(70 * 0.8) = 56
-    # The result of A.RandomCrop should have this shape.
-    assert result_img.shape == (56, 56, 3)
+    assert result_img.shape[:2] == (60, 60)
 
 
 from manga_ocr_dev.vendored.html2image.browsers.chrome_cdp import ChromeCDP

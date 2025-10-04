@@ -90,6 +90,10 @@ def worker_fn(args, generator, debug=False):
             html_path.write_text(html, encoding="utf-8")
             print(f"  - Saved HTML to {html_path}")
 
+            # Convert Path object to string for JSON serialization
+            if "font_path" in debug_info:
+                debug_info["font_path"] = str(debug_info["font_path"])
+
             json_path = Path(DEBUG_DIR) / f"{id_}.json"
             json_path.write_text(
                 json.dumps(debug_info, indent=4, cls=NumpyEncoder), encoding="utf-8"

@@ -98,3 +98,41 @@ def test_worker_fn_exception_handling(mock_print, mock_imwrite):
             worker_fn(args, mock_generator)
 
     mock_print.assert_called()
+
+
+@patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite')
+@patch('pathlib.Path.write_text')
+@patch('builtins.print')
+def test_worker_fn_debug_mode(mock_print, mock_write_text, mock_imwrite):
+    """Tests that the worker_fn saves debug files when debug=True."""
+    # Arrange
+    mock_generator = MagicMock()
+    mock_generator.process.return_value = (
+        MagicMock(),
+        'test_text',
+        {'html': '<html></html>', 'font_path': Path('dummy/font.ttf'), 'vertical': True}
+    )
+
+    with patch('manga_ocr_dev.synthetic_data_generator.run_generate.OUT_DIR', Path('/dummy/out')), \
+         patch('manga_ocr_dev.synthetic_data_generator.run_generate.DEBUG_DIR', Path('/dummy/debug')):
+        args = (0, 'source', 'id_001', 'text')
+
+        # Act
+        worker_fn(args, mock_generator, debug=True)
+
+    # Assert
+    assert mock_write_text.call_count == 2
+
+    # Check HTML file write
+    html_call = mock_write_text.call_args_list[0]
+    assert html_call.args[0] == '<html></html>'
+
+    # Check JSON file write and content
+    json_call = mock_write_text.call_args_list[1]
+    json_content = json_call.args[0]
+
+    import json
+    data = json.loads(json_content)
+
+    assert data['font_path'] == 'dummy/font.ttf'
+    assert 'html' not in data
