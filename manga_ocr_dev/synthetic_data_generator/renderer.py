@@ -247,9 +247,9 @@ class Renderer:
             A dictionary of randomly generated CSS parameters.
         """
         params = {
-            "font_size": np.random.randint(48, 72),
+            "font_size": np.random.randint(48, 96),
             "vertical": np.random.rand() < 0.7,
-            "line_height": np.random.uniform(1.2, 1.6),
+            "line_height": np.random.uniform(1.4, 2.0),
             "background_color": "transparent",
             "text_color": "black" if np.random.rand() < 0.7 else "white",
         }
@@ -293,8 +293,18 @@ class Renderer:
         if min(img.shape[:2]) < 10:
             return np.zeros((10, 10, 3), dtype=np.uint8)
 
-        m0 = int(min(img.shape[:2]) * np.random.uniform(0.2, 0.4))
-        img = np.pad(img, ((m0, m0), (m0, m0), (0, 0)))
+        # Determine padding. Bubbles need more space.
+        if draw_bubble:
+            # For bubbles, we need a larger, more uniform margin for the bubble to be drawn in.
+            m0 = int(min(img.shape[:2]) * np.random.uniform(0.2, 0.4))
+            img = np.pad(img, ((m0, m0), (m0, m0), (0, 0)))
+        else:
+            # For text directly on background, use smaller, more variable padding.
+            pad_top = int(img.shape[0] * np.random.uniform(0.1, 0.3))
+            pad_bottom = int(img.shape[0] * np.random.uniform(0.1, 0.3))
+            pad_left = int(img.shape[1] * np.random.uniform(0.1, 0.2))
+            pad_right = int(img.shape[1] * np.random.uniform(0.1, 0.2))
+            img = np.pad(img, ((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)))
 
         background_path = self.background_df.sample(1).iloc[0].path
         background = cv2.imread(background_path)
@@ -320,11 +330,17 @@ class Renderer:
 
         img = blend(img, background)
 
-        ymin = int(m0 * np.random.uniform(0.1, 0.3))
-        ymax = img.shape[0] - int(m0 * np.random.uniform(0.1, 0.3))
-        xmin = int(m0 * np.random.uniform(0.1, 0.3))
-        xmax = img.shape[1] - int(m0 * np.random.uniform(0.1, 0.3))
-        img = img[ymin:ymax, xmin:xmax]
+        # Final random crop to make the framing less predictable
+        h, w, _ = img.shape
+        crop_top = int(h * np.random.uniform(0.05, 0.15))
+        crop_bottom = h - int(h * np.random.uniform(0.05, 0.15))
+        crop_left = int(w * np.random.uniform(0.05, 0.15))
+        crop_right = w - int(w * np.random.uniform(0.05, 0.15))
+
+        # Ensure we don't crop too much and create an empty image
+        if crop_top < crop_bottom and crop_left < crop_right:
+            img = img[crop_top:crop_bottom, crop_left:crop_right]
+
         return img
 
     def create_bubble(self, shape, margin, params):

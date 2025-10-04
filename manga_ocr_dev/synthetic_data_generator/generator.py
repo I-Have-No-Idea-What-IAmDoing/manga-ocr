@@ -229,7 +229,7 @@ class SyntheticDataGenerator:
         max_line_len = 20
         if min_line_len > max_line_len:
             max_line_len = min_line_len + 5
-        max_line_len = np.clip(np.random.poisson(6), min_line_len, max_line_len)
+        max_line_len = np.clip(np.random.poisson(10), min_line_len, max_line_len)
 
         lines = []
         current_line = ""
