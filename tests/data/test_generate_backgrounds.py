@@ -11,7 +11,7 @@ from manga_ocr_dev.env import MANGA109_ROOT, BACKGROUND_DIR
 def test_find_rectangle_no_mask():
     mask = np.zeros((100, 100), dtype=bool)
     ymin, ymax, xmin, xmax = find_rectangle(mask, 50, 50)
-    assert (ymin, ymax, xmin, xmax) == (0, 99, 0, 99)
+    assert (ymin, ymax, xmin, xmax) == (0, 100, 0, 100)
 
 
 def test_find_rectangle_with_mask():

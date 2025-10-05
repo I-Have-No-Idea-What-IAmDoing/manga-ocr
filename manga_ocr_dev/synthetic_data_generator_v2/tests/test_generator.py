@@ -56,7 +56,7 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
     @classmethod
     def create_dummy_files(cls):
         # Dummy vocab.csv
-        vocab_df = pd.DataFrame({'char': ['あ', 'い', 'う', 'え', 'お', 'A', 'B', 'C', '1', '2', '3', '漢', '字']})
+        vocab_df = pd.DataFrame({'char': ['あ', 'い', 'う', 'え', 'お', 'A', 'B', 'C', '1', '2', '3', '漢', '字', 't', 'e', 's', 'v', 'i', 'b', 'l']})
         vocab_df.to_csv(cls.assets_dir / "vocab.csv", index=False)
 
         # Dummy len_to_p.csv
@@ -70,7 +70,7 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
 
         fonts_df = pd.DataFrame({
             'font_path': [temp_font_path.name],  # Use the relative name of the copied font
-            'supported_chars': ['あいうえおABC123漢字tes'],
+            'supported_chars': ['あいうえおABC123漢字tesvibl'],
             'label': ['common']
         })
         fonts_df.to_csv(cls.assets_dir / "fonts.csv", index=False)
@@ -148,17 +148,44 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
 
         generator.add_random_furigana = original_add_random_furigana
 
-    def test_grayscale_color(self):
-        """Test that text is rendered in a grayscale color."""
+    def test_grayscale_color_bias(self):
+        """Test that text is rendered in a grayscale color biased to extremes."""
         generator = SyntheticDataGeneratorV2(background_dir=None)
-        _, _, params = generator.process("test")
-        color = params['color']
-        match = re.match(r'#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})', color)
-        self.assertTrue(match)
-        r, g, b = [int(c, 16) for c in match.groups()]
-        self.assertEqual(r, g)
-        self.assertEqual(g, b)
-        self.assertLessEqual(r, 100)
+
+        # Run multiple times to have a high chance of sampling both ranges
+        for _ in range(20):
+            _, _, params = generator.process("test")
+            color = params['color']
+            match = re.match(r'#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})', color)
+            self.assertTrue(match, f"Color '{color}' does not match hex format")
+
+            r, g, b = [int(c, 16) for c in match.groups()]
+            self.assertEqual(r, g)
+            self.assertEqual(g, b)
+
+            is_dark = r <= 40
+            is_light = r >= 215
+            self.assertTrue(is_dark or is_light, f"Grayscale value {r} is not in the biased extremes")
+
+    def test_cropping_does_not_cut_text(self):
+        """Test that the final crop does not cut off the text overlay."""
+        # Create a solid black background to make the text easy to find
+        black_bg = np.zeros((500, 500, 3), dtype=np.uint8)
+        from PIL import Image
+        black_bg_path = self.backgrounds_dir / "black_bg.png"
+        Image.fromarray(black_bg).save(black_bg_path)
+
+        # Override the background df to only use the black background
+        generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir)
+        generator.composer.background_df = pd.DataFrame([{'path': str(black_bg_path)}])
+
+        # Render white text
+        img, _, _ = generator.process("visible", override_params={'color': '#FFFFFF'})
+
+        # Check if there are any white pixels in the final image.
+        # A simple check is to see if the max pixel value is 255.
+        # This assumes the text is white and the background is black.
+        self.assertGreaterEqual(np.max(img), 250, "The white text seems to be cropped out.")
 
     def test_font_size_control(self):
         """Test that font size is within the specified range."""

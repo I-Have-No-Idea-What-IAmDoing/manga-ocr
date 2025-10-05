@@ -72,7 +72,15 @@ class SyntheticDataGeneratorV2:
         params = {}
         params['vertical'] = np.random.choice([True, False], p=[0.8, 0.2])
         params['font_size'] = np.random.randint(self.min_font_size, self.max_font_size)
-        gray_value = np.random.randint(0, 100)
+
+        # Bias towards black or white extremes
+        if np.random.rand() < 0.5:
+            # Dark extreme (0-40)
+            gray_value = np.random.randint(0, 41)
+        else:
+            # Light extreme (215-255)
+            gray_value = np.random.randint(215, 256)
+
         params['color'] = f'#{gray_value:02x}{gray_value:02x}{gray_value:02x}'
         return params
 

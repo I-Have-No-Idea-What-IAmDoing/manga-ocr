@@ -44,24 +44,26 @@ def find_rectangle(mask, y, x, aspect_ratio_range=(0.33, 3.0)):
     ymin = ymax = xmin = xmax = None
 
     while True:
+        prev_ymin_, prev_ymax_ = ymin_, ymax_
+
         if ymin is None:
             ymin_ -= 1
-            if ymin_ == 0 or mask[ymin_, xmin_:xmax_].any():
-                ymin = ymin_
+            if ymin_ < 0 or mask[ymin_, xmin_ : xmax_ + 1].any():
+                ymin = ymin_ + 1
 
         if ymax is None:
             ymax_ += 1
-            if ymax_ == mask.shape[0] - 1 or mask[ymax_, xmin_:xmax_].any():
+            if ymax_ >= mask.shape[0] or mask[ymax_, xmin_ : xmax_ + 1].any():
                 ymax = ymax_
 
         if xmin is None:
             xmin_ -= 1
-            if xmin_ == 0 or mask[ymin_:ymax_, xmin_].any():
-                xmin = xmin_
+            if xmin_ < 0 or mask[prev_ymin_ : prev_ymax_ + 1, xmin_].any():
+                xmin = xmin_ + 1
 
         if xmax is None:
             xmax_ += 1
-            if xmax_ == mask.shape[1] - 1 or mask[ymin_:ymax_, xmax_].any():
+            if xmax_ >= mask.shape[1] or mask[prev_ymin_ : prev_ymax_ + 1, xmax_].any():
                 xmax = xmax_
 
         h = ymax_ - ymin_
