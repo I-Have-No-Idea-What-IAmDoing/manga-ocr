@@ -68,8 +68,8 @@ def find_rectangle(mask, y, x, aspect_ratio_range=(0.33, 3.0)):
             if xmax_ >= mask.shape[1] or mask[prev_ymin_ : prev_ymax_ + 1, xmax_].any():
                 xmax = xmax_
 
-        h = ymax_ - ymin_
-        w = xmax_ - xmin_
+        h = ymax_ - ymin_ + 1
+        w = xmax_ - xmin_ + 1
         if h > 1 and w > 1:
             ratio = w / h
             if ratio < aspect_ratio_range[0] or ratio > aspect_ratio_range[1]:

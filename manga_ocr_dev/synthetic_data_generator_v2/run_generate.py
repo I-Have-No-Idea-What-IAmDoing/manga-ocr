@@ -84,6 +84,17 @@ def run(
 ):
     """Generates a package of synthetic data, including images and metadata."""
 
+    # Explicitly cast numeric types to handle string inputs from CLI
+    package = int(package)
+    n_random = int(n_random)
+    if n_limit is not None:
+        n_limit = int(n_limit)
+    max_workers = int(max_workers)
+    min_font_size = int(min_font_size)
+    max_font_size = int(max_font_size)
+    if min_output_size is not None:
+        min_output_size = int(min_output_size)
+
     if isinstance(target_size, str):
         target_size = tuple(map(int, target_size.split(',')))
 
