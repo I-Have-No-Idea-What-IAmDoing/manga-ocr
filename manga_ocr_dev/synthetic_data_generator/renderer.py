@@ -8,7 +8,6 @@ applying text bubbles, and adding other visual effects to create a diverse
 and realistic dataset for training the OCR model.
 """
 
-import base64
 import os
 import uuid
 import threading
@@ -129,77 +128,56 @@ class Renderer:
                 - np.ndarray: The final rendered image as a grayscale NumPy array.
                 - dict: A dictionary of the CSS parameters used for rendering.
         """
-        params = self.get_random_css_params()
-        if override_css_params:
-            params.update(override_css_params)
-
-        # Select and prepare a background image
-        background_path = self.background_df.sample(1).iloc[0].path
-        background = cv2.imread(background_path)
-
-        # Apply augmentations to the background
-        t = [
-            A.HorizontalFlip(),
-            A.RandomRotate90(),
-            A.RandomBrightnessContrast((-0.2, 0.4), (-0.8, -0.3), p=0.8),
-            A.Blur((3, 5), p=0.3),
-        ]
-        background = A.Compose(t)(image=background)["image"]
-
-        # Encode the augmented background to a base64 data URI
-        _, buffer = cv2.imencode(".png", background)
-        bg_base64 = base64.b64encode(buffer).decode("utf-8")
-        params["background_image_data_uri"] = f"data:image/png;base64,{bg_base64}"
-
-        # Render HTML with text on top of the background image
         with self.lock:
-            img, params = self._render_html(lines, params)
-
+            img, params = self.render_text(lines, override_css_params)
         if img is None:
             return None, params
 
-        # Final random crop to make the framing less predictable
-        h, w, _ = img.shape
-        if h > 10 and w > 10:
-            target_h = int(h * np.random.uniform(0.8, 1.0))
-            target_w = int(w * np.random.uniform(0.8, 1.0))
-            img = A.RandomCrop(height=target_h, width=target_w)(image=img)["image"]
+        img = self.render_background(img, params)
+
+        # render_background can return an empty image on failure, which will crash albumentations
+        if img.size == 0:
+            return None, params
 
         img = A.LongestMaxSize(self.max_size)(image=img)["image"]
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         return img, params
 
-    def _render_html(self, lines, params):
-        """Renders text with CSS styling directly onto a background image.
+    def render_text(self, lines, override_css_params=None):
+        """Renders text with CSS styling on a transparent background.
 
-        This method generates HTML and CSS to render the text, including any
-        text bubbles, directly on a background image in a single step using
-        `html2image`.
+        This method takes lines of text, generates random CSS styles (with
+        optional overrides), and uses `html2image` to render the text as a
+        BGRA image with a transparent background. This image can then be
+        composited onto a background.
 
         Args:
             lines (list[str]): A list of strings to be rendered.
-            params (dict): A dictionary of CSS parameters, including the path
-                to the background image.
+            override_css_params (dict, optional): A dictionary of CSS
+                parameters to override the default styles. Defaults to None.
 
         Returns:
             A tuple containing:
-                - np.ndarray: The rendered BGR image.
+                - np.ndarray: The rendered text as a BGRA image.
                 - dict: The dictionary of CSS parameters used for rendering.
         """
+
+        params = self.get_random_css_params()
+        if override_css_params:
+            params.update(override_css_params)
+
         css = get_css(**params)
 
+        # This is just a rough estimate; the image is cropped later anyway.
         if not lines or not "".join(lines):
             return None, params
 
-        # Estimate a suitable size for the rendering surface.
-        # This is a rough guess; the final image is cropped anyway.
         size = (
             int(max(len(line) for line in lines) * params["font_size"] * 1.5),
             int(len(lines) * params["font_size"] * (3 + params["line_height"])),
         )
         if params["vertical"]:
             size = size[::-1]
-        size = (max(size[0], 500), max(size[1], 500))
 
         lines_str = "\n".join([f"<p>{line}</p>" for line in lines])
         html = f"""\
@@ -247,9 +225,12 @@ class Renderer:
         if img_bytes is None:
             return None, params
 
-        img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
-        if img is None:
+        img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_UNCHANGED)
+        if img is None:  # imdecode can fail
             return None, params
+
+        if img.shape[2] == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
 
         return img, params
 
@@ -269,8 +250,8 @@ class Renderer:
             "font_size": np.random.randint(48, 96),
             "vertical": np.random.rand() < 0.7,
             "line_height": np.random.uniform(1.4, 2.0),
+            "background_color": "transparent",
             "text_color": "black" if np.random.rand() < 0.7 else "white",
-            "draw_bubble": np.random.rand() < 0.7,
         }
 
         if np.random.rand() < 0.7:
@@ -288,26 +269,245 @@ class Renderer:
             params["glow_size"] = np.random.choice([2, 5, 10])
             params["glow_color"] = "white" if np.random.rand() < 0.8 else "black"
 
-        if params["draw_bubble"]:
-            params["bubble_padding"] = np.random.randint(15, 30)
-            params["bubble_border_radius"] = np.random.randint(10, 40)
-            params["bubble_border_width"] = np.random.randint(2, 5)
-            if params["text_color"] == "black":
-                params["bubble_background_color"] = "white"
-                params["bubble_border_color"] = "black"
-            else:
-                params["bubble_background_color"] = "black"
-                params["bubble_border_color"] = "white"
-        else:
-            params["bubble_background_color"] = "transparent"
-
         return params
+
+    def render_background(self, img, params):
+        """Adds a background and optionally a text bubble to an image.
+
+        This method takes a BGRA image with text on a transparent background,
+        composites it onto a randomly selected background image, and can also
+        draw a text bubble around the text. The final image is cropped and
+        returned as a BGR image.
+
+        Args:
+            img (np.ndarray): The input BGRA image with a transparent background.
+            params (dict): A dictionary of rendering parameters, used to
+                determine bubble color and other style aspects.
+
+        Returns:
+            The final BGR image with text composited onto a background.
+        """
+        draw_bubble = np.random.random() < 0.7
+
+        img = crop_by_alpha(img, margin=0)
+
+        # Pre-scale the text if it's too large to prevent it from becoming unreadable
+        if max(img.shape[:2]) > self.max_size:
+            img = A.LongestMaxSize(self.max_size)(image=img)["image"]
+
+        if min(img.shape[:2]) < 10:
+            return np.zeros((10, 10, 3), dtype=np.uint8)
+
+        # Determine padding. Bubbles need more space.
+        if draw_bubble:
+            # For bubbles, we need a larger, more uniform margin for the bubble to be drawn in.
+            m0 = int(min(img.shape[:2]) * np.random.uniform(0.2, 0.4))
+            img = np.pad(img, ((m0, m0), (m0, m0), (0, 0)))
+        else:
+            # For text directly on background, use smaller, more variable padding.
+            pad_top = int(img.shape[0] * np.random.uniform(0.1, 0.3))
+            pad_bottom = int(img.shape[0] * np.random.uniform(0.1, 0.3))
+            pad_left = int(img.shape[1] * np.random.uniform(0.1, 0.2))
+            pad_right = int(img.shape[1] * np.random.uniform(0.1, 0.2))
+            img = np.pad(img, ((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)))
+
+        background_path = self.background_df.sample(1).iloc[0].path
+        background = cv2.imread(background_path)
+
+        t = [
+            A.HorizontalFlip(),
+            A.RandomRotate90(),
+            A.InvertImg(),
+            A.RandomBrightnessContrast(
+                (-0.2, 0.4), (-0.8, -0.3), p=0.5 if draw_bubble else 1
+            ),
+            A.Blur((3, 5), p=0.3),
+            A.PadIfNeeded(min_height=img.shape[0], min_width=img.shape[1], border_mode=cv2.BORDER_REFLECT),
+            A.RandomCrop(height=img.shape[0], width=img.shape[1]),
+        ]
+        background = A.Compose(t)(image=background)["image"]
+
+        if not draw_bubble:
+            # Ensure text is readable against the background
+            text_mask = img[:, :, 3] > 0
+            background_roi = background[text_mask]
+
+            # Avoid division by zero if background_roi is empty
+            if background_roi.size > 0:
+                background_brightness = background_roi.mean()
+                is_dark_text = params["text_color"] == "black"
+                is_bright_background = background_brightness > 127
+
+                # If text and background have similar brightness, invert background
+                if (is_dark_text and not is_bright_background) or (
+                    not is_dark_text and is_bright_background
+                ):
+                    background = 255 - background
+        else:
+            bubble = self.create_bubble(img.shape, m0, params)
+            background = blend(bubble, background)
+
+        img = blend(img, background)
+
+        # Final random crop to make the framing less predictable
+        h, w, _ = img.shape
+        if h > 10 and w > 10:
+            target_h = int(h * np.random.uniform(0.7, 0.95))
+            target_w = int(w * np.random.uniform(0.7, 0.95))
+            img = A.RandomCrop(height=target_h, width=target_w)(image=img)["image"]
+
+        return img
+
+    def create_bubble(self, shape, margin, params):
+        """Creates a distorted, rounded rectangle to serve as a text bubble.
+
+        Args:
+            shape (tuple): The shape of the target image for the bubble.
+            margin (int): The base margin for positioning the bubble.
+            params (dict): A dictionary of rendering parameters, used to
+                determine bubble color.
+
+        Returns:
+            An RGBA NumPy array containing the generated text bubble.
+        """
+        radius = np.random.uniform(0.7, 1.0)
+        thickness = np.random.choice([1, 2, 3])
+        alpha = np.random.randint(60, 100)
+        sigma = np.random.randint(10, 15)
+
+        ymin = margin - int(min(shape[:2]) * np.random.uniform(0.07, 0.12))
+        ymax = shape[0] - margin + int(min(shape[:2]) * np.random.uniform(0.07, 0.12))
+        xmin = margin - int(min(shape[:2]) * np.random.uniform(0.07, 0.12))
+        xmax = shape[1] - margin + int(min(shape[:2]) * np.random.uniform(0.07, 0.12))
+
+        bubble = np.zeros((shape[0], shape[1], 4), dtype=np.uint8)
+
+        if params["text_color"] == "black":
+            bubble_fill_color = (255, 255, 255, 255)
+            bubble_border_color = (0, 0, 0, 255)
+        else:
+            bubble_fill_color = (0, 0, 0, 255)
+            bubble_border_color = (255, 255, 255, 255)
+
+        bubble = rounded_rectangle(
+            bubble, (xmin, ymin), (xmax, ymax), radius=radius, color=bubble_fill_color, thickness=-1
+        )
+        bubble = rounded_rectangle(
+            bubble, (xmin, ymin), (xmax, ymax), radius=radius, color=bubble_border_color, thickness=thickness
+        )
+
+        t = [A.ElasticTransform(alpha=alpha, sigma=sigma, p=0.8)]
+        bubble = A.Compose(t)(image=bubble)["image"]
+
+        # Ensure bubble is uint8 and BGRA, as ElasticTransform might change dtype and remove the alpha channel
+        bubble = bubble.astype(np.uint8)
+        if bubble.shape[2] == 3:
+            bubble = cv2.cvtColor(bubble, cv2.COLOR_BGR2BGRA)
+
+        return bubble
+
+
+def crop_by_alpha(img, margin=0):
+    """Crops an image by removing transparent padding.
+
+    This function identifies the bounding box of all non-transparent pixels
+    (where the alpha channel is > 0) and crops the image to this box. An
+    optional margin can be added. If the image is fully transparent, a
+    1x1 black image is returned to prevent errors.
+
+    Args:
+        img (np.ndarray): The input BGRA image as a NumPy array.
+        margin (int, optional): The number of pixels to add as a margin
+            around the cropped image. Defaults to 0.
+
+    Returns:
+        The cropped image as a BGRA NumPy array.
+    """
+    y, x = np.where(img[:, :, 3] > 0)
+    if y.size == 0 or x.size == 0:
+        return np.zeros((1, 1, 4), dtype=img.dtype)
+
+    ymin, ymax = np.min(y), np.max(y)
+    xmin, xmax = np.min(x), np.max(x)
+
+    img = img[ymin : ymax + 1, xmin : xmax + 1]
+    if margin > 0:
+        img = np.pad(img, ((margin, margin), (margin, margin), (0, 0)))
+    return img
+
+
+def blend(img, background):
+    """Blends a foreground image onto a background using alpha compositing.
+
+    This function takes a foreground image with an alpha channel (BGRA) and
+    blends it onto a background image (BGR). The alpha channel of the
+    foreground determines the opacity of the blend.
+
+    Args:
+        img (np.ndarray): The foreground BGRA image.
+        background (np.ndarray): The background BGR image.
+
+    Returns:
+        The blended BGR image as a NumPy array.
+    """
+    alpha = (img[:, :, 3] / 255)[:, :, np.newaxis]
+    img = img[:, :, :3]
+    img = (background * (1 - alpha) + img * alpha).astype(np.uint8)
+    return img
+
+
+def rounded_rectangle(
+    src, top_left, bottom_right, radius=1, color=255, thickness=1, line_type=cv2.LINE_AA
+):
+    """Draws a rectangle with rounded corners on an image.
+
+    This utility function, based on a solution from Stack Overflow, draws a
+    customizable rounded rectangle. It's used to create text bubbles.
+
+    Args:
+        src (np.ndarray): The source image to draw on.
+        top_left (tuple[int, int]): The (x, y) of the top-left corner.
+        bottom_right (tuple[int, int]): The (x, y) of the bottom-right corner.
+        radius (float, optional): The corner radius as a fraction of the
+            smaller side. Defaults to 1.
+        color (tuple or int, optional): The color of the rectangle.
+        thickness (int, optional): The thickness of the outline. A negative
+            value fills the rectangle. Defaults to 1.
+        line_type (int, optional): The line type for drawing (e.g., `cv2.LINE_AA`).
+
+    Returns:
+        The source image with the rounded rectangle drawn on it.
+    """
+    p1, p3 = top_left, bottom_right
+    p2, p4 = (p3[0], p1[1]), (p1[0], p3[1])
+    height, width = abs(p3[1] - p1[1]), abs(p3[0] - p1[0])
+    corner_radius = int(min(height, width) / 2 * radius)
+
+    if thickness < 0:
+        # Draw filled rectangles
+        cv2.rectangle(src, (p1[0] + corner_radius, p1[1]), (p3[0] - corner_radius, p3[1]), color, -1)
+        cv2.rectangle(src, (p1[0], p1[1] + corner_radius), (p4[0] + corner_radius, p4[1] - corner_radius), color, -1)
+        cv2.rectangle(src, (p2[0] - corner_radius, p2[1] + corner_radius), (p3[0], p3[1] - corner_radius), color, -1)
+
+    # Draw lines and arcs
+    cv2.line(src, (p1[0] + corner_radius, p1[1]), (p2[0] - corner_radius, p2[1]), color, abs(thickness), line_type)
+    cv2.line(src, (p2[0], p2[1] + corner_radius), (p3[0], p3[1] - corner_radius), color, abs(thickness), line_type)
+    cv2.line(src, (p4[0] + corner_radius, p4[1]), (p3[0] - corner_radius, p3[1]), color, abs(thickness), line_type)
+    cv2.line(src, (p1[0], p1[1] + corner_radius), (p4[0], p4[1] - corner_radius), color, abs(thickness), line_type)
+
+    cv2.ellipse(src, (p1[0] + corner_radius, p1[1] + corner_radius), (corner_radius, corner_radius), 180, 0, 90, color, thickness, line_type)
+    cv2.ellipse(src, (p2[0] - corner_radius, p2[1] + corner_radius), (corner_radius, corner_radius), 270, 0, 90, color, thickness, line_type)
+    cv2.ellipse(src, (p3[0] - corner_radius, p3[1] - corner_radius), (corner_radius, corner_radius), 0, 0, 90, color, thickness, line_type)
+    cv2.ellipse(src, (p4[0] + corner_radius, p4[1] - corner_radius), (corner_radius, corner_radius), 90, 0, 90, color, thickness, line_type)
+
+    return src
 
 
 def get_css(
     font_size,
     font_path,
     vertical=True,
+    background_color="white",
     text_color="black",
     glow_size=0,
     glow_color="black",
@@ -316,13 +516,6 @@ def get_css(
     letter_spacing=None,
     line_height=0.5,
     text_orientation=None,
-    background_image_data_uri=None,
-    draw_bubble=False,
-    bubble_background_color="white",
-    bubble_padding=20,
-    bubble_border_radius=20,
-    bubble_border_width=3,
-    bubble_border_color="black",
 ):
     """Generates a CSS string for styling text rendered in a browser.
 
@@ -335,6 +528,7 @@ def get_css(
         font_size (int): The font size in pixels.
         font_path (str): The path to the font file to embed using `@font-face`.
         vertical (bool, optional): If True, sets writing mode to vertical-rl.
+        background_color (str, optional): The background color of the text.
         text_color (str, optional): The color of the text.
         glow_size (int, optional): The size of the text glow in pixels.
         glow_color (str, optional): The color of the text glow.
@@ -344,52 +538,27 @@ def get_css(
         letter_spacing (float, optional): The letter spacing in 'em' units.
         line_height (float, optional): The line height as a multiple of font size.
         text_orientation (str, optional): The text orientation (e.g., 'upright').
-        background_image_data_uri (str, optional): A base64-encoded data URI
-            for the background image.
-        draw_bubble (bool, optional): Whether to draw a text bubble around the
-            text.
-        bubble_background_color (str, optional): The background color of the
-            text bubble.
-        bubble_padding (int, optional): The padding inside the text bubble.
-        bubble_border_radius (int, optional): The corner radius of the text bubble.
-        bubble_border_width (int, optional): The border width of the text bubble.
-        bubble_border_color (str, optional): The border color of the text bubble.
 
     Returns:
         The generated CSS string.
     """
-    body_styles = [
+    styles = [
+        f"background-color: {background_color};",
         f"font-size: {font_size}px;",
         f"color: {text_color};",
         "font-family: custom;",
         f"line-height: {line_height};",
         "margin: 20px;",
-        "display: inline-block;",
     ]
-
-    html_styles = [
-        "margin: 0; padding: 0;",
-        "width: 100vw; height: 100vh;",
-        "display: flex;",
-        "justify-content: center;",
-        "align-items: center;",
-    ]
-
-    if background_image_data_uri:
-        body_styles.append(f'background-image: url("{background_image_data_uri}");')
-        body_styles.append("background-size: cover;")
-        body_styles.append("background-position: center;")
-    else:
-        body_styles.append("background-color: white;")
 
     if text_orientation:
-        body_styles.append(f"text-orientation: {text_orientation};")
+        styles.append(f"text-orientation: {text_orientation};")
 
     if vertical:
-        body_styles.append("writing-mode: vertical-rl;")
+        styles.append("writing-mode: vertical-rl;")
 
     if glow_size > 0:
-        body_styles.append(f"text-shadow: 0 0 {glow_size}px {glow_color};")
+        styles.append(f"text-shadow: 0 0 {glow_size}px {glow_color};")
 
     if stroke_size > 0:
         shadows = []
@@ -397,28 +566,13 @@ def get_css(
             for y in range(-stroke_size, stroke_size + 1):
                 if x != 0 or y != 0:
                     shadows.append(f"{x}px {y}px 0 {stroke_color}")
-        body_styles.extend(
-            [
-                "text-shadow: " + ",".join(shadows) + ";",
-                "-webkit-font-smoothing: antialiased;",
-            ]
-        )
+        styles.extend([
+            "text-shadow: " + ",".join(shadows) + ";",
+            "-webkit-font-smoothing: antialiased;",
+        ])
 
     if letter_spacing:
-        body_styles.append(f"letter-spacing: {letter_spacing}em;")
-
-    if draw_bubble:
-        body_styles.append(f"background-color: {bubble_background_color};")
-        body_styles.append(f"padding: {bubble_padding}px;")
-        body_styles.append(f"border-radius: {bubble_border_radius}px;")
-        body_styles.append(f"border: {bubble_border_width}px solid {bubble_border_color};")
-        body_styles.append("box-shadow: 5px 5px 15px rgba(0,0,0,0.2);")
-    else:
-        # If there's no bubble, we need to make sure the body's background is transparent
-        # so that the background image (also on the body) is visible.
-        # The background-image property will override this if it's set.
-        body_styles.append("background-color: transparent;")
-
+        styles.append(f"letter-spacing: {letter_spacing}em;")
 
     # Convert the font path to a file URI for the browser to load it correctly
     path = Path(font_path)
@@ -426,9 +580,7 @@ def get_css(
         path = path.absolute()
     font_uri = path.as_uri()
 
-    body_styles_str = "\n".join(body_styles)
-    html_styles_str = "\n".join(html_styles)
+    styles_str = "\n".join(styles)
     css = f'@font-face {{font-family: custom; src: url("{font_uri}");}}\n'
-    css += f"html {{\n{html_styles_str}\n}}\n"
-    css += f"body {{\n{body_styles_str}\n}}"
+    css += f"html, body {{\n{styles_str}\n}}"
     return css
