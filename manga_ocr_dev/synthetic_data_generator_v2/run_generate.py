@@ -77,9 +77,13 @@ def worker_fn(args, generator, debug=False):
 
 
 def run(
-    package=0, n_random=10000, n_limit=None, max_workers=14, debug=False
+    package=0, n_random=10000, n_limit=None, max_workers=14, debug=False,
+    min_font_size=30, max_font_size=60, target_size=None
 ):
     """Generates a package of synthetic data, including images and metadata."""
+
+    if isinstance(target_size, str):
+        target_size = tuple(map(int, target_size.split(',')))
 
     package_id = f"{package:04d}"
     lines_path = Path(DATA_SYNTHETIC_ROOT) / f"lines/{package_id}.csv"
@@ -107,7 +111,12 @@ def run(
         DEBUG_DIR.mkdir(parents=True, exist_ok=True)
 
     background_dir = Path(DATA_SYNTHETIC_ROOT) / "backgrounds"
-    generator = SyntheticDataGeneratorV2(background_dir=background_dir)
+    generator = SyntheticDataGeneratorV2(
+        background_dir=background_dir,
+        min_font_size=min_font_size,
+        max_font_size=max_font_size,
+        target_size=target_size,
+    )
     f_with_generator = partial(worker_fn, generator=generator, debug=debug)
     results = thread_map(
         f_with_generator,

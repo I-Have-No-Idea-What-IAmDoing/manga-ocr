@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import tempfile
 import shutil
+import re
 
 # Add the project root to the Python path
 project_root = Path(__file__).resolve().parents[3]
@@ -69,7 +70,7 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
 
         fonts_df = pd.DataFrame({
             'font_path': [temp_font_path.name],  # Use the relative name of the copied font
-            'supported_chars': ['あいうえおABC123漢字'],
+            'supported_chars': ['あいうえおABC123漢字tes'],
             'label': ['common']
         })
         fonts_df.to_csv(cls.assets_dir / "fonts.csv", index=False)
@@ -146,6 +147,34 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         self.assertGreater(img.shape[0], 0)
 
         generator.add_random_furigana = original_add_random_furigana
+
+    def test_grayscale_color(self):
+        """Test that text is rendered in a grayscale color."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        _, _, params = generator.process("test")
+        color = params['color']
+        match = re.match(r'#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})', color)
+        self.assertTrue(match)
+        r, g, b = [int(c, 16) for c in match.groups()]
+        self.assertEqual(r, g)
+        self.assertEqual(g, b)
+        self.assertLessEqual(r, 100)
+
+    def test_font_size_control(self):
+        """Test that font size is within the specified range."""
+        generator = SyntheticDataGeneratorV2(background_dir=None, min_font_size=40, max_font_size=50)
+        _, _, params = generator.process("test")
+        font_size = params['font_size']
+        self.assertGreaterEqual(font_size, 40)
+        self.assertLess(font_size, 50)
+
+    def test_target_size(self):
+        """Test that the final image is resized to the target size."""
+        target_size = (128, 128)
+        generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir, target_size=target_size)
+        img, _, _ = generator.process("test")
+        self.assertEqual(img.shape[0], target_size[1])
+        self.assertEqual(img.shape[1], target_size[0])
 
 if __name__ == '__main__':
     unittest.main()

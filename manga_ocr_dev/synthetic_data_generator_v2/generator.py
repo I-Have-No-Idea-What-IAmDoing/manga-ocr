@@ -49,7 +49,7 @@ class SyntheticDataGeneratorV2:
             to `font_labels`.
     """
 
-    def __init__(self, background_dir=None):
+    def __init__(self, background_dir=None, min_font_size=30, max_font_size=60, target_size=None):
         """Initializes the SyntheticDataGenerator.
 
         This involves loading all necessary assets for data generation,
@@ -61,16 +61,19 @@ class SyntheticDataGeneratorV2:
         self.parser = budoux.load_default_japanese_parser()
         self.fonts_df, self.font_map = get_font_meta()
         self.font_labels, self.font_p = self.get_font_labels_prob()
+        self.min_font_size = min_font_size
+        self.max_font_size = max_font_size
         if background_dir:
-            self.composer = Composer(background_dir)
+            self.composer = Composer(background_dir, target_size=target_size)
         else:
             self.composer = None
 
     def get_random_render_params(self):
         params = {}
         params['vertical'] = np.random.choice([True, False], p=[0.8, 0.2])
-        params['font_size'] = np.random.randint(30, 60)
-        params['color'] = 'black'
+        params['font_size'] = np.random.randint(self.min_font_size, self.max_font_size)
+        gray_value = np.random.randint(0, 100)
+        params['color'] = f'#{gray_value:02x}{gray_value:02x}{gray_value:02x}'
         return params
 
     def get_font_labels_prob(self):
