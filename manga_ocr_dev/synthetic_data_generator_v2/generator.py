@@ -12,7 +12,7 @@ from pathlib import Path
 import budoux
 import numpy as np
 import pandas as pd
-from pictex import Canvas, Row, Column, Text
+from pictex import Canvas, Row, Column, Text, Shadow
 
 from manga_ocr_dev.env import ASSETS_PATH, FONTS_ROOT, DATA_SYNTHETIC_ROOT
 from manga_ocr_dev.synthetic_data_generator_v2.composer import Composer
@@ -82,6 +82,24 @@ class SyntheticDataGeneratorV2:
             gray_value = np.random.randint(215, 256)
 
         params['color'] = f'#{gray_value:02x}{gray_value:02x}{gray_value:02x}'
+
+        effect = np.random.choice(
+            ["stroke", "glow", "none"], p=[0.4, 0.15, 0.45]
+        )
+        params['effect'] = effect
+
+        def get_random_hex_color():
+            gray_value = np.random.randint(0, 256)
+            return f'#{gray_value:02x}{gray_value:02x}{gray_value:02x}'
+
+        if effect == "stroke":
+            params["stroke_width"] = np.random.choice([1, 2, 3])
+            params["stroke_color"] = get_random_hex_color()
+        elif effect == "glow":
+            params["shadow_blur"] = np.random.choice([2, 5, 10])
+            params["shadow_color"] = get_random_hex_color()
+            params['shadow_offset'] = (0, 0)
+
         return params
 
     def get_font_labels_prob(self):
@@ -258,6 +276,7 @@ class SyntheticDataGeneratorV2:
         font_size = params.get("font_size", 32)
         color = params.get("color", "black")
         vertical = params.get("vertical", False)
+        effect = params.get("effect", "none")
 
         canvas = (
             Canvas()
@@ -270,23 +289,40 @@ class SyntheticDataGeneratorV2:
         if not lines_with_markup:
             return np.array(canvas.render(""))
 
+        def create_text_component(text, size_multiplier=1.0):
+            component = Text(text).font_size(font_size * size_multiplier)
+            if effect == "stroke":
+                component = component.text_stroke(
+                    width=params.get("stroke_width", 1),
+                    color=params.get("stroke_color", "white"),
+                )
+            elif effect == "glow":
+                offset_x, offset_y = params.get("shadow_offset", (0, 0))
+                shadow = Shadow(
+                    offset=(offset_x, offset_y),
+                    blur_radius=params.get("shadow_blur", 5),
+                    color=params.get("shadow_color", "black"),
+                )
+                component = component.text_shadows(shadow)
+            return component
+
         def create_component(chunk):
             if isinstance(chunk, str):
-                return Text(chunk)
+                return create_text_component(chunk)
 
             type, *args = chunk
             if type == 'furigana':
                 base, ruby = args
-                furigana_text = Text(ruby).font_size(font_size * 0.5)
-                base_text = Text(base)
+                furigana_text = create_text_component(ruby, size_multiplier=0.5)
+                base_text = create_text_component(base)
                 return Column(furigana_text, base_text).gap(0).horizontal_align("center")
 
             if type == 'tcy':
                 text, = args
                 if vertical:
-                    return Row(*[Text(c) for c in text]).gap(0).vertical_align("center")
+                    return Row(*[create_text_component(c) for c in text]).gap(0).vertical_align("center")
                 else:
-                    return Text(text)
+                    return create_text_component(text)
 
             return Text("")
 
@@ -296,7 +332,7 @@ class SyntheticDataGeneratorV2:
                 components = []
                 for chunk in line_chunks:
                     if isinstance(chunk, str):
-                        components.extend([Text(c) for c in chunk])
+                        components.extend([create_text_component(c) for c in chunk])
                     else:
                         components.append(create_component(chunk))
                 line_columns.append(Column(*components).gap(0).horizontal_align("center"))
