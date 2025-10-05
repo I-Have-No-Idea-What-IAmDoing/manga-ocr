@@ -80,7 +80,7 @@ def worker_fn(args, generator, debug=False):
 
 def run(
     package=0, n_random=10000, n_limit=None, max_workers=14, debug=False,
-    min_font_size=30, max_font_size=60, target_size=None, min_output_size=None
+    min_font_size=40, max_font_size=60, target_size=None, min_output_size=None
 ):
     """Generates a package of synthetic data, including images and metadata."""
 

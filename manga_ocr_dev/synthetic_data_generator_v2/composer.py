@@ -28,6 +28,9 @@ class Composer:
 
     def __call__(self, text_image_np, params):
         """Composes the text image with a background and an optional bubble."""
+        if text_image_np is None or text_image_np.size == 0:
+            return None
+
         text_image = Image.fromarray(text_image_np).convert("RGBA")
 
         draw_bubble = np.random.rand() < 0.7
@@ -69,7 +72,7 @@ class Composer:
         background = Image.fromarray(background_np).convert("RGBA")
 
         # Dynamic scaling of the text overlay
-        scale_factor = np.random.uniform(0.3, 0.9)
+        scale_factor = np.random.uniform(0.5, 1.0) # Less aggressive scaling
         target_width = int(background.width * scale_factor)
 
         w, h = composed_image.size
@@ -83,6 +86,11 @@ class Composer:
 
         if target_width > 0 and target_height > 0:
             composed_image = composed_image.resize((target_width, target_height), Image.Resampling.LANCZOS)
+
+        # Legibility check
+        min_text_height = 20 # pixels
+        if composed_image.height < min_text_height:
+            return None # Discard sample if text is too small
 
         x_offset = np.random.randint(0, background.width - composed_image.width + 1)
         y_offset = np.random.randint(0, background.height - composed_image.height + 1)

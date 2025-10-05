@@ -36,47 +36,48 @@ def find_rectangle(mask, y, x, aspect_ratio_range=(0.33, 3.0)):
 
     Returns:
         tuple[int, int, int, int]: A tuple containing the coordinates of the
-        found rectangle in the format (ymin, ymax, xmin, xmax).
+        found rectangle in the format (ymin, ymax, xmin, xmax), where ymax and
+        xmax are exclusive.
     """
-    ymin_ = ymax_ = y
-    xmin_ = xmax_ = x
+    h, w = mask.shape
+    ymin, ymax = y, y
+    xmin, xmax = x, x
 
-    ymin = ymax = xmin = xmax = None
-
+    # Iteratively expand
     while True:
-        last_ymin, last_ymax, last_xmin, last_xmax = ymin_, ymax_, xmin_, xmax_
+        last_ymin, last_ymax, last_xmin, last_xmax = ymin, ymax, xmin, xmax
 
-        prev_ymin_, prev_ymax_ = ymin_, ymax_
+        # Expand vertically (up and down)
+        can_expand_up = ymin > 0 and not mask[ymin - 1, xmin:xmax+1].any()
+        can_expand_down = ymax + 1 < h and not mask[ymax + 1, xmin:xmax+1].any()
 
-        if ymin is None:
-            ymin_ -= 1
-            if ymin_ < 0 or mask[ymin_, xmin_ : xmax_ + 1].any():
-                ymin = ymin_ + 1
+        if can_expand_up:
+            ymin -= 1
+        if can_expand_down:
+            ymax += 1
 
-        if ymax is None:
-            ymax_ += 1
-            if ymax_ >= mask.shape[0] or mask[ymax_, xmin_ : xmax_ + 1].any():
-                ymax = ymax_
+        # Expand horizontally (left and right)
+        can_expand_left = xmin > 0 and not mask[ymin:ymax+1, xmin - 1].any()
+        can_expand_right = xmax + 1 < w and not mask[ymin:ymax+1, xmax + 1].any()
 
-        if xmin is None:
-            xmin_ -= 1
-            if xmin_ < 0 or mask[prev_ymin_ : prev_ymax_ + 1, xmin_].any():
-                xmin = xmin_ + 1
+        if can_expand_left:
+            xmin -= 1
+        if can_expand_right:
+            xmax += 1
 
-        if xmax is None:
-            xmax_ += 1
-            if xmax_ >= mask.shape[1] or mask[prev_ymin_ : prev_ymax_ + 1, xmax_].any():
-                xmax = xmax_
+        # If no expansion happened, stop
+        if (ymin, ymax, xmin, xmax) == (last_ymin, last_ymax, last_xmin, last_xmax):
+            break
 
-        h = ymax_ - ymin_ + 1
-        w = xmax_ - xmin_ + 1
-        if h > 1 and w > 1:
-            ratio = w / h
-            if ratio < aspect_ratio_range[0] or ratio > aspect_ratio_range[1]:
-                return last_ymin, last_ymax, last_xmin, last_xmax
+        # Check aspect ratio
+        rect_h = ymax - ymin + 1
+        rect_w = xmax - xmin + 1
+        if rect_h > 1 and rect_w > 1:
+            ratio = rect_w / rect_h
+            if not (aspect_ratio_range[0] <= ratio <= aspect_ratio_range[1]):
+                return last_ymin, last_ymax + 1, last_xmin, last_xmax + 1
 
-        if None not in (ymin, ymax, xmin, xmax):
-            return ymin, ymax, xmin, xmax
+    return ymin, ymax + 1, xmin, xmax + 1
 
 
 def generate_backgrounds(crops_per_page=5, min_size=40):

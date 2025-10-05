@@ -27,7 +27,7 @@ def test_find_rectangle_aspect_ratio():
     # This should stop early due to aspect ratio
     ymin, ymax, xmin, xmax = find_rectangle(mask, 50, 50, aspect_ratio_range=(0.1, 0.2))
     # The exact values depend on the expansion order, but it should not be the full frame
-    assert (ymin, ymax, xmin, xmax) != (0, 99, 0, 99)
+    assert (ymin, ymax, xmin, xmax) != (0, 100, 0, 100)
 
 
 @patch('cv2.imwrite')
