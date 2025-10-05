@@ -210,5 +210,47 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
             img, _, _ = generator.process("t")
             self.assertIsNone(img, "Sample with very small text was not discarded")
 
+    def test_stroke_effect(self):
+        """Test that the stroke effect is applied correctly."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        override_params = {
+            'effect': 'stroke',
+            'stroke_width': 2,
+            'stroke_color': '#FF0000'
+        }
+        img, _, _ = generator.process("test", override_params=override_params)
+        self.assertIsInstance(img, np.ndarray)
+        self.assertGreater(np.sum(img), 0)
+
+    def test_glow_effect(self):
+        """Test that the glow effect is applied correctly."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        override_params = {
+            'effect': 'glow',
+            'shadow_blur': 5,
+            'shadow_color': '#00FF00',
+            'shadow_offset': (2, 2)
+        }
+        img, _, _ = generator.process("test", override_params=override_params)
+        self.assertIsInstance(img, np.ndarray)
+        self.assertGreater(np.sum(img), 0)
+
+    def test_effect_params(self):
+        """Test that effect parameters are generated correctly."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        with unittest.mock.patch('numpy.random.choice', return_value='stroke'):
+            params = generator.get_random_render_params()
+            self.assertEqual(params['effect'], 'stroke')
+            self.assertIn('stroke_width', params)
+            self.assertIn('stroke_color', params)
+
+        with unittest.mock.patch('numpy.random.choice', return_value='glow'):
+            params = generator.get_random_render_params()
+            self.assertEqual(params['effect'], 'glow')
+            self.assertIn('shadow_blur', params)
+            self.assertIn('shadow_color', params)
+            self.assertIn('shadow_offset', params)
+
+
 if __name__ == '__main__':
     unittest.main()
