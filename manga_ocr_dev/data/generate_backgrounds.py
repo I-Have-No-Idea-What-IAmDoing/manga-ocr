@@ -44,6 +44,8 @@ def find_rectangle(mask, y, x, aspect_ratio_range=(0.33, 3.0)):
     ymin = ymax = xmin = xmax = None
 
     while True:
+        last_ymin, last_ymax, last_xmin, last_xmax = ymin_, ymax_, xmin_, xmax_
+
         prev_ymin_, prev_ymax_ = ymin_, ymax_
 
         if ymin is None:
@@ -71,7 +73,7 @@ def find_rectangle(mask, y, x, aspect_ratio_range=(0.33, 3.0)):
         if h > 1 and w > 1:
             ratio = w / h
             if ratio < aspect_ratio_range[0] or ratio > aspect_ratio_range[1]:
-                return ymin_, ymax_, xmin_, xmax_
+                return last_ymin, last_ymax, last_xmin, last_xmax
 
         if None not in (ymin, ymax, xmin, xmax):
             return ymin, ymax, xmin, xmax

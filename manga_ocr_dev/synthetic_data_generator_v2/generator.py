@@ -49,7 +49,7 @@ class SyntheticDataGeneratorV2:
             to `font_labels`.
     """
 
-    def __init__(self, background_dir=None, min_font_size=30, max_font_size=60, target_size=None):
+    def __init__(self, background_dir=None, min_font_size=30, max_font_size=60, target_size=None, min_output_size=None):
         """Initializes the SyntheticDataGenerator.
 
         This involves loading all necessary assets for data generation,
@@ -64,7 +64,7 @@ class SyntheticDataGeneratorV2:
         self.min_font_size = min_font_size
         self.max_font_size = max_font_size
         if background_dir:
-            self.composer = Composer(background_dir, target_size=target_size)
+            self.composer = Composer(background_dir, target_size=target_size, min_output_size=min_output_size)
         else:
             self.composer = None
 

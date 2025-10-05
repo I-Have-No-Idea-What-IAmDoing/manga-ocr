@@ -26,13 +26,11 @@ class NumpyEncoder(json.JSONEncoder):
     """Custom JSON encoder for NumPy types."""
 
     def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
+        if isinstance(obj, np.generic):
+            return obj.item()
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
-        if isinstance(obj, Path):
+        elif isinstance(obj, Path):
             return str(obj)
         return super(NumpyEncoder, self).default(obj)
 
@@ -58,6 +56,10 @@ def worker_fn(args, generator, debug=False):
 
         if debug:
             debug_info = params.copy()
+            # Convert Path objects to strings for JSON serialization
+            for key, value in debug_info.items():
+                if isinstance(value, Path):
+                    debug_info[key] = str(value)
             json_path = Path(DEBUG_DIR) / f"{id_}.json"
             json_path.write_text(
                 json.dumps(debug_info, indent=4, cls=NumpyEncoder), encoding="utf-8"
@@ -78,7 +80,7 @@ def worker_fn(args, generator, debug=False):
 
 def run(
     package=0, n_random=10000, n_limit=None, max_workers=14, debug=False,
-    min_font_size=30, max_font_size=60, target_size=None
+    min_font_size=30, max_font_size=60, target_size=None, min_output_size=None
 ):
     """Generates a package of synthetic data, including images and metadata."""
 
@@ -116,6 +118,7 @@ def run(
         min_font_size=min_font_size,
         max_font_size=max_font_size,
         target_size=target_size,
+        min_output_size=min_output_size,
     )
     f_with_generator = partial(worker_fn, generator=generator, debug=debug)
     results = thread_map(

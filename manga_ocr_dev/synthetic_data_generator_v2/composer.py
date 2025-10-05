@@ -7,9 +7,10 @@ from manga_ocr_dev.synthetic_data_generator_v2.utils import get_background_df
 
 
 class Composer:
-    def __init__(self, background_dir, target_size=None):
+    def __init__(self, background_dir, target_size=None, min_output_size=None):
         self.background_df = get_background_df(background_dir)
         self.target_size = target_size
+        self.min_output_size = min_output_size
 
     def draw_bubble(self, width, height, padding=20, radius=20):
         """Draws a rounded rectangle bubble."""
@@ -93,31 +94,31 @@ class Composer:
         # Less aggressive final random crop that ensures text is not cut off
         h, w, _ = final_img_np.shape
 
-        # Bounding box of the pasted text image
         text_x1, text_y1 = x_offset, y_offset
         text_x2, text_y2 = x_offset + composed_image.width, y_offset + composed_image.height
 
-        # Add some random padding around the text box to define the 'must-include' region
         must_include_x1 = max(0, text_x1 - np.random.randint(10, 50))
         must_include_y1 = max(0, text_y1 - np.random.randint(10, 50))
         must_include_x2 = min(w, text_x2 + np.random.randint(10, 50))
         must_include_y2 = min(h, text_y2 + np.random.randint(10, 50))
 
-        # The final crop can start anywhere from the beginning of the image to the start of the must-include region
         crop_x1 = np.random.randint(0, must_include_x1 + 1)
         crop_y1 = np.random.randint(0, must_include_y1 + 1)
 
-        # And it can end anywhere from the end of the must-include region to the end of the image
         crop_x2 = np.random.randint(must_include_x2, w + 1)
         crop_y2 = np.random.randint(must_include_y2, h + 1)
 
-        # Ensure crop dimensions are valid
         if crop_x1 >= crop_x2:
             crop_x1 = max(0, crop_x2 - 10)
         if crop_y1 >= crop_y2:
             crop_y1 = max(0, crop_y2 - 10)
 
         final_img_np = A.Crop(x_min=crop_x1, y_min=crop_y1, x_max=crop_x2, y_max=crop_y2)(image=final_img_np)["image"]
+
+        if self.min_output_size:
+            h, w, _ = final_img_np.shape
+            if h < self.min_output_size or w < self.min_output_size:
+                final_img_np = A.SmallestMaxSize(max_size=self.min_output_size, interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
 
         if self.target_size:
             final_img_np = A.Resize(height=self.target_size[1], width=self.target_size[0], interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]

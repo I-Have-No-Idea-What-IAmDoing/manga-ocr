@@ -203,5 +203,13 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         self.assertEqual(img.shape[0], target_size[1])
         self.assertEqual(img.shape[1], target_size[0])
 
+    def test_min_output_size(self):
+        """Test that the final image is upscaled to the min_output_size."""
+        min_size = 300
+        # The dummy background is 200x200, so this will force an upscale.
+        generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir, min_output_size=min_size)
+        img, _, _ = generator.process("test")
+        self.assertGreaterEqual(min(img.shape[:2]), min_size)
+
 if __name__ == '__main__':
     unittest.main()
