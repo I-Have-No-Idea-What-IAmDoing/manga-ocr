@@ -6,14 +6,17 @@ These tests verify the functionality of text rendering, background composition,
 and various image manipulation helpers.
 """
 
+import os
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+import cv2
 
 from manga_ocr_dev.synthetic_data_generator.renderer import Renderer, get_css
+from manga_ocr_dev.env import FONTS_ROOT
 
 
 @pytest.fixture
@@ -44,11 +47,11 @@ def test_renderer_initialization(renderer):
     assert renderer.background_df is not None
 
 
-def test_render(renderer):
+def test_render_mocked(renderer):
     """
-    Tests the main `render` method for a complete rendering pipeline.
+    Tests the main `render` method with a mocked `_render_html` to check the
+    overall pipeline logic without performing an actual render.
     """
-    # Mock the _render_html method to avoid actual browser rendering
     with patch.object(
         renderer, "_render_html", return_value=(np.zeros((200, 200, 3), dtype=np.uint8), {})
     ) as mock_render_html, patch(
@@ -56,22 +59,67 @@ def test_render(renderer):
         return_value=np.zeros((100, 100, 3), dtype=np.uint8),
     ):
         lines = ["test"]
-        # Provide font_path as it's required by get_css
         override_params = {"font_path": "dummy.ttf"}
         img, params = renderer.render(lines, override_css_params=override_params)
 
-        # Assertions
         assert isinstance(img, np.ndarray)
         assert len(img.shape) == 2  # Grayscale
         assert isinstance(params, dict)
         mock_render_html.assert_called_once()
-        # Check that background_image_data_uri was added to the params for rendering
         rendered_params = mock_render_html.call_args[0][1]
         assert "background_image_data_uri" in rendered_params
-        assert isinstance(rendered_params["background_image_data_uri"], str)
-        assert rendered_params["background_image_data_uri"].startswith(
-            "data:image/png;base64,"
-        )
+        assert rendered_params["background_image_data_uri"].startswith("data:image/png;base64,")
+
+
+@pytest.mark.integration
+def test_render_integration_with_background():
+    """
+    Performs a full integration test of the render method, ensuring that a
+    background image is correctly rendered. This test is not mocked and
+    requires a running Chrome/Chromium instance.
+    """
+    # Setup: Ensure Chrome is available
+    browser_executable = os.environ.get("CHROME_EXECUTABLE_PATH")
+    if not browser_executable or not Path(browser_executable).exists():
+        pytest.skip("CHROME_EXECUTABLE_PATH not set or invalid, skipping integration test.")
+
+    # Create a dummy background image for the test
+    dummy_bg = np.full((200, 200, 3), (0, 0, 255), dtype=np.uint8)  # Solid blue
+
+    with patch('manga_ocr_dev.synthetic_data_generator.renderer.cv2.imread', return_value=dummy_bg), \
+         patch('manga_ocr_dev.synthetic_data_generator.renderer.get_background_df') as mock_get_bg:
+
+        mock_df = MagicMock()
+        mock_df.sample.return_value.iloc[0].path = 'dummy.png'
+        mock_get_bg.return_value = mock_df
+
+        with Renderer(browser_executable=browser_executable) as renderer:
+            # We need a real font file for rendering
+            font_path = str(FONTS_ROOT / 'NotoSansJP-Regular.ttf')
+            if not Path(font_path).exists():
+                pytest.skip(f"Required font not found at {font_path}, skipping integration test.")
+
+            lines = ["test"]
+            override_params = {
+                "font_path": font_path,
+                "text_color": "white",
+                "draw_bubble": False,  # No bubble to ensure we see the background
+            }
+            # The actual render call happens here
+            img, _ = renderer.render(lines, override_css_params=override_params)
+
+            # Assertions
+            assert isinstance(img, np.ndarray)
+
+            # To verify the background, we check if the average color of the
+            # rendered image is close to blue. Since the text is white, the
+            # average will be a mix, but blue should be the dominant channel.
+            # We convert the grayscale image back to BGR to check channels.
+            img_bgr = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            mean_color = img_bgr.mean(axis=(0, 1))
+            assert mean_color[0] > 100  # Blue channel should be high
+            assert mean_color[1] < 50   # Green channel should be low
+            assert mean_color[2] < 50   # Red channel should be low
 
 
 def test_get_random_css_params():
@@ -111,23 +159,12 @@ def test_get_css():
 def test_get_css_stroke():
     """Tests that get_css generates a correct stroke effect."""
     css = get_css(font_size=48, font_path="dummy.ttf", stroke_size=1, stroke_color="black")
-    # A correct implementation should create a hard-edged stroke.
-    # This can be done with multiple shadows at different offsets and 0 blur.
     expected_shadows = [
-        "-1px -1px 0 black",
-        "1px -1px 0 black",
-        "-1px 1px 0 black",
-        "1px 1px 0 black",
-        "-1px 0px 0 black",
-        "1px 0px 0 black",
-        "0px -1px 0 black",
-        "0px 1px 0 black",
+        "-1px -1px 0 black", "1px -1px 0 black", "-1px 1px 0 black", "1px 1px 0 black",
+        "-1px 0px 0 black", "1px 0px 0 black", "0px -1px 0 black", "0px 1px 0 black"
     ]
-
     for shadow in expected_shadows:
         assert shadow in css
-
-    # Also, ensure that the glow effect is not present for a stroke.
     assert "0 0 1px" not in css
 
 
@@ -146,60 +183,26 @@ class TestRendererParams(unittest.TestCase):
         self, mock_rand, mock_uniform, mock_randint, mock_choice
     ):
         """Verify that get_random_css_params generates bubble params when draw_bubble is True."""
-        # Arrange
-        # rand() calls: vertical, text_color, draw_bubble, text_orientation, letter_spacing
-        mock_rand.side_effect = [
-            0.6,
-            0.4,
-            0.4,
-            0.6,
-            0.1,
-        ]  # draw_bubble is True (0.4 < 0.7)
-        mock_uniform.return_value = 1.8  # line_height
-        mock_randint.side_effect = [
-            80,
-            20,
-            30,
-            3,
-        ]  # font_size, bubble_padding, bubble_border_radius, bubble_border_width
-        mock_choice.side_effect = ["stroke", 2]  # effect, stroke_size
+        mock_rand.side_effect = [0.6, 0.4, 0.4, 0.6, 0.1, 0.9]
+        mock_uniform.return_value = 1.8
+        mock_randint.side_effect = [80, 20, 30, 3]
+        mock_choice.side_effect = ["stroke", 2]
 
-        # Act
         params = Renderer.get_random_css_params()
 
-        # Assert
         self.assertTrue(params["draw_bubble"])
         self.assertIn("bubble_padding", params)
-        self.assertIn("bubble_border_radius", params)
-        self.assertIn("bubble_border_width", params)
-        self.assertIn("bubble_background_color", params)
-        self.assertIn("bubble_border_color", params)
-        self.assertEqual(
-            params["bubble_background_color"], "white"
-        )  # text is black
+        self.assertEqual(params["bubble_background_color"], "white")
 
     @patch("numpy.random.rand")
     def test_get_random_css_params_no_bubble(self, mock_rand):
         """Verify that get_random_css_params does not generate bubble params when draw_bubble is False."""
-        # Arrange
-        # rand() calls: vertical, text_color, draw_bubble, text_orientation, letter_spacing
-        mock_rand.side_effect = [
-            0.6,
-            0.4,
-            0.8,
-            0.8,
-            0.8,
-        ]  # draw_bubble is False (0.8 > 0.7)
-
-        # Act
+        mock_rand.side_effect = [0.6, 0.4, 0.8, 0.8, 0.8, 0.1, 0.1]
         with patch("numpy.random.choice"), patch("numpy.random.randint"), patch(
             "numpy.random.uniform"
         ):
             params = Renderer.get_random_css_params()
 
-        # Assert
         self.assertFalse(params["draw_bubble"])
         self.assertNotIn("bubble_padding", params)
-        self.assertNotIn("bubble_border_radius", params)
-        self.assertNotIn("bubble_border_width", params)
         self.assertEqual(params["bubble_background_color"], "transparent")

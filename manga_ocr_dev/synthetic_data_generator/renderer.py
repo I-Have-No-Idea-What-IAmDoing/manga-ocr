@@ -8,8 +8,8 @@ applying text bubbles, and adding other visual effects to create a diverse
 and realistic dataset for training the OCR model.
 """
 
-import os
 import base64
+import os
 import uuid
 import threading
 import tempfile
@@ -335,7 +335,6 @@ def get_css(
         font_size (int): The font size in pixels.
         font_path (str): The path to the font file to embed using `@font-face`.
         vertical (bool, optional): If True, sets writing mode to vertical-rl.
-        background_color (str, optional): The background color of the text.
         text_color (str, optional): The color of the text.
         glow_size (int, optional): The size of the text glow in pixels.
         glow_color (str, optional): The color of the text glow.
@@ -345,6 +344,16 @@ def get_css(
         letter_spacing (float, optional): The letter spacing in 'em' units.
         line_height (float, optional): The line height as a multiple of font size.
         text_orientation (str, optional): The text orientation (e.g., 'upright').
+        background_image_data_uri (str, optional): A base64-encoded data URI
+            for the background image.
+        draw_bubble (bool, optional): Whether to draw a text bubble around the
+            text.
+        bubble_background_color (str, optional): The background color of the
+            text bubble.
+        bubble_padding (int, optional): The padding inside the text bubble.
+        bubble_border_radius (int, optional): The corner radius of the text bubble.
+        bubble_border_width (int, optional): The border width of the text bubble.
+        bubble_border_color (str, optional): The border color of the text bubble.
 
     Returns:
         The generated CSS string.
@@ -357,6 +366,21 @@ def get_css(
         "margin: 20px;",
         "display: inline-block;",
     ]
+
+    html_styles = [
+        "margin: 0; padding: 0;",
+        "width: 100vw; height: 100vh;",
+        "display: flex;",
+        "justify-content: center;",
+        "align-items: center;",
+    ]
+
+    if background_image_data_uri:
+        body_styles.append(f'background-image: url("{background_image_data_uri}");')
+        body_styles.append("background-size: cover;")
+        body_styles.append("background-position: center;")
+    else:
+        body_styles.append("background-color: white;")
 
     if text_orientation:
         body_styles.append(f"text-orientation: {text_orientation};")
@@ -390,27 +414,17 @@ def get_css(
         body_styles.append(f"border: {bubble_border_width}px solid {bubble_border_color};")
         body_styles.append("box-shadow: 5px 5px 15px rgba(0,0,0,0.2);")
     else:
+        # If there's no bubble, we need to make sure the body's background is transparent
+        # so that the background image (also on the body) is visible.
+        # The background-image property will override this if it's set.
         body_styles.append("background-color: transparent;")
+
 
     # Convert the font path to a file URI for the browser to load it correctly
     path = Path(font_path)
     if not path.is_absolute():
         path = path.absolute()
     font_uri = path.as_uri()
-
-    html_styles = [
-        "margin: 0; padding: 0;",
-        "display: flex;",
-        "justify-content: center;",
-        "align-items: center;",
-        "width: 100vw; height: 100vh;",
-    ]
-    if background_image_data_uri:
-        html_styles.append(f'background-image: url("{background_image_data_uri}");')
-        html_styles.append("background-size: cover;")
-        html_styles.append("background-position: center;")
-    else:
-        html_styles.append("background-color: white;")
 
     body_styles_str = "\n".join(body_styles)
     html_styles_str = "\n".join(html_styles)
