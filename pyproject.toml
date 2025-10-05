@@ -27,6 +27,7 @@ dependencies = [
     "Pillow",
     "pyperclip",
     "torch",
+    "pictex",
     "transformers",
     "unidic_lite",
 ]
@@ -39,7 +40,6 @@ dev = [
     "pydantic-settings",
     "typer",
     "wandb",
-    "pictex",
 ]
 
 [project.urls]
