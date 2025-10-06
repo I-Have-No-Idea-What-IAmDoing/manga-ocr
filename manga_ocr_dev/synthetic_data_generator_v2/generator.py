@@ -400,7 +400,6 @@ class SyntheticDataGeneratorV2:
             .font_family(str(font_path))
             .font_size(font_size)
             .color(color)
-            .padding(10)
         )
 
         if not lines_with_markup:

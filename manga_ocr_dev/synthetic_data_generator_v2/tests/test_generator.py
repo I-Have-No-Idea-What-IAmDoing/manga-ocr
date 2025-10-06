@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import tempfile
@@ -56,7 +57,7 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
     @classmethod
     def create_dummy_files(cls):
         # Dummy vocab.csv
-        vocab_df = pd.DataFrame({'char': ['あ', 'い', 'う', 'え', 'お', 'A', 'B', 'C', '1', '2', '3', '漢', '字', 't', 'e', 's', 'v', 'i', 'b', 'l']})
+        vocab_df = pd.DataFrame({'char': ['あ', 'い', 'う', 'え', 'お', 'カ', 'キ', 'ク', 'A', 'B', 'C', '1', '2', '3', '漢', '字', 't', 'e', 's', 'v', 'i', 'b', 'l']})
         vocab_df.to_csv(cls.assets_dir / "vocab.csv", index=False)
 
         # Dummy len_to_p.csv
@@ -189,7 +190,9 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         """Test that the final image is resized to the target size."""
         target_size = (128, 128)
         generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir, target_size=target_size)
-        img, _, _ = generator.process("test")
+        # Ensure high contrast to prevent rejection by the low-contrast check.
+        img, _, _ = generator.process("test", override_params={'color': '#FFFFFF'})
+        self.assertIsNotNone(img, "Image should not have been rejected for low contrast.")
         self.assertEqual(img.shape[0], target_size[1])
         self.assertEqual(img.shape[1], target_size[0])
 
@@ -198,17 +201,20 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         min_size = 300
         # The dummy background is 200x200, so this will force an upscale.
         generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir, min_output_size=min_size)
-        img, _, _ = generator.process("test")
+        # Ensure high contrast by using white text to prevent rejection by the low-contrast check.
+        img, _, _ = generator.process("test", override_params={'color': '#FFFFFF'})
+        self.assertIsNotNone(img, "Image should not have been rejected for low contrast.")
         self.assertGreaterEqual(min(img.shape[:2]), min_size)
 
-    def test_legibility_check_discards_small_text(self):
+    @patch('numpy.random.rand', return_value=0.8) # Mock to prevent drawing a bubble
+    def test_legibility_check_discards_small_text(self, mock_rand):
         """Test that samples with too small text are discarded."""
-        with unittest.mock.patch('numpy.random.uniform', return_value=0.01):
-            # Use a very small font size to ensure the text is smaller than the threshold
-            generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir, min_font_size=5, max_font_size=10)
+        # Use a very small font size to ensure the text is smaller than the threshold
+        generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir, min_font_size=5, max_font_size=8)
 
-            img, _, _ = generator.process("t")
-            self.assertIsNone(img, "Sample with very small text was not discarded")
+        # Use white text on a black background for high contrast
+        img, _, _ = generator.process("t", override_params={'color': '#FFFFFF'})
+        self.assertIsNone(img, "Sample with very small text was not discarded")
 
     def test_stroke_effect(self):
         """Test that the stroke effect is applied correctly."""

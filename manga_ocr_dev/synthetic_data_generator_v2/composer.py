@@ -7,10 +7,14 @@ the text, applying various augmentations to the background, and performing a
 final crop to ensure the text is well-positioned and legible.
 """
 
+import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageOps
+from skimage.color import rgb2gray
+from skimage.filters import sobel
+from skimage.measure import label
+from skimage.morphology import dilation, square
 import albumentations as A
-import cv2
 
 from manga_ocr_dev.synthetic_data_generator_v2.utils import get_background_df
 
@@ -157,26 +161,40 @@ class Composer:
         background = Image.fromarray(background_np).convert("RGBA")
 
 
-        bg_width, bg_height = background.size 
+        bg_width, bg_height = background.size
         comp_width, comp_height = composed_image.size
-        
+
+        # Ensure the background is larger than the composed image, with a random margin.
         if bg_width <= comp_width or bg_height <= comp_height:
-            # Dynamically scale the background to be at least a random fraction of the
-            # text's width, helping to create varied compositions.
-            
-            scale_factor = np.random.uniform(1.1, 1.9) # Less aggressive scaling
-            
-            # Get smallest side of the text image then multiply it by some scaling factor to
-            # get a good size for the background
-            target_size = (max(composed_image.width, composed_image.height) / min(*background.size)) * scale_factor
-            if target_size > 0:
-                background = ImageOps.scale(background, target_size, Image.Resampling.LANCZOS)
+            # Determine the required scaling factor to make the background
+            # large enough to contain the composed image.
+            width_scale = comp_width / bg_width if bg_width > 0 else float('inf')
+            height_scale = comp_height / bg_height if bg_height > 0 else float('inf')
+
+            # The background must be scaled by at least the maximum of these two ratios
+            # to ensure it can contain the composed image.
+            required_scale = max(width_scale, height_scale)
+
+            # Add an additional random scaling factor to create variety and ensure
+            # there's always some background visible around the text.
+            random_margin_scale = np.random.uniform(1.1, 1.9)
+            final_scale_factor = required_scale * random_margin_scale
+
+            if final_scale_factor > 0:
+                background = ImageOps.scale(background, final_scale_factor, Image.Resampling.LANCZOS)
 
         # Randomly determine the position to paste the text overlay.
         x_offset = np.random.randint(0, background.width - composed_image.width + 1)
         y_offset = np.random.randint(0, background.height - composed_image.height + 1)
 
         background.paste(composed_image, (x_offset, y_offset), composed_image)
+
+        # Check for low contrast, but only if no bubble is drawn, as bubbles
+        # provide their own high-contrast background.
+        if not draw_bubble and self._is_low_contrast(
+            np.array(background.convert("RGB")), np.array(composed_image), x_offset, y_offset
+        ):
+            return None  # Discard sample if contrast is too low
 
         final_img_np = np.array(background.convert("RGB"))
 
@@ -226,3 +244,47 @@ class Composer:
             final_img_np = A.Resize(height=self.target_size[1], width=self.target_size[0], interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
 
         return final_img_np
+
+    def _is_low_contrast(self, final_img_np, text_image_np, x_offset, y_offset, threshold=0.15):
+        """Checks if the text has low contrast with its immediate background.
+
+        This method computes the average intensity of the text pixels and the
+        surrounding background pixels. If the absolute difference between these
+        two intensities is below a specified threshold, the image is considered
+        to have low contrast.
+
+        Args:
+            final_img_np (np.ndarray): The final composed image (in RGB).
+            text_image_np (np.ndarray): The original text image with an alpha
+                channel.
+            x_offset (int): The x-coordinate where the text image was placed.
+            y_offset (int): The y-coordinate where the text image was placed.
+            threshold (float): The minimum acceptable contrast difference.
+
+        Returns:
+            bool: True if the contrast is below the threshold, False otherwise.
+        """
+        # Convert the final image to grayscale for intensity analysis.
+        final_img_gray = rgb2gray(final_img_np)
+
+        # Get the alpha channel from the text image to use as a mask.
+        text_mask = text_image_np[:, :, 3] > 0
+
+        # Define the region of interest (ROI) where the text is located.
+        text_roi = final_img_gray[y_offset:y_offset + text_mask.shape[0], x_offset:x_offset + text_mask.shape[1]]
+
+        # Calculate the average intensity of the text pixels.
+        text_intensity = np.mean(text_roi[text_mask])
+
+        # To find the background, we dilate the text mask to select a region
+        # just outside the text.
+        dilated_mask = dilation(text_mask, square(5))
+        background_mask = dilated_mask & ~text_mask
+
+        # Calculate the average intensity of the background pixels.
+        background_intensity = np.mean(text_roi[background_mask])
+
+        # The contrast is the absolute difference between the text and background intensities.
+        contrast = abs(text_intensity - background_intensity)
+
+        return contrast < threshold

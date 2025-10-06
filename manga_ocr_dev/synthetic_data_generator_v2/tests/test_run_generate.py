@@ -30,14 +30,16 @@ class TestRunGenerate(unittest.TestCase):
 
         cls.lines_dir = cls.synthetic_data_root / "lines"
         cls.lines_dir.mkdir(parents=True)
-        cls.backgrounds_dir = cls.synthetic_data_root / "backgrounds"
+        cls.backgrounds_dir = cls.temp_dir / "backgrounds"  # Use a separate temp dir for backgrounds
         cls.backgrounds_dir.mkdir()
         cls.assets_dir.mkdir(exist_ok=True)
         cls.fonts_dir.mkdir(exist_ok=True)
 
         # Monkey patch the paths
         cls.original_data_synthetic_root = run_generate_module.DATA_SYNTHETIC_ROOT
+        cls.original_background_dir = run_generate_module.BACKGROUND_DIR
         run_generate_module.DATA_SYNTHETIC_ROOT = cls.synthetic_data_root
+        run_generate_module.BACKGROUND_DIR = cls.backgrounds_dir
 
         cls.original_assets_path_generator = generator_module.ASSETS_PATH
         cls.original_fonts_root_generator = generator_module.FONTS_ROOT
@@ -81,13 +83,13 @@ class TestRunGenerate(unittest.TestCase):
         temp_font_path = cls.fonts_dir / "NotoSansJP-Regular.ttf"
         shutil.copy(real_font_path, temp_font_path)
 
-        fonts_df = pd.DataFrame({'font_path': [temp_font_path.name], 'supported_chars': ['tesトス'], 'label': ['common']})
+        fonts_df = pd.DataFrame({'font_path': [temp_font_path.name], 'supported_chars': ['tesトス_テ'], 'label': ['common']})
         fonts_df.to_csv(cls.assets_dir / "fonts.csv", index=False)
 
-        # Dummy background
-        dummy_bg = np.zeros((200, 200, 3), dtype=np.uint8)
+        # Dummy background (white)
+        dummy_bg = np.full((200, 200, 3), 255, dtype=np.uint8)
         from PIL import Image
-        Image.fromarray(dummy_bg).save(cls.backgrounds_dir / "dummy_bg.png")
+        Image.fromarray(dummy_bg).save(cls.backgrounds_dir / "dummy_bg_0_200_0_200.png")
 
     def test_worker_fn_debug_mode(self):
         """Test that the worker function correctly saves debug info."""
