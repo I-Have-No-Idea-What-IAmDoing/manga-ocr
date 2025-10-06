@@ -39,6 +39,7 @@ dev = [
     "pydantic-settings",
     "typer",
     "wandb",
+    "pictex",
 ]
 
 [project.urls]

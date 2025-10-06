@@ -13,7 +13,7 @@ from tqdm import tqdm
 from manga_ocr_dev.env import DATA_SYNTHETIC_ROOT, ASSETS_PATH
 
 
-def export_lines(num_lines_in_each_package=10000, num_packages=100):
+def export_lines(num_lines_in_each_package=12500, num_packages=160):
     """Reads the CC-100 corpus and exports it into smaller CSV packages.
 
     This function processes the `ja.txt` file from the CC-100 dataset. It
