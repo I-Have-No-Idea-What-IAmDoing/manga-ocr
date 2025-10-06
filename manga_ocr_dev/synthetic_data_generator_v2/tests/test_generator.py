@@ -172,7 +172,10 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         """Test that the final image is resized to the target size."""
         target_size = (128, 128)
         generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir, target_size=target_size)
-        img, _, _ = generator.process("test", override_params={'color': '#000000'})
+        # Explicitly set font_size to ensure the rendered text is not too small and rejected.
+        # A larger font size is used to be certain it passes the min_text_height check.
+        img, _, _ = generator.process("test", override_params={'color': '#000000', 'font_size': 50})
+        self.assertIsNotNone(img, "generator.process() returned None unexpectedly.")
         self.assertEqual(img.shape[0], target_size[1])
         self.assertEqual(img.shape[1], target_size[0])
 

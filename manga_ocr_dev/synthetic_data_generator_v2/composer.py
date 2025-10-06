@@ -143,103 +143,100 @@ class Composer:
         if composed_image.height < min_text_height:
             return None # Discard sample if text is too small
 
-        # If no backgrounds are provided, return the composed image as is,
-        # optionally resizing it to the target size.
-        if self.background_df.empty:
+        # If backgrounds are available, compose the image with one.
+        if not self.background_df.empty:
+            # Randomly select a background image.
+            background_path = self.background_df.sample(1).iloc[0].path
+            background = Image.open(background_path).convert("RGB")
+            background_np = np.array(background)
+
+            # Define and apply a series of augmentations to the background to
+            # increase visual variety.
+            background_transforms = [
+                A.HorizontalFlip(p=0.5),
+                A.RandomRotate90(p=0.5),
+                A.InvertImg(p=0.2),
+                A.RandomBrightnessContrast(
+                    brightness_limit=(-0.2, 0.4),
+                    contrast_limit=(-0.8, -0.3),
+                    # Apply contrast less often if there's a bubble, as high
+                    # contrast can make the bubble look unnatural.
+                    p=0.5 if draw_bubble else 1
+                ),
+                A.Blur(blur_limit=(3, 5), p=0.3),
+            ]
+            background_np = A.Compose(background_transforms)(image=background_np)["image"]
+            background = Image.fromarray(background_np).convert("RGBA")
+
+
+            bg_width, bg_height = background.size
+            comp_width, comp_height = composed_image.size
+
+            # Ensure the background is larger than the composed image, with a random margin.
+            if bg_width <= comp_width or bg_height <= comp_height:
+                # Determine the required scaling factor to make the background
+                # large enough to contain the composed image.
+                width_scale = comp_width / bg_width if bg_width > 0 else float('inf')
+                height_scale = comp_height / bg_height if bg_height > 0 else float('inf')
+
+                # The background must be scaled by at least the maximum of these two ratios
+                # to ensure it can contain the composed image.
+                required_scale = max(width_scale, height_scale)
+
+                # Add an additional random scaling factor to create variety and ensure
+                # there's always some background visible around the text.
+                random_margin_scale = np.random.uniform(1.1, 1.9)
+                final_scale_factor = required_scale * random_margin_scale
+
+                if final_scale_factor > 0:
+                    background = ImageOps.scale(background, final_scale_factor, Image.Resampling.LANCZOS)
+
+            # Randomly determine the position to paste the text overlay.
+            x_offset = np.random.randint(0, background.width - composed_image.width + 1)
+            y_offset = np.random.randint(0, background.height - composed_image.height + 1)
+
+            background.paste(composed_image, (x_offset, y_offset), composed_image)
+
+            # Check for low contrast, but only if no bubble is drawn, as bubbles
+            # provide their own high-contrast background.
+            if not draw_bubble and self._is_low_contrast(
+                np.array(background.convert("RGB")), np.array(composed_image), x_offset, y_offset
+            ):
+                return None  # Discard sample if contrast is too low
+
+            final_img_np = np.array(background.convert("RGB"))
+
+            # Perform a final smart crop that ensures the text is not cut off.
+            # This defines a bounding box that must be included in the final crop.
+            h, w, _ = final_img_np.shape
+
+            text_x1, text_y1 = x_offset, y_offset
+            text_x2, text_y2 = x_offset + composed_image.width, y_offset + composed_image.height
+
+            # Define a padded "must-include" region around the text.
+            must_include_x1 = max(0, text_x1 - np.random.randint(10, 50))
+            must_include_y1 = max(0, text_y1 - np.random.randint(10, 50))
+            must_include_x2 = min(w, text_x2 + np.random.randint(10, 50))
+            must_include_y2 = min(h, text_y2 + np.random.randint(10, 50))
+
+            # Randomly select crop coordinates that are guaranteed to contain the
+            # "must-include" region.
+            crop_x1 = np.random.randint(0, must_include_x1 + 1)
+            crop_y1 = np.random.randint(0, must_include_y1 + 1)
+
+            crop_x2 = np.random.randint(must_include_x2, w + 1)
+            crop_y2 = np.random.randint(must_include_y2, h + 1)
+
+            # Ensure crop coordinates are valid.
+            if crop_x1 >= crop_x2:
+                crop_x1 = max(0, crop_x2 - 10)
+            if crop_y1 >= crop_y2:
+                crop_y1 = max(0, crop_y2 - 10)
+
+            final_img_np = A.Crop(x_min=crop_x1, y_min=crop_y1, x_max=crop_x2, y_max=crop_y2)(image=final_img_np)["image"]
+        else:
+            # If no backgrounds, the composed image is the final image.
             final_img_np = np.array(composed_image.convert("RGB"))
-            if self.target_size:
-                final_img_np = A.Resize(height=self.target_size[1], width=self.target_size[0], interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
-            return final_img_np
-
-        # Randomly select a background image.
-        background_path = self.background_df.sample(1).iloc[0].path
-        background = Image.open(background_path).convert("RGB")
-        background_np = np.array(background)
-
-        # Define and apply a series of augmentations to the background to
-        # increase visual variety.
-        background_transforms = [
-            A.HorizontalFlip(p=0.5),
-            A.RandomRotate90(p=0.5),
-            A.InvertImg(p=0.2),
-            A.RandomBrightnessContrast(
-                brightness_limit=(-0.2, 0.4),
-                contrast_limit=(-0.8, -0.3),
-                # Apply contrast less often if there's a bubble, as high
-                # contrast can make the bubble look unnatural.
-                p=0.5 if draw_bubble else 1
-            ),
-            A.Blur(blur_limit=(3, 5), p=0.3),
-        ]
-        background_np = A.Compose(background_transforms)(image=background_np)["image"]
-        background = Image.fromarray(background_np).convert("RGBA")
-
-
-        bg_width, bg_height = background.size
-        comp_width, comp_height = composed_image.size
-
-        # Ensure the background is larger than the composed image, with a random margin.
-        if bg_width <= comp_width or bg_height <= comp_height:
-            # Determine the required scaling factor to make the background
-            # large enough to contain the composed image.
-            width_scale = comp_width / bg_width if bg_width > 0 else float('inf')
-            height_scale = comp_height / bg_height if bg_height > 0 else float('inf')
-
-            # The background must be scaled by at least the maximum of these two ratios
-            # to ensure it can contain the composed image.
-            required_scale = max(width_scale, height_scale)
-
-            # Add an additional random scaling factor to create variety and ensure
-            # there's always some background visible around the text.
-            random_margin_scale = np.random.uniform(1.1, 1.9)
-            final_scale_factor = required_scale * random_margin_scale
-
-            if final_scale_factor > 0:
-                background = ImageOps.scale(background, final_scale_factor, Image.Resampling.LANCZOS)
-
-        # Randomly determine the position to paste the text overlay.
-        x_offset = np.random.randint(0, background.width - composed_image.width + 1)
-        y_offset = np.random.randint(0, background.height - composed_image.height + 1)
-
-        background.paste(composed_image, (x_offset, y_offset), composed_image)
-
-        # Check for low contrast, but only if no bubble is drawn, as bubbles
-        # provide their own high-contrast background.
-        if not draw_bubble and self._is_low_contrast(
-            np.array(background.convert("RGB")), np.array(composed_image), x_offset, y_offset
-        ):
-            return None  # Discard sample if contrast is too low
-
-        final_img_np = np.array(background.convert("RGB"))
-
-        # Perform a final smart crop that ensures the text is not cut off.
-        # This defines a bounding box that must be included in the final crop.
-        h, w, _ = final_img_np.shape
-
-        text_x1, text_y1 = x_offset, y_offset
-        text_x2, text_y2 = x_offset + composed_image.width, y_offset + composed_image.height
-
-        # Define a padded "must-include" region around the text.
-        must_include_x1 = max(0, text_x1 - np.random.randint(10, 50))
-        must_include_y1 = max(0, text_y1 - np.random.randint(10, 50))
-        must_include_x2 = min(w, text_x2 + np.random.randint(10, 50))
-        must_include_y2 = min(h, text_y2 + np.random.randint(10, 50))
-
-        # Randomly select crop coordinates that are guaranteed to contain the
-        # "must-include" region.
-        crop_x1 = np.random.randint(0, must_include_x1 + 1)
-        crop_y1 = np.random.randint(0, must_include_y1 + 1)
-
-        crop_x2 = np.random.randint(must_include_x2, w + 1)
-        crop_y2 = np.random.randint(must_include_y2, h + 1)
-
-        # Ensure crop coordinates are valid.
-        if crop_x1 >= crop_x2:
-            crop_x1 = max(0, crop_x2 - 10)
-        if crop_y1 >= crop_y2:
-            crop_y1 = max(0, crop_y2 - 10)
-
-        final_img_np = A.Crop(x_min=crop_x1, y_min=crop_y1, x_max=crop_x2, y_max=crop_y2)(image=final_img_np)["image"]
 
         # If a minimum output size is specified, resize the image if it's too small.
         if self.min_output_size:
