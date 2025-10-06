@@ -1,30 +1,38 @@
-# Synthetic Data Generator
+# Synthetic data generator
 
-This tool generates synthetic image-text pairs that mimic the appearance of Japanese manga. It is designed to create a diverse and realistic dataset for training the `manga-ocr` model.
+Generation of synthetic image-text pairs imitating Japanese manga for the purpose of training OCR.
 
-## Features
+Features:
+- using either text from corpus or random text
+- text overlaid on background images
+- drawing text bubbles
+- various fonts and font styles
+- variety of text layouts:
+  - vertical and horizontal text
+  - multi-line text
+  - [furigana](https://en.wikipedia.org/wiki/Furigana) (added randomly)
+  - [tate chū yoko](https://www.w3.org/International/articles/vertical-text/#tcy)
 
--   **High-Quality Text Rendering**: Uses the `pictex` library for robust and accurate text rendering, supporting complex layouts.
--   **Flexible Text Sources**: Can generate text randomly from a given vocabulary or use text from a provided corpus.
--   **Advanced Text Layouts**:
-    -   Vertical and horizontal text rendering.
-    -   Multi-line text with smart line-breaking.
-    -   **Furigana** (ruby text) added randomly to kanji.
-    -   **Tate-Chu-Yoko** (horizontal-in-vertical) for ASCII text.
--   **Rich Styling Options**:
-    -   Supports a wide variety of fonts with configurable sizing.
-    -   Applies text effects like strokes and glows.
-    -   Draws high-contrast speech bubbles around text.
--   **Realistic Backgrounds**: Overlays text onto a diverse set of background images, with augmentations like blur and contrast adjustments to increase variety.
 
-## Generation Pipeline
+Text rendering is done with the usage of [html2image](https://github.com/vgalin/html2image),
+which is a wrapper around Chrome/Chromium browser's headless mode.
+It's not too elegant of a solution, and it is very slow, but it only needs to be run once,
+and when parallelized, processing time is manageable (~17 min per 10000 images on a 16-thread machine).
 
-The data generation process follows these steps:
+The upside of this approach is that a quite complex problem of typesetting and text rendering
+(especially when dealing with both horizontal and vertical text) is offloaded to
+the browser engine, keeping the codebase relatively simple and extendable.
 
-1.  **Text Processing**: A line of text is either generated randomly or taken from a corpus. It is then processed to add random furigana to kanji and apply Tate-Chu-Yoko to ASCII characters.
-2.  **Text Rendering**: The processed text, including all markup, is rendered into a transparent RGBA image using the `pictex` library. This approach provides fine-grained control over the text's appearance, including font, size, color, and effects.
-3.  **Image Composition**:
-    -   The rendered text image is optionally enclosed in a speech bubble.
-    -   A random background is selected and augmented.
-    -   The text image (with its bubble) is then composited onto the background.
-4.  **Final Touches**: A final smart crop is performed to ensure the text is well-positioned and legible, producing the final training image.
+High-level generation pipeline is as follows:
+1. Preprocess text (truncate and/or split into lines, add random furigana).
+2. Render text on a transparent background, using HTML engine.
+3. Select background image from backgrounds dataset.
+4. Overlay the text on the background, optionally drawing a bubble around the text.
+
+# Examples
+
+## Images generated with text from [CC-100 Japanese corpus](https://data.statmt.org/cc-100/)
+![](../../assets/examples/cc-100.jpg)
+
+## Images generated with random text
+![](../../assets/examples/random.jpg)

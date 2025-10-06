@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 import albumentations as A
 
-from manga_ocr_dev.synthetic_data_generator.utils import get_background_df
+from manga_ocr_dev.synthetic_data_generator.common.utils import get_background_df
 
 
 class Composer:
@@ -31,7 +31,7 @@ class Composer:
         min_output_size (int, optional): The minimum size for the smallest
             dimension of the output image.
     """
-    def __init__(self, background_dir, target_size=None, min_output_size=None):
+    def __init__(self, background_dir, target_size=None, min_output_size=None, max_output_size=950):
         """Initializes the Composer with a directory of background images.
 
         Args:
@@ -42,10 +42,13 @@ class Composer:
                 None.
             min_output_size (int, optional): The minimum size for the smallest
                 dimension of the output image. Defaults to None.
+            max_output_size (int, optional): The maximum size for the largest
+                dimension of the output image. Defaults to 950.
         """
         self.background_df = get_background_df(background_dir)
         self.target_size = target_size
         self.min_output_size = min_output_size
+        self.max_output_size = max_output_size
 
     def draw_bubble(self, width, height, text_color, padding=20, radius=20):
         """Draws a high-contrast, rounded-rectangle speech bubble.
@@ -75,14 +78,12 @@ class Composer:
         except (ValueError, TypeError):
             brightness = 0  # Default to assuming dark text on error
 
-        is_light_text = brightness > 382  # 382 is half of max brightness (255*3)
+        is_light_text = brightness > 382
 
         if is_light_text:
-            # Light text gets a dark bubble
             fill = (0, 0, 0, 255)
             outline = 'white'
         else:
-            # Dark text gets a light bubble
             fill = (255, 255, 255, 255)
             outline = 'black'
 
@@ -116,13 +117,15 @@ class Composer:
         if text_image_np is None or text_image_np.size == 0:
             return None
 
+        # Ensure text image has an alpha channel
+        if text_image_np.shape[2] == 3:
+            text_image_np = cv2.cvtColor(text_image_np, cv2.COLOR_BGR2BGRA)
+
         text_image = Image.fromarray(text_image_np).convert("RGBA")
 
-        # Randomly decide whether to draw a speech bubble around the text.
         draw_bubble = np.random.rand() < 0.7
 
         if draw_bubble:
-            # Create the bubble image with high contrast against the text color.
             bubble_padding = np.random.randint(15, 30)
             bubble_radius = np.random.randint(10, 30)
             bubble_image = self.draw_bubble(
@@ -131,7 +134,6 @@ class Composer:
                 padding=bubble_padding,
                 radius=bubble_radius
             )
-
             # Paste the text onto the bubble.
             bubble_image.paste(text_image, (bubble_padding, bubble_padding), text_image)
             composed_image = bubble_image
@@ -139,9 +141,9 @@ class Composer:
             composed_image = text_image
 
         # Discard the sample if the rendered text is too small to be legible.
-        min_text_height = 10 # pixels
+        min_text_height = 10
         if composed_image.height < min_text_height:
-            return None # Discard sample if text is too small
+            return None
 
         # If backgrounds are available, compose the image with one.
         if not self.background_df.empty:
@@ -168,7 +170,6 @@ class Composer:
             background_np = A.Compose(background_transforms)(image=background_np)["image"]
             background = Image.fromarray(background_np).convert("RGBA")
 
-
             bg_width, bg_height = background.size
             comp_width, comp_height = composed_image.size
 
@@ -178,16 +179,13 @@ class Composer:
                 # large enough to contain the composed image.
                 width_scale = comp_width / bg_width if bg_width > 0 else float('inf')
                 height_scale = comp_height / bg_height if bg_height > 0 else float('inf')
-
                 # The background must be scaled by at least the maximum of these two ratios
                 # to ensure it can contain the composed image.
                 required_scale = max(width_scale, height_scale)
-
                 # Add an additional random scaling factor to create variety and ensure
                 # there's always some background visible around the text.
                 random_margin_scale = np.random.uniform(1.1, 1.9)
                 final_scale_factor = required_scale * random_margin_scale
-
                 if final_scale_factor > 0:
                     background = ImageOps.scale(background, final_scale_factor, Image.Resampling.LANCZOS)
 
@@ -202,17 +200,15 @@ class Composer:
             if not draw_bubble and self._is_low_contrast(
                 np.array(background.convert("RGB")), np.array(composed_image), x_offset, y_offset
             ):
-                return None  # Discard sample if contrast is too low
+                return None
 
             final_img_np = np.array(background.convert("RGB"))
 
             # Perform a final smart crop that ensures the text is not cut off.
             # This defines a bounding box that must be included in the final crop.
             h, w, _ = final_img_np.shape
-
             text_x1, text_y1 = x_offset, y_offset
             text_x2, text_y2 = x_offset + composed_image.width, y_offset + composed_image.height
-
             # Define a padded "must-include" region around the text.
             must_include_x1 = max(0, text_x1 - np.random.randint(10, 50))
             must_include_y1 = max(0, text_y1 - np.random.randint(10, 50))
@@ -223,7 +219,6 @@ class Composer:
             # "must-include" region.
             crop_x1 = np.random.randint(0, must_include_x1 + 1)
             crop_y1 = np.random.randint(0, must_include_y1 + 1)
-
             crop_x2 = np.random.randint(must_include_x2, w + 1)
             crop_y2 = np.random.randint(must_include_y2, h + 1)
 
@@ -245,15 +240,16 @@ class Composer:
                 final_img_np = A.SmallestMaxSize(max_size=self.min_output_size, interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
 
         # If the image is too big shrink it
-        MAX_SIZE = 950
-        h, w, _ = final_img_np.shape
-        if h > MAX_SIZE or w > MAX_SIZE:
-            final_img_np = A.LongestMaxSize(max_size=MAX_SIZE, interpolation=cv2.INTER_AREA)(image=final_img_np)["image"]
+        if self.max_output_size:
+            h, w, _ = final_img_np.shape
+            if h > self.max_output_size or w > self.max_output_size:
+                final_img_np = A.LongestMaxSize(max_size=self.max_output_size, interpolation=cv2.INTER_AREA)(image=final_img_np)["image"]
 
         # If a target size is specified, resize the final image.
         if self.target_size:
             final_img_np = A.Resize(height=self.target_size[1], width=self.target_size[0], interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
 
+        final_img_np = cv2.cvtColor(final_img_np, cv2.COLOR_RGB2GRAY)
         return final_img_np
 
     def _is_low_contrast(self, final_img_np, text_image_np, x_offset, y_offset, threshold=0.15):
@@ -275,13 +271,10 @@ class Composer:
         """
         # Convert the final image to grayscale and normalize to [0, 1] for intensity analysis.
         final_img_gray = cv2.cvtColor(final_img_np, cv2.COLOR_RGB2GRAY) / 255.0
-
         # Create a binary mask from the text image's alpha channel.
         text_mask = (text_image_np[:, :, 3] > 0).astype(np.uint8)
-
         # Define the region of interest (ROI) where the text is located.
         text_roi = final_img_gray[y_offset:y_offset + text_mask.shape[0], x_offset:x_offset + text_mask.shape[1]]
-
         # Calculate the average intensity of the text pixels.
         text_intensity = np.mean(text_roi[text_mask.astype(bool)])
 
@@ -293,12 +286,9 @@ class Composer:
         # Calculate the average intensity of the background pixels.
         background_pixels = text_roi[background_mask]
         if background_pixels.size == 0:
-            # Cannot determine background; assume sufficient contrast.
             return False
 
         background_intensity = np.mean(background_pixels)
-
         # The contrast is the absolute difference between intensities.
         contrast = abs(text_intensity - background_intensity)
-
         return contrast < threshold
