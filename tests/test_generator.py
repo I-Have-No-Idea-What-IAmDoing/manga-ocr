@@ -94,3 +94,69 @@ def test_generator_raises_value_error_for_unsupported_chars(
     # fonts. The `process` method should raise a ValueError.
     with pytest.raises(ValueError, match="Text contains unsupported characters: X"):
         generator.process(text='abcX')
+
+
+@patch('manga_ocr_dev.synthetic_data_generator.generator.get_font_meta')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.budoux.load_default_japanese_parser')
+def test_add_random_furigana(mock_budoux, mock_read_csv, mock_get_charsets, mock_renderer, mock_get_font_meta):
+    """Tests the add_random_furigana method with various inputs."""
+    mock_get_charsets.return_value = (
+        set('abc一二三' + 'あいう'),
+        set('あいう'),
+        set()
+    )
+    mock_read_csv.return_value = pd.DataFrame({'len': [10], 'p': [1.0]})
+    # Provide a mock fonts_df with the 'label' column to prevent AttributeError
+    mock_get_font_meta.return_value = (pd.DataFrame({'label': ['regular']}), {})
+    generator = SyntheticDataGenerator(renderer=mock_renderer)
+
+    # Test case 1: Add furigana to kanji
+    with patch('numpy.random.uniform', return_value=0.0), \
+         patch('numpy.random.choice', side_effect=['hiragana', ['a', 'b']]), \
+         patch('numpy.random.normal', return_value=2.0):
+        result = generator.add_random_furigana("一二三", word_prob=1.0)
+        assert result == '<ruby>一二三<rt>ab</rt></ruby>'
+
+    # Test case 2: No furigana when word_prob is 0
+    result = generator.add_random_furigana("一", word_prob=0.0)
+    assert result == '一'
+
+    # Test case 3: Group short ASCII
+    with patch('numpy.random.uniform', return_value=0.0):
+        result = generator.add_random_furigana("abc")
+        assert result == '<span style="text-combine-upright: all">abc</span>'
+
+    # Test case 4: Don't group long ASCII
+    result = generator.add_random_furigana("abcd")
+    assert result == 'abcd'
+
+
+@patch('manga_ocr_dev.synthetic_data_generator.generator.get_font_meta')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.budoux.load_default_japanese_parser')
+def test_words_to_lines(mock_budoux, mock_read_csv, mock_get_charsets, mock_renderer, mock_get_font_meta):
+    """Tests the words_to_lines method."""
+    mock_get_charsets.return_value = (set(), set(), set())
+    mock_read_csv.return_value = pd.DataFrame({'len': [10], 'p': [1.0]})
+    # Provide a mock fonts_df with the 'label' column to prevent AttributeError
+    mock_get_font_meta.return_value = (pd.DataFrame({'label': ['regular']}), {})
+    generator = SyntheticDataGenerator(renderer=mock_renderer)
+
+    # Test basic line breaking
+    with patch('numpy.random.poisson', return_value=10):
+        lines = generator.words_to_lines(["this", "is", "a", "long", "line"])
+        assert lines == ["thisisa", "longline"]
+
+    # Test single line
+    with patch('numpy.random.poisson', return_value=20):
+        lines = generator.words_to_lines(["short", "line"])
+        assert lines == ["shortline"]
+
+    # Test empty input
+    lines = generator.words_to_lines([])
+    assert lines == []

@@ -187,6 +187,36 @@ def test_get_css_glow():
     assert 'text-shadow: 0 0 5px blue;' in css
 
 
+def test_crop_by_alpha_utility():
+    """Tests the crop_by_alpha utility function."""
+    img = np.zeros((20, 20, 4), dtype=np.uint8)
+    img[5:15, 5:15, 3] = 255
+    cropped_img = crop_by_alpha(img)
+    assert cropped_img.shape == (10, 10, 4)
+
+def test_blend_utility():
+    """Tests the blend utility function."""
+    background = np.full((10, 10, 3), (255, 0, 0), dtype=np.uint8)  # Red
+    foreground = np.zeros((10, 10, 4), dtype=np.uint8)
+    foreground[:, :, 1] = 255  # Green
+    foreground[:, :, 3] = 127  # ~50% transparent
+    blended = blend(foreground, background)
+    # Check for a mix of red and green
+    pixel = blended[0, 0]
+    assert pixel[0] > 120 and pixel[1] > 120 and pixel[2] == 0
+    assert np.all(pixel < [135, 135, 1])
+
+
+def test_rounded_rectangle_utility():
+    """Tests the rounded_rectangle utility function."""
+    img = np.zeros((100, 100, 4), dtype=np.uint8)
+    img = rounded_rectangle(img, (10, 10), (90, 90), color=(255, 255, 255, 255), radius=0.5, thickness=-1)
+    # Check center is filled
+    assert np.all(img[50, 50] == (255, 255, 255, 255))
+    # Check corner is transparent
+    assert np.all(img[11, 11] == (0, 0, 0, 0))
+
+
 class TestRendererParams(unittest.TestCase):
     @patch("numpy.random.choice")
     @patch("numpy.random.randint")
