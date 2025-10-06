@@ -115,6 +115,64 @@ class TestComposer(unittest.TestCase):
         result = composer(self.dummy_text_image, {})
         self.assertIsInstance(result, np.ndarray)
 
+    def test_rejection_of_invalid_input(self):
+        """Test that the composer returns None for invalid (None or empty) input."""
+        composer = Composer(self.backgrounds_dir)
+        self.assertIsNone(composer(None, {}))
+        self.assertIsNone(composer(np.array([]), {}))
+
+    def test_rejection_of_small_text(self):
+        """Test that text images smaller than the minimum height are rejected."""
+        composer = Composer(self.backgrounds_dir)
+        small_text_image = np.zeros((5, 5, 4), dtype=np.uint8)
+        small_text_image[:, :, 3] = 255
+        self.assertIsNone(composer(small_text_image, {}))
+
+    @patch('numpy.random.rand', return_value=0.2) # Ensure bubble is drawn
+    def test_composition_without_backgrounds(self, mock_rand):
+        """Test composition when no background directory is provided."""
+        # Create a temporary directory that is empty
+        empty_bg_dir = self.temp_dir / "empty_bg"
+        empty_bg_dir.mkdir()
+
+        composer = Composer(empty_bg_dir)
+        # With no background, the result should be the text pasted on a bubble
+        result = composer(self.dummy_text_image, {})
+        self.assertIsInstance(result, np.ndarray)
+        # The result should have the shape of the bubble, not the original text image
+        self.assertGreater(result.shape[0], self.dummy_text_image.shape[0])
+        self.assertGreater(result.shape[1], self.dummy_text_image.shape[1])
+
+    def test_resizing_logic(self):
+        """Test the target_size and min_output_size resizing logic."""
+        # Test target_size
+        composer_target = Composer(self.backgrounds_dir, target_size=(120, 80))
+        result_target = composer_target(self.dummy_text_image, {})
+        self.assertEqual(result_target.shape[:2], (80, 120)) # (height, width)
+
+        # Test min_output_size (using an image that would otherwise be smaller)
+        # We need to ensure the final cropped image is smaller than min_output_size
+        # to trigger the resize. We can't control the crop easily, so we'll
+        # use a no-background composer to make the output predictable.
+        empty_bg_dir = self.temp_dir / "empty_bg_2"
+        empty_bg_dir.mkdir()
+        composer_min = Composer(empty_bg_dir, min_output_size=200)
+        result_min = composer_min(self.dummy_text_image, {})
+        self.assertTrue(min(result_min.shape[:2]) >= 200)
+
+    def test_low_contrast_with_no_background_area(self):
+        """Test _is_low_contrast when there's no background area to sample."""
+        composer = Composer(self.backgrounds_dir)
+        final_img = np.zeros((100, 100, 3), dtype=np.uint8)
+        text_img = np.zeros((50, 50, 4), dtype=np.uint8)
+
+        # Create a text mask that covers the entire ROI, leaving no background
+        text_mask_full = np.ones((50, 50, 4), dtype=np.uint8) * 255
+
+        # The method should return False, assuming sufficient contrast
+        is_low = composer._is_low_contrast(final_img, text_mask_full, 0, 0)
+        self.assertFalse(is_low)
+
 
 if __name__ == '__main__':
     unittest.main()
