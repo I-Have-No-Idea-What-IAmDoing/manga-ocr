@@ -13,10 +13,10 @@ sys.path.insert(0, str(project_root))
 from unittest.mock import patch
 import numpy as np
 
-from manga_ocr_dev.synthetic_data_generator_v2.utils import get_background_df, is_kanji, is_hiragana, is_katakana, is_ascii, get_charsets, get_font_meta
+from manga_ocr_dev.synthetic_data_generator.common.utils import get_background_df, is_kanji, is_hiragana, is_katakana, is_ascii, get_charsets, get_font_meta
 
 
-@patch('manga_ocr_dev.synthetic_data_generator_v2.utils.ASSETS_PATH')
+@patch('manga_ocr_dev.synthetic_data_generator.common.utils.ASSETS_PATH')
 class TestAssetLoadingFunctions(unittest.TestCase):
     def setUp(self):
         self.temp_dir = Path(tempfile.mkdtemp())
@@ -46,19 +46,18 @@ class TestAssetLoadingFunctions(unittest.TestCase):
         self.assertTrue(np.array_equal(hiragana, ['あ']))
         self.assertTrue(np.array_equal(katakana, ['ア']))
 
-    @patch('manga_ocr_dev.synthetic_data_generator_v2.utils.FONTS_ROOT', new_callable=lambda: Path('/fake/fonts'))
-    def test_get_font_meta(self, mock_fonts_root, mock_assets_path):
+    def test_get_font_meta(self, mock_assets_path):
         """Test that get_font_meta correctly loads font metadata and creates a font map."""
         mock_assets_path.__truediv__.return_value = self.fonts_csv_path
 
         df, font_map = get_font_meta()
 
         self.assertEqual(len(df), 2)
-        self.assertIn('/fake/fonts/font1.ttf', df['font_path'].values)
+        self.assertIn('font1.ttf', df['font_path'].values)
 
         expected_map = {
-            str(Path('/fake/fonts/font1.ttf')): {'猫', 'あ'},
-            str(Path('/fake/fonts/font2.otf')): {'A', 'ア'}
+            'font1.ttf': {'猫', 'あ'},
+            'font2.otf': {'A', 'ア'}
         }
         self.assertEqual(font_map, expected_map)
 

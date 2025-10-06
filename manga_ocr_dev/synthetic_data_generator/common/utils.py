@@ -34,7 +34,9 @@ def get_background_df(background_dir):
         background image.
     """
     background_df = []
-    for path in background_dir.iterdir():
+    for path in Path(background_dir).iterdir():
+        if not path.is_file():
+            continue
         try:
             ymin, ymax, xmin, xmax = [int(v) for v in path.stem.split("_")[-4:]]
             h = ymax - ymin
@@ -160,27 +162,21 @@ def get_font_meta():
     """Loads font metadata and creates a character support map.
 
     This function reads the `fonts.csv` file from the `ASSETS_PATH`, which
-    contains metadata about the fonts used for synthetic data generation. It
-    constructs the full paths to the font files and creates a mapping from
-    each font path to the set of characters it supports.
+    contains metadata about the fonts used for synthetic data generation. The
+    paths in the CSV are expected to be relative to the `FONTS_ROOT`.
 
     Returns:
         A tuple containing:
-            - A pandas DataFrame with the font metadata, including paths and
-              character counts.
-            - A dictionary mapping each font path to a set of characters
-              supported by that font.
+            - A pandas DataFrame with the font metadata. The `font_path` column
+              contains paths as they appear in the CSV.
+            - A dictionary mapping each relative font path to a set of
+              characters supported by that font.
     """
     df = pd.read_csv(ASSETS_PATH / "fonts.csv")
     df = df.dropna()
 
-    def resolve_font_path(p):
-        path = Path(p)
-        if path.is_absolute():
-            return str(path)
-        return str(Path(FONTS_ROOT) / path)
-
-    df["font_path"] = df["font_path"].apply(resolve_font_path)
-
+    # The font paths in the CSV are relative. The generators are responsible
+    # for resolving them to absolute paths when needed.
     font_map = {row.font_path: set(row.supported_chars) for row in df.itertuples()}
+
     return df, font_map
