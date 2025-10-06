@@ -121,7 +121,7 @@ class Composer:
             composed_image = text_image
 
         # Discard the sample if the rendered text is too small to be legible.
-        min_text_height = 20 # pixels
+        min_text_height = 10 # pixels
         if composed_image.height < min_text_height:
             return None # Discard sample if text is too small
 
@@ -156,19 +156,20 @@ class Composer:
         background_np = A.Compose(background_transforms)(image=background_np)["image"]
         background = Image.fromarray(background_np).convert("RGBA")
 
-        print("asfd: ", background.size, composed_image.size, background.size <= composed_image.size)
 
-        if background.size <= composed_image.size:
+        bg_width, bg_height = background.size 
+        comp_width, comp_height = composed_image.size
+        
+        if bg_width <= comp_width or bg_height <= comp_height:
             # Dynamically scale the background to be at least a random fraction of the
             # text's width, helping to create varied compositions.
             
-            scale_factor = np.random.uniform(1.1, 2.9) # Less aggressive scaling
+            scale_factor = np.random.uniform(1.1, 1.9) # Less aggressive scaling
             
             # Get smallest side of the text image then multiply it by some scaling factor to
             # get a good size for the background
-            target_size = int(min(composed_image.width, composed_image.height) * scale_factor)
-
-            if target_size > 0 and target_size < 5:
+            target_size = (max(composed_image.width, composed_image.height) / min(*background.size)) * scale_factor
+            if target_size > 0:
                 background = ImageOps.scale(background, target_size, Image.Resampling.LANCZOS)
 
         # Randomly determine the position to paste the text overlay.
@@ -213,6 +214,12 @@ class Composer:
             h, w, _ = final_img_np.shape
             if h < self.min_output_size or w < self.min_output_size:
                 final_img_np = A.SmallestMaxSize(max_size=self.min_output_size, interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
+
+        # If the image is too big shrink it
+        MAX_SIZE = 950
+        h, w, _ = final_img_np.shape
+        if h > MAX_SIZE or w > MAX_SIZE:
+            final_img_np = A.LongestMaxSize(max_size=MAX_SIZE, interpolation=cv2.INTER_AREA)(image=final_img_np)["image"]
 
         # If a target size is specified, resize the final image.
         if self.target_size:
