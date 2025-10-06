@@ -10,10 +10,6 @@ final crop to ensure the text is well-positioned and legible.
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageOps
-from skimage.color import rgb2gray
-from skimage.filters import sobel
-from skimage.measure import label
-from skimage.morphology import dilation, square
 import albumentations as A
 
 from manga_ocr_dev.synthetic_data_generator_v2.utils import get_background_df
@@ -246,17 +242,15 @@ class Composer:
         return final_img_np
 
     def _is_low_contrast(self, final_img_np, text_image_np, x_offset, y_offset, threshold=0.15):
-        """Checks if the text has low contrast with its immediate background.
+        """Checks if the text has low contrast with its background using OpenCV.
 
         This method computes the average intensity of the text pixels and the
-        surrounding background pixels. If the absolute difference between these
-        two intensities is below a specified threshold, the image is considered
-        to have low contrast.
+        surrounding background pixels. If the absolute difference is below a
+        threshold, the image is considered low contrast.
 
         Args:
             final_img_np (np.ndarray): The final composed image (in RGB).
-            text_image_np (np.ndarray): The original text image with an alpha
-                channel.
+            text_image_np (np.ndarray): The original text image with an alpha channel.
             x_offset (int): The x-coordinate where the text image was placed.
             y_offset (int): The y-coordinate where the text image was placed.
             threshold (float): The minimum acceptable contrast difference.
@@ -264,27 +258,32 @@ class Composer:
         Returns:
             bool: True if the contrast is below the threshold, False otherwise.
         """
-        # Convert the final image to grayscale for intensity analysis.
-        final_img_gray = rgb2gray(final_img_np)
+        # Convert the final image to grayscale and normalize to [0, 1] for intensity analysis.
+        final_img_gray = cv2.cvtColor(final_img_np, cv2.COLOR_RGB2GRAY) / 255.0
 
-        # Get the alpha channel from the text image to use as a mask.
-        text_mask = text_image_np[:, :, 3] > 0
+        # Create a binary mask from the text image's alpha channel.
+        text_mask = (text_image_np[:, :, 3] > 0).astype(np.uint8)
 
         # Define the region of interest (ROI) where the text is located.
         text_roi = final_img_gray[y_offset:y_offset + text_mask.shape[0], x_offset:x_offset + text_mask.shape[1]]
 
         # Calculate the average intensity of the text pixels.
-        text_intensity = np.mean(text_roi[text_mask])
+        text_intensity = np.mean(text_roi[text_mask.astype(bool)])
 
-        # To find the background, we dilate the text mask to select a region
-        # just outside the text.
-        dilated_mask = dilation(text_mask, square(5))
-        background_mask = dilated_mask & ~text_mask
+        # Dilate the text mask to find the surrounding background area.
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        dilated_mask = cv2.dilate(text_mask, kernel, iterations=1)
+        background_mask = (dilated_mask - text_mask).astype(bool)
 
         # Calculate the average intensity of the background pixels.
-        background_intensity = np.mean(text_roi[background_mask])
+        background_pixels = text_roi[background_mask]
+        if background_pixels.size == 0:
+            # Cannot determine background; assume sufficient contrast.
+            return False
 
-        # The contrast is the absolute difference between the text and background intensities.
+        background_intensity = np.mean(background_pixels)
+
+        # The contrast is the absolute difference between intensities.
         contrast = abs(text_intensity - background_intensity)
 
         return contrast < threshold

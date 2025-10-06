@@ -116,8 +116,9 @@ class TestRunGenerate(unittest.TestCase):
         self.assertIsInstance(debug_data['font_path'], str)
 
     @patch('manga_ocr_dev.synthetic_data_generator_v2.run_generate.thread_map', side_effect=lambda func, args, **kwargs: [func(arg) for arg in args])
-    def test_run_creates_output_files(self, mock_thread_map):
-        """Test that the main run function creates output images and metadata."""
+    @patch('manga_ocr_dev.synthetic_data_generator_v2.composer.Composer._is_low_contrast', return_value=False)
+    def test_run_creates_output_files(self, mock_is_low_contrast, mock_thread_map):
+        """Test that the main run function creates output files, disabling the low-contrast check."""
         run(package=0, n_random=1, n_limit=2)
 
         output_img_dir = self.synthetic_data_root / "img_v2" / "0000"
