@@ -7,10 +7,10 @@ the text, applying various augmentations to the background, and performing a
 final crop to ensure the text is well-positioned and legible.
 """
 
+import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 import albumentations as A
-import cv2
 
 from manga_ocr_dev.synthetic_data_generator_v2.utils import get_background_df
 
@@ -47,16 +47,17 @@ class Composer:
         self.target_size = target_size
         self.min_output_size = min_output_size
 
-    def draw_bubble(self, width, height, padding=20, radius=20):
-        """Draws a white, rounded-rectangle speech bubble.
+    def draw_bubble(self, width, height, text_color, padding=20, radius=20):
+        """Draws a high-contrast, rounded-rectangle speech bubble.
 
-        This method creates a speech bubble as a Pillow `Image` object with a
-        transparent background. The bubble is a rounded rectangle with a black
-        outline.
+        This method creates a speech bubble that is guaranteed to have high
+        contrast with the text. It checks the brightness of the text color and
+        chooses either a black or white bubble fill accordingly.
 
         Args:
-            width (int): The internal width of the bubble, before padding.
-            height (int): The internal height of the bubble, before padding.
+            width (int): The internal width of the bubble.
+            height (int): The internal height of the bubble.
+            text_color (str): The hex color string of the text.
             padding (int): The padding to add around the content area.
             radius (int): The corner radius of the rounded rectangle.
 
@@ -66,13 +67,25 @@ class Composer:
         bubble = Image.new('RGBA', (width + padding * 2, height + padding * 2), (255, 255, 255, 0))
         draw = ImageDraw.Draw(bubble)
 
-        if np.random.rand() > 0.8: 
-            fill = (255, 255, 255, 255) 
-            outline = 'black'
-        else:
+        # Determine if the text color is light or dark to choose a contrasting bubble color.
+        # Simple brightness check: sum of RGB values.
+        try:
+            r, g, b = tuple(int(text_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+            brightness = r + g + b
+        except (ValueError, TypeError):
+            brightness = 0  # Default to assuming dark text on error
+
+        is_light_text = brightness > 382  # 382 is half of max brightness (255*3)
+
+        if is_light_text:
+            # Light text gets a dark bubble
             fill = (0, 0, 0, 255)
             outline = 'white'
-            
+        else:
+            # Dark text gets a light bubble
+            fill = (255, 255, 255, 255)
+            outline = 'black'
+
         draw.rounded_rectangle(
             (0, 0, width + padding * 2 - 1, height + padding * 2 - 1),
             radius=radius,
@@ -109,10 +122,15 @@ class Composer:
         draw_bubble = np.random.rand() < 0.7
 
         if draw_bubble:
-            # Create the bubble image with random padding and radius.
+            # Create the bubble image with high contrast against the text color.
             bubble_padding = np.random.randint(15, 30)
             bubble_radius = np.random.randint(10, 30)
-            bubble_image = self.draw_bubble(text_image.width, text_image.height, padding=bubble_padding, radius=bubble_radius)
+            bubble_image = self.draw_bubble(
+                text_image.width, text_image.height,
+                text_color=params.get('color', '#000000'),
+                padding=bubble_padding,
+                radius=bubble_radius
+            )
 
             # Paste the text onto the bubble.
             bubble_image.paste(text_image, (bubble_padding, bubble_padding), text_image)
@@ -157,26 +175,40 @@ class Composer:
         background = Image.fromarray(background_np).convert("RGBA")
 
 
-        bg_width, bg_height = background.size 
+        bg_width, bg_height = background.size
         comp_width, comp_height = composed_image.size
-        
+
+        # Ensure the background is larger than the composed image, with a random margin.
         if bg_width <= comp_width or bg_height <= comp_height:
-            # Dynamically scale the background to be at least a random fraction of the
-            # text's width, helping to create varied compositions.
-            
-            scale_factor = np.random.uniform(1.1, 1.9) # Less aggressive scaling
-            
-            # Get smallest side of the text image then multiply it by some scaling factor to
-            # get a good size for the background
-            target_size = (max(composed_image.width, composed_image.height) / min(*background.size)) * scale_factor
-            if target_size > 0:
-                background = ImageOps.scale(background, target_size, Image.Resampling.LANCZOS)
+            # Determine the required scaling factor to make the background
+            # large enough to contain the composed image.
+            width_scale = comp_width / bg_width if bg_width > 0 else float('inf')
+            height_scale = comp_height / bg_height if bg_height > 0 else float('inf')
+
+            # The background must be scaled by at least the maximum of these two ratios
+            # to ensure it can contain the composed image.
+            required_scale = max(width_scale, height_scale)
+
+            # Add an additional random scaling factor to create variety and ensure
+            # there's always some background visible around the text.
+            random_margin_scale = np.random.uniform(1.1, 1.9)
+            final_scale_factor = required_scale * random_margin_scale
+
+            if final_scale_factor > 0:
+                background = ImageOps.scale(background, final_scale_factor, Image.Resampling.LANCZOS)
 
         # Randomly determine the position to paste the text overlay.
         x_offset = np.random.randint(0, background.width - composed_image.width + 1)
         y_offset = np.random.randint(0, background.height - composed_image.height + 1)
 
         background.paste(composed_image, (x_offset, y_offset), composed_image)
+
+        # Check for low contrast, but only if no bubble is drawn, as bubbles
+        # provide their own high-contrast background.
+        if not draw_bubble and self._is_low_contrast(
+            np.array(background.convert("RGB")), np.array(composed_image), x_offset, y_offset
+        ):
+            return None  # Discard sample if contrast is too low
 
         final_img_np = np.array(background.convert("RGB"))
 
@@ -226,3 +258,50 @@ class Composer:
             final_img_np = A.Resize(height=self.target_size[1], width=self.target_size[0], interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
 
         return final_img_np
+
+    def _is_low_contrast(self, final_img_np, text_image_np, x_offset, y_offset, threshold=0.15):
+        """Checks if the text has low contrast with its background using OpenCV.
+
+        This method computes the average intensity of the text pixels and the
+        surrounding background pixels. If the absolute difference is below a
+        threshold, the image is considered low contrast.
+
+        Args:
+            final_img_np (np.ndarray): The final composed image (in RGB).
+            text_image_np (np.ndarray): The original text image with an alpha channel.
+            x_offset (int): The x-coordinate where the text image was placed.
+            y_offset (int): The y-coordinate where the text image was placed.
+            threshold (float): The minimum acceptable contrast difference.
+
+        Returns:
+            bool: True if the contrast is below the threshold, False otherwise.
+        """
+        # Convert the final image to grayscale and normalize to [0, 1] for intensity analysis.
+        final_img_gray = cv2.cvtColor(final_img_np, cv2.COLOR_RGB2GRAY) / 255.0
+
+        # Create a binary mask from the text image's alpha channel.
+        text_mask = (text_image_np[:, :, 3] > 0).astype(np.uint8)
+
+        # Define the region of interest (ROI) where the text is located.
+        text_roi = final_img_gray[y_offset:y_offset + text_mask.shape[0], x_offset:x_offset + text_mask.shape[1]]
+
+        # Calculate the average intensity of the text pixels.
+        text_intensity = np.mean(text_roi[text_mask.astype(bool)])
+
+        # Dilate the text mask to find the surrounding background area.
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        dilated_mask = cv2.dilate(text_mask, kernel, iterations=1)
+        background_mask = (dilated_mask - text_mask).astype(bool)
+
+        # Calculate the average intensity of the background pixels.
+        background_pixels = text_roi[background_mask]
+        if background_pixels.size == 0:
+            # Cannot determine background; assume sufficient contrast.
+            return False
+
+        background_intensity = np.mean(background_pixels)
+
+        # The contrast is the absolute difference between intensities.
+        contrast = abs(text_intensity - background_intensity)
+
+        return contrast < threshold
