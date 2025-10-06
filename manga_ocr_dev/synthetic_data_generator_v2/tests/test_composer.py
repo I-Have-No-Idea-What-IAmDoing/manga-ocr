@@ -42,9 +42,25 @@ class TestComposer(unittest.TestCase):
     def test_bubble_drawing(self):
         """Test the bubble drawing functionality."""
         composer = Composer(self.backgrounds_dir)
-        bubble = composer.draw_bubble(100, 50)
+        bubble = composer.draw_bubble(100, 50, text_color='#000000')
         self.assertIsInstance(bubble, Image.Image)
         self.assertTrue(np.any(np.array(bubble)[:, :, 3] > 0))
+
+    def test_high_contrast_bubble(self):
+        """Test that the bubble color contrasts with the text color."""
+        composer = Composer(self.backgrounds_dir)
+
+        # Dark text should get a light bubble
+        bubble_for_dark_text = composer.draw_bubble(100, 50, text_color='#000000')
+        bubble_array = np.array(bubble_for_dark_text)
+        center_pixel_color = bubble_array[bubble_array.shape[0] // 2, bubble_array.shape[1] // 2]
+        self.assertTrue(np.array_equal(center_pixel_color, [255, 255, 255, 255]), "Dark text should get a white bubble")
+
+        # Light text should get a dark bubble
+        bubble_for_light_text = composer.draw_bubble(100, 50, text_color='#FFFFFF')
+        bubble_array = np.array(bubble_for_light_text)
+        center_pixel_color = bubble_array[bubble_array.shape[0] // 2, bubble_array.shape[1] // 2]
+        self.assertTrue(np.array_equal(center_pixel_color, [0, 0, 0, 255]), "Light text should get a black bubble")
 
     def test_composition_with_background(self):
         """Test composing a text image with a background."""

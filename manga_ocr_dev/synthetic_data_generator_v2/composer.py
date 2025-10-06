@@ -47,16 +47,17 @@ class Composer:
         self.target_size = target_size
         self.min_output_size = min_output_size
 
-    def draw_bubble(self, width, height, padding=20, radius=20):
-        """Draws a white, rounded-rectangle speech bubble.
+    def draw_bubble(self, width, height, text_color, padding=20, radius=20):
+        """Draws a high-contrast, rounded-rectangle speech bubble.
 
-        This method creates a speech bubble as a Pillow `Image` object with a
-        transparent background. The bubble is a rounded rectangle with a black
-        outline.
+        This method creates a speech bubble that is guaranteed to have high
+        contrast with the text. It checks the brightness of the text color and
+        chooses either a black or white bubble fill accordingly.
 
         Args:
-            width (int): The internal width of the bubble, before padding.
-            height (int): The internal height of the bubble, before padding.
+            width (int): The internal width of the bubble.
+            height (int): The internal height of the bubble.
+            text_color (str): The hex color string of the text.
             padding (int): The padding to add around the content area.
             radius (int): The corner radius of the rounded rectangle.
 
@@ -66,13 +67,25 @@ class Composer:
         bubble = Image.new('RGBA', (width + padding * 2, height + padding * 2), (255, 255, 255, 0))
         draw = ImageDraw.Draw(bubble)
 
-        if np.random.rand() > 0.8: 
-            fill = (255, 255, 255, 255) 
-            outline = 'black'
-        else:
+        # Determine if the text color is light or dark to choose a contrasting bubble color.
+        # Simple brightness check: sum of RGB values.
+        try:
+            r, g, b = tuple(int(text_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+            brightness = r + g + b
+        except (ValueError, TypeError):
+            brightness = 0  # Default to assuming dark text on error
+
+        is_light_text = brightness > 382  # 382 is half of max brightness (255*3)
+
+        if is_light_text:
+            # Light text gets a dark bubble
             fill = (0, 0, 0, 255)
             outline = 'white'
-            
+        else:
+            # Dark text gets a light bubble
+            fill = (255, 255, 255, 255)
+            outline = 'black'
+
         draw.rounded_rectangle(
             (0, 0, width + padding * 2 - 1, height + padding * 2 - 1),
             radius=radius,
@@ -109,10 +122,15 @@ class Composer:
         draw_bubble = np.random.rand() < 0.7
 
         if draw_bubble:
-            # Create the bubble image with random padding and radius.
+            # Create the bubble image with high contrast against the text color.
             bubble_padding = np.random.randint(15, 30)
             bubble_radius = np.random.randint(10, 30)
-            bubble_image = self.draw_bubble(text_image.width, text_image.height, padding=bubble_padding, radius=bubble_radius)
+            bubble_image = self.draw_bubble(
+                text_image.width, text_image.height,
+                text_color=params.get('color', '#000000'),
+                padding=bubble_padding,
+                radius=bubble_radius
+            )
 
             # Paste the text onto the bubble.
             bubble_image.paste(text_image, (bubble_padding, bubble_padding), text_image)
