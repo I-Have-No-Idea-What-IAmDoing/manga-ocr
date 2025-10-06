@@ -1,14 +1,3 @@
-"""Main executable for the synthetic data generation pipeline.
-
-This script orchestrates the generation of a complete package of synthetic data.
-It combines a corpus of text with randomly generated text, then uses a pool of
-worker threads to render a styled image for each line. The generated images
-and their corresponding metadata are saved to the `assets` directory, ready to
-be used for training the OCR model.
-
-This script is designed to be run from the command line using `fire`.
-"""
-
 import json
 import os
 import sys
@@ -26,9 +15,8 @@ import numpy as np
 import pandas as pd
 from tqdm.contrib.concurrent import thread_map
 
-from manga_ocr_dev.env import FONTS_ROOT, DATA_SYNTHETIC_ROOT
+from manga_ocr_dev.env import DATA_SYNTHETIC_ROOT, BACKGROUND_DIR
 from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
-from manga_ocr_dev.synthetic_data_generator.renderer import Renderer
 
 OUT_DIR = None
 DEBUG_DIR = None
@@ -38,34 +26,30 @@ class NumpyEncoder(json.JSONEncoder):
     """Custom JSON encoder for NumPy types."""
 
     def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
+        """Serializes NumPy types and Path objects to JSON-compatible formats.
+
+        This method is an extension of the default JSON encoder. It handles
+        the conversion of NumPy's generic types (like `np.int64`) to standard
+        Python numbers, NumPy arrays to Python lists, and `pathlib.Path`
+        objects to strings.
+
+        Args:
+            obj: The object to serialize.
+
+        Returns:
+            A JSON-serializable representation of the object.
+        """
+        if isinstance(obj, np.generic):
+            return obj.item()
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, Path):
+            return str(obj)
         return super(NumpyEncoder, self).default(obj)
 
 
 def worker_fn(args, generator, debug=False):
-    """A worker function for processing a single data sample in parallel.
-
-    This function is designed to be used with `thread_map`. It takes a tuple of
-    arguments and a `SyntheticDataGenerator` instance, generates a synthetic
-    image from text, saves it to a file, and returns metadata about the
-    generated sample.
-
-    Args:
-        args (tuple[int, str, str, str]): A tuple containing the index, source,
-            ID, and text for the data sample.
-        generator (SyntheticDataGenerator): An initialized instance of the
-            `SyntheticDataGenerator` to be used for image generation.
-        debug (bool): If True, saves additional debug information.
-
-    Returns:
-        A tuple containing metadata about the generated sample:
-        (source, id, text_gt, vertical, font_path).
-    """
+    """A worker function for processing a single data sample in parallel."""
     try:
         i, source, id_, text = args
         if debug:
@@ -84,12 +68,13 @@ def worker_fn(args, generator, debug=False):
             print(f"  - Saved image to {img_path}")
 
         if debug:
+            # In debug mode, save the generation parameters to a JSON file.
             debug_info = params.copy()
-            html = debug_info.pop("html", "")
-            html_path = Path(DEBUG_DIR) / f"{id_}.html"
-            html_path.write_text(html, encoding="utf-8")
-            print(f"  - Saved HTML to {html_path}")
-
+            # Convert Path objects to strings for JSON serialization, as they
+            # are not natively supported by the json module.
+            for key, value in debug_info.items():
+                if isinstance(value, Path):
+                    debug_info[key] = str(value)
             json_path = Path(DEBUG_DIR) / f"{id_}.json"
             json_path.write_text(
                 json.dumps(debug_info, indent=4, cls=NumpyEncoder), encoding="utf-8"
@@ -109,41 +94,59 @@ def worker_fn(args, generator, debug=False):
 
 
 def run(
-    package=0, n_random=10000, n_limit=None, max_workers=14, cdp_port=9222, debug=False
+    package=0, n_random=10000, n_limit=None, max_workers=14, debug=False,
+    min_font_size=40, max_font_size=60, target_size=None, min_output_size=None
 ):
     """Generates a package of synthetic data, including images and metadata.
 
-    This function orchestrates the generation of a complete data package. It
-    reads lines of text from a source CSV file, adds a specified number of
-    randomly generated text samples, and then uses a pool of worker threads
-    to generate a styled image for each line of text.
-
-    The generated images are saved in a subdirectory of `assets/img`, and the
-    corresponding metadata is saved to a CSV file in `assets/meta`.
+    This function orchestrates the synthetic data generation process. It reads
+    a list of text lines from a specified package file, generates additional
+    random text samples, and then uses a pool of workers to process each
+    sample. The generated images are saved to an output directory, and a
+    metadata CSV file is created with information about each sample.
 
     Args:
-        package (int, optional): The numerical ID of the data package to
-            generate. This corresponds to the input file `assets/lines/{package:04d}.csv`.
-            Defaults to 0.
-        n_random (int, optional): The number of samples with randomly
-            generated text to create and add to the package. Defaults to 10000.
-        n_limit (int | None, optional): If specified, limits the total number
-            of generated samples to this value for quick tests. Defaults to None.
-        max_workers (int, optional): The maximum number of worker threads to
-            use for parallel image generation. Defaults to 14.
-        cdp_port (int, optional): The port for the Chrome DevTools Protocol,
-            used by the underlying renderer. Defaults to 9222.
-        debug (bool, optional): If True, saves additional debug information,
-            including the HTML and parameters for each generated sample.
-            Defaults to False.
+        package (int): The ID of the data package to process. This corresponds
+            to a `lines/{package_id:04d}.csv` file.
+        n_random (int): The number of additional random text samples to
+            generate.
+        n_limit (int, optional): If specified, the total number of samples
+            (from the file and random) will be limited to this number.
+        max_workers (int): The maximum number of worker threads to use for
+            parallel processing.
+        debug (bool): If True, enables debug mode, which saves additional
+            parameter information for each generated sample.
+        min_font_size (int): The minimum font size for text rendering.
+        max_font_size (int): The maximum font size for text rendering.
+        target_size (tuple[int, int] or str, optional): The final output size
+            (width, height) for the composed image. Can be a tuple of ints or
+            a comma-separated string from the CLI.
+        min_output_size (int, optional): The minimum size for the smallest
+            dimension of the composed image.
     """
+
+    # Explicitly cast numeric types to handle string inputs from CLI
+    package = int(package)
+    n_random = int(n_random)
+    if n_limit is not None:
+        n_limit = int(n_limit)
+    max_workers = int(max_workers)
+    min_font_size = int(min_font_size)
+    max_font_size = int(max_font_size)
+    if min_output_size is not None:
+        min_output_size = int(min_output_size)
+
+    if isinstance(target_size, str):
+        target_size = tuple(map(int, target_size.split(',')))
 
     package_id = f"{package:04d}"
     lines_path = Path(DATA_SYNTHETIC_ROOT) / f"lines/{package_id}.csv"
     if not lines_path.exists():
         raise FileNotFoundError(f"Lines file not found: {lines_path}")
 
+    # Load text lines from the specified package file.
     lines = pd.read_csv(lines_path)
+    # Create a DataFrame for generating additional random text samples.
     random_lines = pd.DataFrame(
         {
             "source": "random",
@@ -151,11 +154,14 @@ def run(
             "line": None,
         }
     )
+    # Combine the lines from the file with the random sample placeholders.
     lines = pd.concat([lines, random_lines], ignore_index=True)
     if n_limit:
         lines = lines.sample(n_limit)
+    # Prepare the arguments for the worker function.
     args = [(i, *values) for i, values in enumerate(lines.values)]
 
+    # Set up the output directories for the images and debug info.
     global OUT_DIR, DEBUG_DIR
     OUT_DIR = Path(DATA_SYNTHETIC_ROOT) / "img" / package_id
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -163,18 +169,21 @@ def run(
         DEBUG_DIR = Path(DATA_SYNTHETIC_ROOT) / "debug" / package_id
         DEBUG_DIR.mkdir(parents=True, exist_ok=True)
 
-    browser_executable = os.environ.get("CHROME_EXECUTABLE_PATH")
-    with Renderer(
-        cdp_port=cdp_port, browser_executable=browser_executable, debug=debug
-    ) as renderer:
-        generator = SyntheticDataGenerator(renderer=renderer)
-        f_with_generator = partial(worker_fn, generator=generator, debug=debug)
-        results = thread_map(
-            f_with_generator,
-            args,
-            max_workers=max_workers,
-            desc=f"Processing package {package_id}",
-        )
+    background_dir = Path(BACKGROUND_DIR)
+    generator = SyntheticDataGenerator(
+        background_dir=background_dir,
+        min_font_size=min_font_size,
+        max_font_size=max_font_size,
+        target_size=target_size,
+        min_output_size=min_output_size,
+    )
+    f_with_generator = partial(worker_fn, generator=generator, debug=debug)
+    results = thread_map(
+        f_with_generator,
+        args,
+        max_workers=max_workers,
+        desc=f"Processing package {package_id}",
+    )
 
     data = [res for res in results if res is not None]
     data = pd.DataFrame(data, columns=["source", "id", "text", "vertical", "font_path"])

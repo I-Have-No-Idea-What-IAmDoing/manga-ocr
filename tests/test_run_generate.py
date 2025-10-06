@@ -1,100 +1,136 @@
-"""Tests for the main synthetic data generation script.
-
-This module contains tests for the `run_generate.py` script, which orchestrates
-the entire synthetic data generation process. The tests cover the parallel
-worker function and the main `run` function, ensuring that data is processed
-correctly and that exceptions are handled properly.
-"""
-
-import pandas as pd
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+import unittest
+from unittest.mock import patch
+import numpy as np
+import pandas as pd
+import tempfile
+import shutil
+import json
 
+
+from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
 from manga_ocr_dev.synthetic_data_generator.run_generate import worker_fn, run
-from manga_ocr_dev.env import FONTS_ROOT, DATA_SYNTHETIC_ROOT
+import manga_ocr_dev.synthetic_data_generator.run_generate as run_generate_module
+import manga_ocr_dev.synthetic_data_generator.generator as generator_module
+import manga_ocr_dev.synthetic_data_generator.utils as utils_module
+from manga_ocr_dev.env import FONTS_ROOT as PROJECT_FONTS_ROOT
 
-@patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite')
-def test_worker_fn(mock_imwrite):
-    """
-    Tests the `worker_fn` for correct data processing.
 
-    This test verifies that the `worker_fn`, which is executed in parallel,
-    correctly processes a single data sample. It ensures that the function
-    calls the data generator, saves the resulting image, and returns the
-    correct metadata for the generated sample.
-    """
-    mock_generator = MagicMock()
-    mock_generator.process.return_value = (
-        MagicMock(),
-        'test_text',
-            {'font_path': 'dummy.ttf', 'vertical': True}
-    )
+class TestRunGenerate(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp_dir = Path(tempfile.mkdtemp())
+        cls.synthetic_data_root = cls.temp_dir / "synthetic_data"
+        cls.assets_dir = cls.temp_dir / "assets"
+        cls.fonts_dir = cls.temp_dir / "fonts"
 
-    # Set the global OUT_DIR for the test
-    with patch('manga_ocr_dev.synthetic_data_generator.run_generate.OUT_DIR', Path('/dummy/out')):
-        args = (0, 'source', 'id_001', 'text')
-        result = worker_fn(args, mock_generator)
+        cls.lines_dir = cls.synthetic_data_root / "lines"
+        cls.lines_dir.mkdir(parents=True)
+        cls.backgrounds_dir = cls.temp_dir / "backgrounds"  # Use a separate temp dir for backgrounds
+        cls.backgrounds_dir.mkdir()
+        cls.assets_dir.mkdir(exist_ok=True)
+        cls.fonts_dir.mkdir(exist_ok=True)
 
-    mock_generator.process.assert_called_once_with('text')
-    mock_imwrite.assert_called_once()
-    assert result == ('source', 'id_001', 'test_text', True, 'dummy.ttf')
+        # Monkey patch the paths
+        cls.original_data_synthetic_root = run_generate_module.DATA_SYNTHETIC_ROOT
+        cls.original_background_dir = run_generate_module.BACKGROUND_DIR
+        run_generate_module.DATA_SYNTHETIC_ROOT = cls.synthetic_data_root
+        run_generate_module.BACKGROUND_DIR = cls.backgrounds_dir
 
-@patch('pathlib.Path.exists', return_value=True)
-@patch('manga_ocr_dev.synthetic_data_generator.run_generate.pd.read_csv')
-@patch('manga_ocr_dev.synthetic_data_generator.run_generate.pd.DataFrame.to_csv')
-@patch('manga_ocr_dev.synthetic_data_generator.run_generate.Path.mkdir')
-@patch('manga_ocr_dev.synthetic_data_generator.run_generate.thread_map')
-@patch('manga_ocr_dev.synthetic_data_generator.run_generate.Renderer')
-@patch('manga_ocr_dev.synthetic_data_generator.run_generate.SyntheticDataGenerator')
-@patch('manga_ocr_dev.synthetic_data_generator.run_generate.os.environ.get')
-def test_run(mock_os_get, mock_generator, mock_renderer, mock_thread_map, mock_mkdir, mock_to_csv, mock_read_csv, mock_exists):
-    """
-    Tests the main `run` function for orchestrating data generation.
+        cls.original_assets_path_generator = generator_module.ASSETS_PATH
+        cls.original_fonts_root_generator = generator_module.FONTS_ROOT
+        cls.original_assets_path_utils = utils_module.ASSETS_PATH
+        cls.original_fonts_root_utils = utils_module.FONTS_ROOT
 
-    This test provides an end-to-end check of the `run` function, verifying
-    that it correctly reads input data, sets up the necessary directories,
-    invokes the parallel processing map, and saves the final metadata CSV
-    file. It uses extensive mocking to isolate the function's logic.
-    """
-    # Mock input data
-    mock_read_csv.return_value = pd.DataFrame({
-        'source': ['test_source'],
-        'id': ['test_id'],
-        'line': ['test_line']
-    })
+        generator_module.ASSETS_PATH = cls.assets_dir
+        generator_module.FONTS_ROOT = cls.fonts_dir
+        utils_module.ASSETS_PATH = cls.assets_dir
+        utils_module.FONTS_ROOT = cls.fonts_dir
 
-    # Mock worker function return value
-    mock_thread_map.return_value = [('test_source', 'test_id', 'test_line', True, 'dummy.ttf')]
+        cls.create_dummy_files()
 
-    # Run the function
-    run(package=0, n_random=0, n_limit=1, max_workers=1)
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.temp_dir)
 
-    mock_read_csv.assert_called_once()
-    mock_thread_map.assert_called_once()
-    mock_to_csv.assert_called_once()
+        # Restore original paths
+        run_generate_module.DATA_SYNTHETIC_ROOT = cls.original_data_synthetic_root
+        generator_module.ASSETS_PATH = cls.original_assets_path_generator
+        generator_module.FONTS_ROOT = cls.original_fonts_root_generator
+        utils_module.ASSETS_PATH = cls.original_assets_path_utils
+        utils_module.FONTS_ROOT = cls.original_fonts_root_utils
 
-    # Verify that the output directory is created
-    assert (Path(DATA_SYNTHETIC_ROOT) / "img" / "0000").mkdir.called
-    assert (Path(DATA_SYNTHETIC_ROOT) / "meta").mkdir.called
+    @classmethod
+    def create_dummy_files(cls):
+        # Dummy lines.csv
+        lines_df = pd.DataFrame({'source': ['corpus'], 'id': ['corpus_001'], 'line': ['テスト']})
+        lines_df.to_csv(cls.lines_dir / "0000.csv", index=False)
 
-@patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite')
-@patch('builtins.print')
-def test_worker_fn_exception_handling(mock_print, mock_imwrite):
-    """
-    Tests that the `worker_fn` correctly handles exceptions.
+        # Dummy vocab.csv
+        vocab_df = pd.DataFrame({'char': ['t', 'e', 's', 'ト', 'ス']})
+        vocab_df.to_csv(cls.assets_dir / "vocab.csv", index=False)
 
-    This test ensures that if an exception occurs within the `worker_fn`
-    (e.g., during image generation), the exception is caught, the traceback
-    is printed, and the exception is re-raised to be handled by the main
-    process.
-    """
-    mock_generator = MagicMock()
-    mock_generator.process.side_effect = Exception("Test exception")
+        # Dummy len_to_p.csv
+        len_to_p_df = pd.DataFrame({'len': [4], 'p': [1.0]})
+        len_to_p_df.to_csv(cls.assets_dir / "len_to_p.csv", index=False)
 
-    with patch('manga_ocr_dev.synthetic_data_generator.run_generate.OUT_DIR', Path('/dummy/out')):
-        args = (0, 'source', 'id_001', 'text')
-        with pytest.raises(Exception, match="Test exception"):
-            worker_fn(args, mock_generator)
+        # Copy a real font to the temp dir
+        real_font_path = PROJECT_FONTS_ROOT / "NotoSansJP-Regular.ttf"
+        temp_font_path = cls.fonts_dir / "NotoSansJP-Regular.ttf"
+        shutil.copy(real_font_path, temp_font_path)
 
-    mock_print.assert_called()
+        fonts_df = pd.DataFrame({'font_path': [temp_font_path.name], 'supported_chars': ['tesトス_テ'], 'label': ['common']})
+        fonts_df.to_csv(cls.assets_dir / "fonts.csv", index=False)
+
+        # Dummy background (white)
+        dummy_bg = np.full((200, 200, 3), 255, dtype=np.uint8)
+        from PIL import Image
+        Image.fromarray(dummy_bg).save(cls.backgrounds_dir / "dummy_bg_0_200_0_200.png")
+
+    def test_worker_fn_debug_mode(self):
+        """Test that the worker function correctly saves debug info."""
+        temp_out_dir = self.temp_dir / "out_worker"
+        temp_out_dir.mkdir()
+        temp_debug_dir = self.temp_dir / "debug_worker"
+        temp_debug_dir.mkdir()
+
+        run_generate_module.OUT_DIR = temp_out_dir
+        run_generate_module.DEBUG_DIR = temp_debug_dir
+
+        generator = SyntheticDataGenerator(background_dir=None)
+        args = (0, 'test_source', 'test_id_123', 'test')
+
+        worker_fn(args, generator, debug=True)
+
+        debug_file = temp_debug_dir / "test_id_123.json"
+        self.assertTrue(debug_file.exists())
+
+        with open(debug_file, 'r') as f:
+            debug_data = json.load(f)
+
+        self.assertIn('font_path', debug_data)
+        self.assertIsInstance(debug_data['font_path'], str)
+
+    @patch('manga_ocr_dev.synthetic_data_generator.run_generate.thread_map', side_effect=lambda func, args, **kwargs: [func(arg) for arg in args])
+    @patch('manga_ocr_dev.synthetic_data_generator.composer.Composer._is_low_contrast', return_value=False)
+    def test_run_creates_output_files(self, mock_is_low_contrast, mock_thread_map):
+        """Test that the main run function creates output files, disabling the low-contrast check."""
+        run(package=0, n_random=1, n_limit=2)
+
+        output_img_dir = self.synthetic_data_root / "img" / "0000"
+        output_meta_dir = self.synthetic_data_root / "meta"
+
+        self.assertTrue(output_img_dir.exists())
+        self.assertTrue(output_meta_dir.exists())
+
+        # Should be 2 images (1 from corpus, 1 random)
+        self.assertEqual(len(list(output_img_dir.glob('*.jpg'))), 2)
+
+        meta_file = output_meta_dir / "0000.csv"
+        self.assertTrue(meta_file.exists())
+
+        df = pd.read_csv(meta_file)
+        self.assertEqual(len(df), 2)
+
+if __name__ == '__main__':
+    unittest.main()

@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 import albumentations as A
 
-from manga_ocr_dev.synthetic_data_generator_v2.utils import get_background_df
+from manga_ocr_dev.synthetic_data_generator.utils import get_background_df
 
 
 class Composer:

@@ -1,112 +1,147 @@
-"""Tests for the synthetic data generator's utility functions.
-
-This module contains unit tests for the helper functions used in the synthetic
-data generation pipeline. It covers character type checking, asset loading,
-and metadata processing.
-"""
-
-import pandas as pd
-import pytest
-from unittest.mock import patch, MagicMock
+import unittest
+import tempfile
+import shutil
 from pathlib import Path
 
-from manga_ocr_dev.synthetic_data_generator.utils import (
-    get_background_df,
-    is_kanji,
-    is_hiragana,
-    is_katakana,
-    is_ascii,
-    get_charsets,
-    get_font_meta,
-)
+import pandas as pd
 
-def test_is_kanji():
-    """Tests the `is_kanji` function for correct character identification."""
-    assert is_kanji('日')
-    assert not is_kanji('a')
-    assert not is_kanji('あ')
-    assert not is_kanji('ア')
-    assert not is_kanji('1')
-    assert not is_kanji('')
-    assert not is_kanji('日本')
 
-def test_is_hiragana():
-    """Tests the `is_hiragana` function for correct character identification."""
-    assert is_hiragana('あ')
-    assert not is_hiragana('a')
-    assert not is_hiragana('日')
-    assert not is_hiragana('ア')
-    assert not is_hiragana('1')
-    assert not is_hiragana('')
-    assert not is_hiragana('あいう')
+from unittest.mock import patch
+import numpy as np
 
-def test_is_katakana():
-    """Tests the `is_katakana` function for correct character identification."""
-    assert is_katakana('ア')
-    assert not is_katakana('a')
-    assert not is_katakana('日')
-    assert not is_katakana('あ')
-    assert not is_katakana('1')
-    assert not is_katakana('')
-    assert not is_katakana('アイウ')
+from manga_ocr_dev.synthetic_data_generator.utils import get_background_df, is_kanji, is_hiragana, is_katakana, is_ascii, get_charsets, get_font_meta
 
-def test_is_ascii():
-    """Tests the `is_ascii` function for correct character identification."""
-    assert is_ascii('a')
-    assert is_ascii('1')
-    assert is_ascii('!')
-    assert not is_ascii('日')
-    assert not is_ascii('あ')
-    assert not is_ascii('ア')
-    assert not is_ascii('')
-    assert not is_ascii('ab')
 
-def test_get_background_df(tmp_path):
-    """Tests the `get_background_df` function for correct parsing of filenames."""
-    # Create dummy background files
-    (tmp_path / "bg1_0_100_0_100.png").touch()
-    (tmp_path / "bg2_50_150_50_150.png").touch()
+@patch('manga_ocr_dev.synthetic_data_generator.utils.ASSETS_PATH')
+class TestAssetLoadingFunctions(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = Path(tempfile.mkdtemp())
 
-    df = get_background_df(tmp_path)
+        # Create dummy vocab.csv
+        self.vocab_path = self.temp_dir / "vocab.csv"
+        vocab_content = "char\n猫\nあ\nア\nA"
+        with open(self.vocab_path, "w", encoding="utf-8") as f:
+            f.write(vocab_content)
 
-    assert isinstance(df, pd.DataFrame)
-    assert len(df) == 2
-    assert 'path' in df.columns
-    assert 'h' in df.columns
-    assert 'w' in df.columns
-    assert 'ratio' in df.columns
-    assert df.h.iloc[0] == 100
-    assert df.w.iloc[0] == 100
+        # Create dummy fonts.csv
+        self.fonts_csv_path = self.temp_dir / "fonts.csv"
+        fonts_content = "font_path,supported_chars\nfont1.ttf,猫あ\nfont2.otf,Aア"
+        with open(self.fonts_csv_path, "w", encoding="utf-8") as f:
+            f.write(fonts_content)
 
-@patch('manga_ocr_dev.synthetic_data_generator.utils.pd.read_csv')
-def test_get_charsets(mock_read_csv):
-    """Tests the `get_charsets` function for correct character categorization."""
-    mock_read_csv.return_value = pd.DataFrame({'char': ['日', 'あ', 'ア', 'a']})
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
 
-    with patch('manga_ocr_dev.synthetic_data_generator.utils.is_hiragana', side_effect=lambda c: c == 'あ'), \
-         patch('manga_ocr_dev.synthetic_data_generator.utils.is_katakana', side_effect=lambda c: c == 'ア'):
-        vocab, hiragana, katakana = get_charsets()
+    def test_get_charsets(self, mock_assets_path):
+        """Test that get_charsets correctly loads and categorizes characters."""
+        mock_assets_path.__truediv__.return_value = self.vocab_path
 
-    assert '日' in vocab
-    assert 'あ' in hiragana
-    assert 'ア' in katakana
+        vocab, hiragana, katakana = get_charsets(vocab_path=self.vocab_path)
 
-@patch('manga_ocr_dev.synthetic_data_generator.utils.pd.read_csv')
-def test_get_font_meta(mock_read_csv):
-    """Tests the `get_font_meta` function for correct metadata loading."""
-    mock_df = pd.DataFrame({
-        'font_path': ['font1.ttf', 'font2.ttf'],
-        'supported_chars': ['abc', 'def'],
-        'label': ['regular', 'common'],
-        'num_chars': [3, 3]
-    })
-    mock_read_csv.return_value = mock_df
+        self.assertTrue(np.array_equal(vocab, ['猫', 'あ', 'ア', 'A']))
+        self.assertTrue(np.array_equal(hiragana, ['あ']))
+        self.assertTrue(np.array_equal(katakana, ['ア']))
 
-    df, font_map = get_font_meta()
+    @patch('manga_ocr_dev.synthetic_data_generator.utils.FONTS_ROOT', new_callable=lambda: Path('/fake/fonts'))
+    def test_get_font_meta(self, mock_fonts_root, mock_assets_path):
+        """Test that get_font_meta correctly loads font metadata and creates a font map."""
+        mock_assets_path.__truediv__.return_value = self.fonts_csv_path
 
-    assert isinstance(df, pd.DataFrame)
-    assert 'font_path' in df.columns
-    assert isinstance(font_map, dict)
-    assert len(font_map) == 2
-    assert 'font1.ttf' in df.font_path.iloc[0]
-    assert 'a' in list(font_map.values())[0]
+        df, font_map = get_font_meta()
+
+        self.assertEqual(len(df), 2)
+        self.assertIn('/fake/fonts/font1.ttf', df['font_path'].values)
+
+        expected_map = {
+            str(Path('/fake/fonts/font1.ttf')): {'猫', 'あ'},
+            str(Path('/fake/fonts/font2.otf')): {'A', 'ア'}
+        }
+        self.assertEqual(font_map, expected_map)
+
+
+class TestCharTypeFunctions(unittest.TestCase):
+    def test_is_kanji(self):
+        self.assertTrue(is_kanji("猫"))
+        self.assertFalse(is_kanji("A"))
+        self.assertFalse(is_kanji("あ"))
+        self.assertFalse(is_kanji("ア"))
+        self.assertFalse(is_kanji("猫猫"))
+        self.assertFalse(is_kanji(""))
+        self.assertFalse(is_kanji(None))
+        self.assertFalse(is_kanji(123))
+
+    def test_is_hiragana(self):
+        self.assertTrue(is_hiragana("あ"))
+        self.assertFalse(is_hiragana("A"))
+        self.assertFalse(is_hiragana("猫"))
+        self.assertFalse(is_hiragana("ア"))
+        self.assertFalse(is_hiragana("ああ"))
+        self.assertFalse(is_hiragana(""))
+        self.assertFalse(is_hiragana(None))
+        self.assertFalse(is_hiragana(123))
+
+    def test_is_katakana(self):
+        self.assertTrue(is_katakana("ア"))
+        self.assertFalse(is_katakana("A"))
+        self.assertFalse(is_katakana("猫"))
+        self.assertFalse(is_katakana("あ"))
+        self.assertFalse(is_katakana("アア"))
+        self.assertFalse(is_katakana(""))
+        self.assertFalse(is_katakana(None))
+        self.assertFalse(is_katakana(123))
+
+    def test_is_ascii(self):
+        self.assertTrue(is_ascii("A"))
+        self.assertTrue(is_ascii("!"))
+        self.assertTrue(is_ascii("7"))
+        self.assertFalse(is_ascii("猫"))
+        self.assertFalse(is_ascii("あ"))
+        self.assertFalse(is_ascii("ア"))
+        self.assertFalse(is_ascii("AA"))
+        self.assertFalse(is_ascii(""))
+        self.assertFalse(is_ascii(None))
+        self.assertFalse(is_ascii(123))
+
+
+class TestGetBackgroundDf(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = Path(tempfile.mkdtemp())
+        # Create dummy files with valid and invalid names
+        (self.temp_dir / "valid_bg_0_100_50_200.png").touch()
+        (self.temp_dir / "another_valid_bg_10_20_30_40.txt").touch()
+        (self.temp_dir / "invalid_bg.png").touch()
+        (self.temp_dir / "invalid_bg_1_2_3.jpg").touch()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_parses_valid_filenames_and_skips_invalid(self):
+        """Test that get_background_df correctly parses valid filenames and skips invalid ones."""
+        df = get_background_df(self.temp_dir)
+
+        # Should only have 2 entries for the valid filenames
+        self.assertEqual(len(df), 2)
+        self.assertIsInstance(df, pd.DataFrame)
+
+        # Verify the data for the first valid file
+        record1 = df[df['path'].str.contains("valid_bg_0_100_50_200")]
+        self.assertEqual(record1.iloc[0]['h'], 100)  # ymax - ymin = 100 - 0
+        self.assertEqual(record1.iloc[0]['w'], 150)  # xmax - xmin = 200 - 50
+        self.assertEqual(record1.iloc[0]['ratio'], 1.5) # w / h = 150 / 100
+
+        # Verify the data for the second valid file
+        record2 = df[df['path'].str.contains("another_valid_bg_10_20_30_40")]
+        self.assertEqual(record2.iloc[0]['h'], 10) # ymax - ymin = 20 - 10
+        self.assertEqual(record2.iloc[0]['w'], 10) # xmax - xmin = 40 - 30
+        self.assertEqual(record2.iloc[0]['ratio'], 1.0) # w / h = 10 / 10
+
+    def test_empty_directory(self):
+        """Test that get_background_df returns an empty DataFrame for an empty directory."""
+        empty_dir = self.temp_dir / "empty"
+        empty_dir.mkdir()
+        df = get_background_df(empty_dir)
+        self.assertTrue(df.empty)
+
+
+if __name__ == '__main__':
+    unittest.main()
