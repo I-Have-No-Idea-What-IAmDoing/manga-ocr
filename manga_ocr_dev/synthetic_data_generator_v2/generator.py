@@ -99,12 +99,12 @@ class SyntheticDataGeneratorV2:
 
         # Bias text color towards black or white for better contrast, which is
         # common in manga.
-        if np.random.rand() < 0.5:
-            # Dark extreme (0-40)
-            gray_value = np.random.randint(0, 41)
+        if np.random.rand() < 0.3:
+            # Dark extreme (0-30)
+            gray_value = np.random.randint(0, 30)
         else:
-            # Light extreme (215-255)
-            gray_value = np.random.randint(215, 256)
+            # Light extreme (225-255)
+            gray_value = np.random.randint(225, 256)
 
         params['color'] = f'#{gray_value:02x}{gray_value:02x}{gray_value:02x}'
 

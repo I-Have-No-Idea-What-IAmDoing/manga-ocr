@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 from tqdm.contrib.concurrent import thread_map
 
-from manga_ocr_dev.env import DATA_SYNTHETIC_ROOT
+from manga_ocr_dev.env import DATA_SYNTHETIC_ROOT, BACKGROUND_DIR
 from manga_ocr_dev.synthetic_data_generator_v2.generator import SyntheticDataGeneratorV2
 
 OUT_DIR = None
@@ -169,7 +169,7 @@ def run(
         DEBUG_DIR = Path(DATA_SYNTHETIC_ROOT) / "debug_v2" / package_id
         DEBUG_DIR.mkdir(parents=True, exist_ok=True)
 
-    background_dir = Path(DATA_SYNTHETIC_ROOT) / "backgrounds"
+    background_dir = Path(BACKGROUND_DIR)
     generator = SyntheticDataGeneratorV2(
         background_dir=background_dir,
         min_font_size=min_font_size,

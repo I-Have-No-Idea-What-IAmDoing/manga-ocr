@@ -8,7 +8,7 @@ final crop to ensure the text is well-positioned and legible.
 """
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 import albumentations as A
 import cv2
 
@@ -66,11 +66,18 @@ class Composer:
         bubble = Image.new('RGBA', (width + padding * 2, height + padding * 2), (255, 255, 255, 0))
         draw = ImageDraw.Draw(bubble)
 
+        if np.random.rand() > 0.8: 
+            fill = (255, 255, 255, 255) 
+            outline = 'black'
+        else:
+            fill = (0, 0, 0, 255)
+            outline = 'white'
+            
         draw.rounded_rectangle(
             (0, 0, width + padding * 2 - 1, height + padding * 2 - 1),
             radius=radius,
-            fill=(255, 255, 255, 255),
-            outline='black',
+            fill=fill,
+            outline=outline,
             width=3
         )
         return bubble
@@ -113,6 +120,11 @@ class Composer:
         else:
             composed_image = text_image
 
+        # Discard the sample if the rendered text is too small to be legible.
+        min_text_height = 20 # pixels
+        if composed_image.height < min_text_height:
+            return None # Discard sample if text is too small
+
         # If no backgrounds are provided, return the composed image as is,
         # optionally resizing it to the target size.
         if self.background_df.empty:
@@ -141,31 +153,23 @@ class Composer:
             ),
             A.Blur(blur_limit=(3, 5), p=0.3),
         ]
-
         background_np = A.Compose(background_transforms)(image=background_np)["image"]
         background = Image.fromarray(background_np).convert("RGBA")
 
-        # Dynamically scale the text overlay to be a random fraction of the
-        # background's width, helping to create varied compositions.
-        scale_factor = np.random.uniform(0.5, 1.0) # Less aggressive scaling
-        target_width = int(background.width * scale_factor)
+        print("asfd: ", background.size, composed_image.size, background.size <= composed_image.size)
 
-        w, h = composed_image.size
-        aspect_ratio = h / w if w > 0 else 0
-        target_height = int(target_width * aspect_ratio)
+        if background.size <= composed_image.size:
+            # Dynamically scale the background to be at least a random fraction of the
+            # text's width, helping to create varied compositions.
+            
+            scale_factor = np.random.uniform(1.1, 2.9) # Less aggressive scaling
+            
+            # Get smallest side of the text image then multiply it by some scaling factor to
+            # get a good size for the background
+            target_size = int(min(composed_image.width, composed_image.height) * scale_factor)
 
-        # Ensure the scaled image does not exceed the background's height.
-        if target_height > background.height * 0.9:
-            target_height = int(background.height * 0.9)
-            target_width = int(target_height / aspect_ratio) if aspect_ratio > 0 else 0
-
-        if target_width > 0 and target_height > 0:
-            composed_image = composed_image.resize((target_width, target_height), Image.Resampling.LANCZOS)
-
-        # Discard the sample if the rendered text is too small to be legible.
-        min_text_height = 20 # pixels
-        if composed_image.height < min_text_height:
-            return None # Discard sample if text is too small
+            if target_size > 0 and target_size < 5:
+                background = ImageOps.scale(background, target_size, Image.Resampling.LANCZOS)
 
         # Randomly determine the position to paste the text overlay.
         x_offset = np.random.randint(0, background.width - composed_image.width + 1)
