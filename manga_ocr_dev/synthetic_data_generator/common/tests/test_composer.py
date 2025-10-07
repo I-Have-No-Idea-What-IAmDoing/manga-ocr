@@ -11,7 +11,7 @@ from PIL import Image
 project_root = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(project_root))
 
-from manga_ocr_dev.synthetic_data_generator_v2.composer import Composer
+from manga_ocr_dev.synthetic_data_generator.common.composer import Composer
 
 
 class TestComposer(unittest.TestCase):
@@ -67,7 +67,7 @@ class TestComposer(unittest.TestCase):
         composer = Composer(self.backgrounds_dir)
         final_image = composer(self.dummy_text_image, {})
         self.assertIsInstance(final_image, np.ndarray)
-        self.assertEqual(final_image.ndim, 3)
+        self.assertEqual(final_image.ndim, 2)
 
     @patch('numpy.random.randint')
     def test_dynamic_scaling(self, mock_randint):
@@ -121,7 +121,8 @@ class TestComposer(unittest.TestCase):
         self.assertIsNone(composer(None, {}))
         self.assertIsNone(composer(np.array([]), {}))
 
-    def test_rejection_of_small_text(self):
+    @patch('numpy.random.rand', return_value=0.8) # Ensure no bubble is drawn
+    def test_rejection_of_small_text(self, mock_rand):
         """Test that text images smaller than the minimum height are rejected."""
         composer = Composer(self.backgrounds_dir)
         small_text_image = np.zeros((5, 5, 4), dtype=np.uint8)

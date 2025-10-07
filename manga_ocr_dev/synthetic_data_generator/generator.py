@@ -8,22 +8,19 @@ mimics the appearance of text in manga.
 """
 
 from pathlib import Path
-
-import budoux
 import numpy as np
-import pandas as pd
 
-from manga_ocr_dev.env import ASSETS_PATH, FONTS_ROOT
+from manga_ocr_dev.env import FONTS_ROOT
+from manga_ocr_dev.synthetic_data_generator.common.base_generator import BaseDataGenerator
+from manga_ocr_dev.synthetic_data_generator.common.composer import Composer
 from manga_ocr_dev.synthetic_data_generator.renderer import Renderer
-from manga_ocr_dev.synthetic_data_generator.utils import (
-    get_charsets,
-    get_font_meta,
+from manga_ocr_dev.synthetic_data_generator.common.utils import (
     is_ascii,
     is_kanji,
 )
 
 
-class SyntheticDataGenerator:
+class SyntheticDataGenerator(BaseDataGenerator):
     """Generates synthetic manga-style text images and their transcriptions.
 
     This class orchestrates the process of creating synthetic data. It can
@@ -32,73 +29,53 @@ class SyntheticDataGenerator:
     to mimic the appearance of text in manga.
 
     Attributes:
-        vocab (set[str]): The set of all characters supported by the generator.
-        hiragana (set[str]): A subset of `vocab` containing hiragana characters.
-        katakana (set[str]): A subset of `vocab` containing katakana characters.
-        len_to_p (pd.DataFrame): A DataFrame defining the probability
-            distribution of text lengths, used for generating random text.
-        parser (budoux.Parser): A parser for splitting Japanese text into
-            semantically coherent chunks.
-        fonts_df (pd.DataFrame): A DataFrame with metadata about available fonts.
-        font_map (dict[str, set[str]]): A mapping from font paths to the set of
-            characters each font supports.
-        font_labels (list[str]): A list of font categories ('common', 'special',
-            etc.) used for weighted sampling.
-        font_p (np.ndarray): An array of sampling probabilities corresponding
-            to `font_labels`.
         renderer (Renderer): The renderer instance used to create images from
             text.
+        composer (Composer): The composer instance for background composition.
     """
 
-    def __init__(self, renderer=None):
+    def __init__(self, background_dir=None, target_size=None, min_output_size=None, renderer=None):
         """Initializes the SyntheticDataGenerator.
 
-        This involves loading all necessary assets for data generation,
-        including character sets from `vocab.csv`, font metadata from
-        `fonts.csv`, and the BudouX text parser.
+        This involves loading all necessary assets for data generation.
 
         Args:
+            background_dir (str or Path, optional): Path to the directory
+                containing background images.
+            target_size (tuple[int, int], optional): The final output size
+                (width, height) for the composed image.
+            min_output_size (int, optional): The minimum size for the smallest
+                dimension of the composed image.
             renderer (Renderer, optional): An instance of the `Renderer` class.
-                If not provided, a new `Renderer` instance will be created with
-                default settings.
         """
-        self.vocab, self.hiragana, self.katakana = get_charsets()
-        self.len_to_p = pd.read_csv(ASSETS_PATH / "len_to_p.csv")
-        self.parser = budoux.load_default_japanese_parser()
-        self.fonts_df, self.font_map = get_font_meta()
-        self.font_labels, self.font_p = self.get_font_labels_prob()
+        super().__init__()
         self.renderer = renderer if renderer else Renderer()
+        if background_dir:
+            self.composer = Composer(background_dir, target_size=target_size, min_output_size=min_output_size)
+        else:
+            self.composer = None
 
     def process(self, text=None, override_css_params=None):
         """Generates a single synthetic image-text pair.
 
-        This is the main method for generating a data sample. It can either
-        use a provided source text or generate random Japanese text. It then
-        renders the text into an image with randomized styling, including a
-        randomly selected font, and returns the image, the ground truth text,
-        and the rendering parameters.
+        This method generates random text (if not provided), renders it to an
+        image with randomized styling, and then composes it with a background.
 
         Args:
-            text (str, optional): The source text to render. If None, random
-                text will be generated. Defaults to None.
+            text (str, optional): The source text to render.
             override_css_params (dict, optional): A dictionary of CSS
-                parameters to override the default randomized styles, allowing
-                for more control over the output. Defaults to None.
+                parameters to override the default randomized styles.
 
         Returns:
             A tuple containing:
                 - np.ndarray: The rendered image as a NumPy array.
-                - str: The ground truth text, which may have been modified
-                  (e.g., unsupported characters removed).
+                - str: The ground truth text.
                 - dict: A dictionary of the CSS parameters used for rendering.
         """
-
         if override_css_params is None:
             override_css_params = {}
 
         if text is None:
-            # If using random text, choose font first, then generate text
-            # using only characters supported by that font.
             if "font_path" not in override_css_params:
                 font_path = self.get_random_font()
                 vocab = self.font_map[font_path]
@@ -106,12 +83,9 @@ class SyntheticDataGenerator:
             else:
                 font_path = override_css_params["font_path"]
                 vocab = self.font_map[font_path]
-
             words = self.get_random_words(vocab)
-
         else:
-            text = text.replace("　", " ")
-            text = text.replace("…", "...")
+            text = text.replace("　", " ").replace("…", "...")
             words = self.split_into_words(text)
 
         lines = self.words_to_lines(words)
@@ -134,7 +108,6 @@ class SyntheticDataGenerator:
             vocab = None
 
         if not text_gt.strip():
-            # Return empty image if no text is left after filtering
             img, params = self.renderer.render([], override_css_params)
             return img, "", params
 
@@ -143,128 +116,25 @@ class SyntheticDataGenerator:
             if lines:
                 lines = [self.add_random_furigana(line, word_prob, vocab) for line in lines]
 
-        # Resolve font path to absolute for renderer
+        relative_font_path = None
         if "font_path" in override_css_params:
-            override_css_params["font_path"] = str(
-                Path(FONTS_ROOT) / override_css_params["font_path"]
-            )
+            relative_font_path = override_css_params["font_path"]
+            override_css_params["font_path"] = str(Path(FONTS_ROOT) / override_css_params["font_path"])
 
         img, params = self.renderer.render(lines, override_css_params)
 
-        # Return relative font path in params
-        if "font_path" in params:
-            params["font_path"] = font_path
+        if relative_font_path:
+            params["font_path"] = relative_font_path
+
+        if self.composer:
+            if 'text_color' in params:
+                params['color'] = params['text_color']
+            img = self.composer(img, params)
 
         return img, text_gt, params
 
-    def get_random_words(self, vocab):
-        """Generates a list of random words from a given character set.
-
-        The total length of the generated text is determined by a probability
-        distribution of text lengths, which is loaded from `len_to_p.csv`.
-
-        Args:
-            vocab (list or set): A collection of characters to use for
-                generating the words.
-
-        Returns:
-            A list of randomly generated words.
-        """
-        vocab = list(vocab)
-        max_text_len = np.random.choice(self.len_to_p["len"], p=self.len_to_p["p"])
-
-        words = []
-        text_len = 0
-        while True:
-            word = "".join(np.random.choice(vocab, np.random.randint(1, 4)))
-            words.append(word)
-            text_len += len(word)
-            if text_len >= max_text_len:
-                break
-
-        return words
-
-    def split_into_words(self, text):
-        """Splits a given text into a list of words using the BudouX parser.
-
-        The function also truncates the text to a random length, which is
-        determined by a predefined probability distribution, to create more
-        varied and realistic training samples.
-
-        Args:
-            text (str): The input text to be split and truncated.
-
-        Returns:
-            A list of words from the truncated text.
-        """
-        max_text_len = np.random.choice(self.len_to_p["len"], p=self.len_to_p["p"])
-
-        words = []
-        text_len = 0
-        for word in self.parser.parse(text):
-            words.append(word)
-            text_len += len(word)
-            if text_len >= max_text_len:
-                break
-
-        return words
-
-    def words_to_lines(self, words):
-        """Converts a list of words into a list of lines for rendering.
-
-        This function concatenates a list of words into a single string and
-        then splits it into lines of a randomized maximum length. This helps
-        to simulate the line breaks found in manga text bubbles.
-
-        Args:
-            words (list[str]): A list of words to be formatted into lines.
-
-        Returns:
-            A list of strings, where each string is a line of text.
-        """
-        text = "".join(words)
-
-        max_num_lines = 10
-        min_line_len = len(text) // max_num_lines if text else 0
-        max_line_len = 20
-        if min_line_len > max_line_len:
-            max_line_len = min_line_len + 5
-        max_line_len = np.clip(np.random.poisson(10), min_line_len, max_line_len)
-
-        lines = []
-        current_line = ""
-        for word in words:
-            if len(current_line) + len(word) > max_line_len:
-                if current_line:
-                    lines.append(current_line)
-                current_line = word
-            else:
-                current_line += word
-        if current_line:
-            lines.append(current_line)
-
-        return lines
-
     def add_random_furigana(self, line, word_prob=1.0, vocab=None):
-        """Adds random furigana to kanji characters in a line of text.
-
-        This function processes a line of text, identifies groups of kanji,
-        and with a given probability, adds furigana (ruby text) to them using
-        HTML-like `<ruby>` tags. It also handles the combination of short ASCII
-        character sequences into a single block, a common typesetting practice.
-
-        Args:
-            line (str): The input line of text.
-            word_prob (float, optional): The probability of adding furigana to
-                any given group of kanji. Defaults to 1.0.
-            vocab (list or set, optional): The vocabulary to use for
-                generating furigana characters. If None, the generator's
-                default vocabulary is used. Defaults to None.
-
-        Returns:
-            The processed line with HTML-like tags for furigana and other
-            styling, ready for rendering.
-        """
+        """Adds random furigana to kanji characters in a line of text for HTML rendering."""
         if vocab is None:
             vocab = self.vocab
 
@@ -272,34 +142,22 @@ class SyntheticDataGenerator:
             if not group:
                 return ""
             if np.random.uniform() < word_prob:
-                furigana_len = int(
-                    np.clip(np.random.normal(1.5, 0.5), 1, 4) * len(group)
-                )
-                char_source = np.random.choice(
-                    ["hiragana", "katakana", "all"], p=[0.8, 0.15, 0.05]
-                )
-                char_source = {
-                    "hiragana": self.hiragana,
-                    "katakana": self.katakana,
-                    "all": vocab,
-                }[char_source]
+                furigana_len = int(np.clip(np.random.normal(1.5, 0.5), 1, 4) * len(group))
+                char_source_map = {"hiragana": self.hiragana, "katakana": self.katakana, "all": vocab}
+                char_source_key = np.random.choice(["hiragana", "katakana", "all"], p=[0.8, 0.15, 0.05])
+                char_source = char_source_map[char_source_key]
                 furigana = "".join(np.random.choice(list(char_source), furigana_len))
                 return f"<ruby>{group}<rt>{furigana}</rt></ruby>"
-            else:
-                return group
+            return group
 
         def flush_ascii_group(group):
             if not group:
                 return ""
             if len(group) <= 3 and np.random.uniform() < 0.7:
                 return f'<span style="text-combine-upright: all">{group}</span>'
-            else:
-                return group
+            return group
 
-        processed = ""
-        kanji_group = ""
-        ascii_group = ""
-
+        processed, kanji_group, ascii_group = "", "", ""
         for c in line:
             if is_kanji(c):
                 if ascii_group:
@@ -326,93 +184,3 @@ class SyntheticDataGenerator:
             processed += flush_ascii_group(ascii_group)
 
         return processed
-
-    def is_font_supporting_text(self, font_path, text):
-        """Checks if a given font supports all characters in a text.
-
-        Args:
-            font_path (str): The path to the font file, relative to `FONTS_ROOT`.
-            text (str): The text to check for character support.
-
-        Returns:
-            True if the font supports all characters in the text, False
-            otherwise.
-        """
-        chars = self.font_map[font_path]
-        for c in text:
-            if c.isspace():
-                continue
-            if c not in chars:
-                return False
-        return True
-
-    def get_font_labels_prob(self):
-        """Gets font labels and their sampling probabilities from metadata.
-
-        The probabilities are based on predefined weights for 'common',
-        'regular', and 'special' font labels, which allows for controlling
-        the frequency of different font types in the generated data.
-
-        Returns:
-            A tuple containing:
-                - list[str]: A list of unique font labels.
-                - np.ndarray: A NumPy array of corresponding sampling
-                  probabilities.
-        """
-        labels = {
-            "common": 0.2,
-            "regular": 0.75,
-            "special": 0.05,
-        }
-        labels = {k: labels[k] for k in self.fonts_df.label.unique()}
-        p = np.array(list(labels.values()))
-        p = p / p.sum()
-        labels = list(labels.keys())
-        return labels, p
-
-    def get_random_font(self, text=None):
-        """Selects a random font, optionally ensuring support for a given text.
-
-        If text is provided, this method attempts to select a font that
-        supports all characters in the text. If no such font is found, it
-        falls back to selecting from a pool of fonts that have a large number
-        of supported characters (>= 4000).
-
-        Args:
-            text (str, optional): The text for which to find a supporting
-                font. If None, a random font is selected without checking for
-                character support. Defaults to None.
-
-        Returns:
-            The path to the selected font file.
-        """
-        label = np.random.choice(self.font_labels, p=self.font_p)
-        df = self.fonts_df[self.fonts_df.label == label]
-        if text is None:
-            return df.sample(1).iloc[0].font_path
-        valid_mask = df.font_path.apply(lambda x: self.is_font_supporting_text(x, text))
-        if not valid_mask.any():
-            # If text has chars not supported by any font, try again with all fonts
-            valid_mask = self.fonts_df.font_path.apply(
-                lambda x: self.is_font_supporting_text(x, text)
-            )
-            df = self.fonts_df
-            if not valid_mask.any():
-                unsupported_chars = {
-                    c for c in text if not self.is_char_supported_by_any_font(c)
-                }
-                raise ValueError(
-                    f"Text contains unsupported characters: {''.join(unsupported_chars)}"
-                )
-        return df[valid_mask].sample(1).iloc[0].font_path
-
-    def is_char_supported_by_any_font(self, char):
-        """Checks if a character is supported by at least one font.
-
-        Args:
-            char (str): The character to check.
-
-        Returns:
-            True if the character is supported, False otherwise.
-        """
-        return any(char in font_chars for font_chars in self.font_map.values())

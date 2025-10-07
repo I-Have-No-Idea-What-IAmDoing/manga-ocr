@@ -21,7 +21,7 @@ and when parallelized, processing time is manageable (~17 min per 10000 images o
 
 The upside of this approach is that a quite complex problem of typesetting and text rendering
 (especially when dealing with both horizontal and vertical text) is offloaded to
-the browser engine, keeping the codebase relatively simple and extendable. 
+the browser engine, keeping the codebase relatively simple and extendable.
 
 High-level generation pipeline is as follows:
 1. Preprocess text (truncate and/or split into lines, add random furigana).
