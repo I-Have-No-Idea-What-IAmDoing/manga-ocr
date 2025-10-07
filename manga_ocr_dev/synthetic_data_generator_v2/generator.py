@@ -55,6 +55,9 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         params = {}
         params['vertical'] = np.random.choice([True, False], p=[0.8, 0.2])
         params['font_size'] = np.random.randint(self.min_font_size, self.max_font_size)
+        params['char_spacing'] = int(params['font_size'] * np.random.uniform(-0.1, 0.15))
+        params['line_spacing'] = int(params['font_size'] * np.random.uniform(0.1, 0.5))
+        params['rotation'] = np.random.uniform(-2.5, 2.5)
 
         if np.random.rand() > 0.25:
             gray_value = np.random.randint(0, 30)
@@ -62,7 +65,10 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
             gray_value = np.random.randint(225, 256)
         params['color'] = f'#{gray_value:02x}{gray_value:02x}{gray_value:02x}'
 
-        effect = np.random.choice(["stroke", "glow", "none"], p=[0.35, 0.15, 0.5])
+        effect = np.random.choice(
+            ["stroke", "glow", "none", "double_stroke", "multi_shadow"],
+            p=[0.30, 0.15, 0.35, 0.1, 0.1]
+        )
         params['effect'] = effect
 
         def get_random_hex_color():
@@ -76,6 +82,21 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
             params["shadow_blur"] = np.random.choice([2, 5, 10])
             params["shadow_color"] = get_random_hex_color()
             params['shadow_offset'] = (0, 0)
+        elif effect == "double_stroke":
+            params["stroke_width"] = np.random.choice([1, 2, 3])
+            params["stroke_color"] = get_random_hex_color()
+            params["stroke_width2"] = np.random.choice([3, 5, 7])
+            params["stroke_color2"] = get_random_hex_color()
+        elif effect == "multi_shadow":
+            num_shadows = np.random.randint(2, 4)
+            shadows = []
+            for _ in range(num_shadows):
+                offset_x = np.random.randint(-5, 6)
+                offset_y = np.random.randint(-5, 6)
+                blur = np.random.choice([2, 5, 8])
+                shadow_color = get_random_hex_color()
+                shadows.append(((offset_x, offset_y), blur, shadow_color))
+            params["shadows"] = shadows
         return params
 
     def process(self, text=None, override_params=None):
@@ -149,6 +170,9 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         font_size = params.get("font_size", 32)
         color = params.get("color", "black")
         vertical = params.get("vertical", False)
+        char_spacing = params.get("char_spacing", 0)
+        line_spacing = params.get("line_spacing", font_size // 4)
+        rotation = params.get("rotation", 0)
         effect = params.get("effect", "none")
 
         canvas = Canvas().font_family(str(font_path)).font_size(font_size).color(color)
@@ -170,6 +194,18 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
                     color=params.get("shadow_color", "black"),
                 )
                 component = component.text_shadows(shadow)
+            elif effect == "double_stroke":
+                component = component.text_stroke(
+                    width=params.get("stroke_width2", 5),
+                    color=params.get("stroke_color2", "white"),
+                ).text_stroke(
+                    width=params.get("stroke_width", 2),
+                    color=params.get("stroke_color", "black"),
+                )
+            elif effect == "multi_shadow":
+                shadows = [Shadow(offset=offset, blur_radius=blur, color=color) for offset, blur, color in params.get("shadows", [])]
+                if shadows:
+                    component = component.text_shadows(*shadows)
             return component
 
         def create_component(chunk):
@@ -181,18 +217,18 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
                 return Column(create_text_component(ruby, 0.5), create_text_component(base)).gap(0).horizontal_align("center")
             if type == 'tcy':
                 text, = args
-                return Row(*[create_text_component(c) for c in text]).gap(0).vertical_align("center") if vertical else create_text_component(text)
+                return Row(*[create_text_component(c) for c in text]).gap(char_spacing).vertical_align("center") if vertical else create_text_component(text)
             return Text("")
 
         if vertical:
             line_columns = []
             for line_chunks in lines_with_markup:
                 components = [comp for chunk in line_chunks for comp in ([create_text_component(c) for c in chunk] if isinstance(chunk, str) else [create_component(chunk)])]
-                line_columns.append(Column(*components).gap(0).horizontal_align("center"))
-            composed_element = Row(*line_columns[::-1]).gap(font_size // 2).vertical_align("top")
+                line_columns.append(Column(*components).gap(char_spacing).horizontal_align("center"))
+            composed_element = Row(*line_columns[::-1]).gap(line_spacing).vertical_align("top")
         else:
-            line_rows = [Row(*[create_component(chunk) for chunk in line_chunks]).gap(0).vertical_align("bottom") for line_chunks in lines_with_markup]
-            composed_element = Column(*line_rows).gap(font_size // 4).horizontal_align("left")
+            line_rows = [Row(*[create_component(chunk) for chunk in line_chunks]).gap(char_spacing).vertical_align("bottom") for line_chunks in lines_with_markup]
+            composed_element = Column(*line_rows).gap(line_spacing).horizontal_align("left")
 
-        image = canvas.render(composed_element)
+        image = canvas.render(composed_element.rotate(rotation))
         return image.to_numpy() if image else np.array([])

@@ -168,7 +168,7 @@ class Composer:
                     # contrast can make the bubble look unnatural.
                     p=0.5 if draw_bubble else 1
                 ),
-                A.Blur(blur_limit=(3, 5), p=0.3),
+                A.GaussianBlur(blur_limit=(3, 9), p=0.5),
             ]
             background_np = A.Compose(background_transforms)(image=background_np)["image"]
             background = Image.fromarray(background_np).convert("RGBA")
@@ -251,6 +251,10 @@ class Composer:
         # If a target size is specified, resize the final image.
         if self.target_size:
             final_img_np = A.Resize(height=self.target_size[1], width=self.target_size[0], interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
+
+        if np.random.rand() < 0.3:
+            quality = np.random.randint(40, 80)
+            final_img_np = A.ImageCompression(quality_lower=quality, quality_upper=quality, p=1.0)(image=final_img_np)['image']
 
         final_img_np = cv2.cvtColor(final_img_np, cv2.COLOR_RGB2GRAY)
         return final_img_np
