@@ -126,7 +126,7 @@ class Composer:
 
         text_image = Image.fromarray(text_image_np).convert("RGBA")
 
-        draw_bubble = np.random.rand() < 0.7
+        draw_bubble = np.random.rand() < 0.45
 
         if draw_bubble:
             bubble_padding = np.random.randint(15, 30)
