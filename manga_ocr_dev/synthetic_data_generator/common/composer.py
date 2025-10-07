@@ -81,10 +81,13 @@ class Composer:
         is_light_text = brightness > 382
 
         if is_light_text:
-            fill = (0, 0, 0, 255)
+            grayscale = np.random.randint(0, 15)
+             # Light text gets a dark bubble
+            fill = (grayscale, grayscale, grayscale, 255)
             outline = 'white'
         else:
-            fill = (255, 255, 255, 255)
+            grayscale = np.random.randint(245, 255)
+            fill = (grayscale, grayscale, grayscale, 255)
             outline = 'black'
 
         draw.rounded_rectangle(

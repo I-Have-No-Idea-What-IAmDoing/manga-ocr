@@ -56,13 +56,13 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         params['vertical'] = np.random.choice([True, False], p=[0.8, 0.2])
         params['font_size'] = np.random.randint(self.min_font_size, self.max_font_size)
 
-        if np.random.rand() < 0.3:
+        if np.random.rand() > 0.25:
             gray_value = np.random.randint(0, 30)
         else:
             gray_value = np.random.randint(225, 256)
         params['color'] = f'#{gray_value:02x}{gray_value:02x}{gray_value:02x}'
 
-        effect = np.random.choice(["stroke", "glow", "none"], p=[0.4, 0.15, 0.45])
+        effect = np.random.choice(["stroke", "glow", "none"], p=[0.35, 0.15, 0.5])
         params['effect'] = effect
 
         def get_random_hex_color():
