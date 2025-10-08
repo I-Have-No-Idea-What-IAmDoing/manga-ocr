@@ -108,5 +108,5 @@ def test_get_font_meta(mock_read_csv):
     assert 'font_path' in df.columns
     assert isinstance(font_map, dict)
     assert len(font_map) == 2
-    assert 'font1.ttf' in df.font_path.iloc[0]
+    assert 'font1.ttf' in str(df.font_path.iloc[0])
     assert 'a' in list(font_map.values())[0]

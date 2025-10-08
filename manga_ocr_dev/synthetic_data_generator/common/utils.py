@@ -34,6 +34,9 @@ def get_background_df(background_dir):
         background image.
     """
     background_df = []
+    if background_dir is None:
+        return pd.DataFrame(background_df)
+
     for path in Path(background_dir).iterdir():
         if not path.is_file():
             continue

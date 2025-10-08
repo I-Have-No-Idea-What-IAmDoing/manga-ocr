@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from typing import Optional
+from pathlib import Path
 
 from manga_ocr_dev.env import MANGA109_ROOT, DATA_SYNTHETIC_ROOT
 from manga_ocr_dev.training.config.schemas import DatasetConfig
@@ -67,9 +68,14 @@ class MangaDataset(Dataset):
 
         print(f"Initialized dataset with {len(self.data)} samples.")
 
-        self.transform_medium = build_augmentations(self.config.augmentations.medium)
-        self.transform_heavy = build_augmentations(self.config.augmentations.heavy)
-        self.aug_probs = self.config.augmentations.probabilities
+        if self.config.augmentations:
+            self.transform_medium = build_augmentations(self.config.augmentations.medium)
+            self.transform_heavy = build_augmentations(self.config.augmentations.heavy)
+            self.aug_probs = self.config.augmentations.probabilities
+        else:
+            self.transform_medium = None
+            self.transform_heavy = None
+            self.aug_probs = None
 
     def load_synthetic_data(self, packages=None, skip_packages=None):
         """Loads metadata for synthetic data from specified packages.

@@ -46,17 +46,20 @@ class TestComposer(unittest.TestCase):
         self.assertIsInstance(bubble, Image.Image)
         self.assertTrue(np.any(np.array(bubble)[:, :, 3] > 0))
 
-    def test_high_contrast_bubble(self):
+    @patch('manga_ocr_dev.synthetic_data_generator.common.composer.np.random.randint')
+    def test_high_contrast_bubble(self, mock_randint):
         """Test that the bubble color contrasts with the text color."""
         composer = Composer(self.backgrounds_dir)
 
         # Dark text should get a light bubble
+        mock_randint.return_value = 255
         bubble_for_dark_text = composer.draw_bubble(100, 50, text_color='#000000')
         bubble_array = np.array(bubble_for_dark_text)
         center_pixel_color = bubble_array[bubble_array.shape[0] // 2, bubble_array.shape[1] // 2]
         self.assertTrue(np.array_equal(center_pixel_color, [255, 255, 255, 255]), "Dark text should get a white bubble")
 
         # Light text should get a dark bubble
+        mock_randint.return_value = 0
         bubble_for_light_text = composer.draw_bubble(100, 50, text_color='#FFFFFF')
         bubble_array = np.array(bubble_for_light_text)
         center_pixel_color = bubble_array[bubble_array.shape[0] // 2, bubble_array.shape[1] // 2]
@@ -65,9 +68,10 @@ class TestComposer(unittest.TestCase):
     def test_composition_with_background(self):
         """Test composing a text image with a background."""
         composer = Composer(self.backgrounds_dir)
-        final_image = composer(self.dummy_text_image, {})
-        self.assertIsInstance(final_image, np.ndarray)
-        self.assertEqual(final_image.ndim, 2)
+        with patch.object(composer, '_is_low_contrast', return_value=False):
+            final_image = composer(self.dummy_text_image, {})
+            self.assertIsInstance(final_image, np.ndarray)
+            self.assertEqual(final_image.ndim, 2)
 
     @patch('numpy.random.randint')
     def test_dynamic_scaling(self, mock_randint):
@@ -79,13 +83,14 @@ class TestComposer(unittest.TestCase):
         large_text_image[:, :, 3] = 255
 
         composer = Composer(self.backgrounds_dir)
-        final_image = composer(large_text_image, {})
+        with patch.object(composer, '_is_low_contrast', return_value=False):
+            final_image = composer(large_text_image, {})
 
-        self.assertIsInstance(final_image, np.ndarray)
-        # The background (100x100) must scale up to fit the text (150x150).
-        # The final cropped image should be larger than the original text image.
-        self.assertGreater(final_image.shape[0], large_text_image.shape[0])
-        self.assertGreater(final_image.shape[1], large_text_image.shape[1])
+            self.assertIsInstance(final_image, np.ndarray)
+            # The background (100x100) must scale up to fit the text (150x150).
+            # The final cropped image should be larger than the original text image.
+            self.assertGreater(final_image.shape[0], large_text_image.shape[0])
+            self.assertGreater(final_image.shape[1], large_text_image.shape[1])
 
     @patch('numpy.random.rand', return_value=0.8)  # Ensure no bubble
     @patch('albumentations.Compose', lambda transforms: lambda image: {'image': image})
@@ -148,8 +153,9 @@ class TestComposer(unittest.TestCase):
         """Test the target_size and min_output_size resizing logic."""
         # Test target_size
         composer_target = Composer(self.backgrounds_dir, target_size=(120, 80))
-        result_target = composer_target(self.dummy_text_image, {})
-        self.assertEqual(result_target.shape[:2], (80, 120)) # (height, width)
+        with patch.object(composer_target, '_is_low_contrast', return_value=False):
+            result_target = composer_target(self.dummy_text_image, {})
+            self.assertEqual(result_target.shape[:2], (80, 120)) # (height, width)
 
         # Test min_output_size (using an image that would otherwise be smaller)
         # We need to ensure the final cropped image is smaller than min_output_size

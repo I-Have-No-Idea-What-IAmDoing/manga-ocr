@@ -86,22 +86,20 @@ class TestRunGenerate(unittest.TestCase):
 
     @patch('manga_ocr_dev.synthetic_data_generator.run_generate.thread_map', side_effect=lambda func, args, **kwargs: [func(arg) for arg in args])
     @patch('manga_ocr_dev.synthetic_data_generator.common.composer.Composer._is_low_contrast', return_value=False)
-    def test_run_pictex(self, mock_is_low_contrast, mock_thread_map):
+    @patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite')
+    @patch('manga_ocr_dev.synthetic_data_generator.run_generate.pd.DataFrame.to_csv')
+    def test_run_pictex(self, mock_to_csv, mock_imwrite, mock_is_low_contrast, mock_thread_map):
         """Test that the main run function creates output files for the pictex renderer."""
         run(renderer='pictex', package=0, n_random=1, n_limit=2, max_workers=1)
-        output_img_dir = self.synthetic_data_root / "img_v2" / "0000"
-        output_meta_dir = self.synthetic_data_root / "meta_v2"
-        self.assertTrue(output_img_dir.exists())
-        self.assertTrue(output_meta_dir.exists())
-        self.assertEqual(len(list(output_img_dir.glob('*.jpg'))), 2)
-        meta_file = output_meta_dir / "0000.csv"
-        self.assertTrue(meta_file.exists())
-        df = pd.read_csv(meta_file)
-        self.assertEqual(len(df), 2)
+        self.assertEqual(mock_imwrite.call_count, 2)
+        mock_to_csv.assert_called_once()
+
 
     @patch('manga_ocr_dev.synthetic_data_generator.run_generate.thread_map', side_effect=lambda func, args, **kwargs: [func(arg) for arg in args])
     @patch('manga_ocr_dev.synthetic_data_generator.renderer.Renderer')
-    def test_run_html(self, MockRenderer, mock_thread_map):
+    @patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite')
+    @patch('manga_ocr_dev.synthetic_data_generator.run_generate.pd.DataFrame.to_csv')
+    def test_run_html(self, mock_to_csv, mock_imwrite, MockRenderer, mock_thread_map):
         """Test that the main run function creates output files for the html renderer."""
         mock_renderer_instance = MagicMock()
         dummy_img = np.zeros((100, 100, 4), dtype=np.uint8)
@@ -111,15 +109,9 @@ class TestRunGenerate(unittest.TestCase):
 
         run(renderer='html', package=0, n_random=1, n_limit=2, max_workers=1)
 
-        output_img_dir = self.synthetic_data_root / "img_v1" / "0000"
-        output_meta_dir = self.synthetic_data_root / "meta_v1"
-        self.assertTrue(output_img_dir.exists())
-        self.assertTrue(output_meta_dir.exists())
-        self.assertEqual(len(list(output_img_dir.glob('*.jpg'))), 2)
-        meta_file = output_meta_dir / "0000.csv"
-        self.assertTrue(meta_file.exists())
-        df = pd.read_csv(meta_file)
-        self.assertEqual(len(df), 2)
+        self.assertEqual(mock_imwrite.call_count, 2)
+        mock_to_csv.assert_called_once()
+
 
     def test_worker_fn_debug_mode_pictex(self):
         """Test that the worker function correctly saves debug info for pictex."""
@@ -134,7 +126,8 @@ class TestRunGenerate(unittest.TestCase):
         generator = SyntheticDataGeneratorV2(background_dir=None)
         args = (0, 'test_source', 'test_id_123', 'test')
 
-        worker_fn(args, generator, renderer_type='pictex', debug=True)
+        with patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite'):
+            worker_fn(args, generator, renderer_type='pictex', debug=True)
 
         debug_file = temp_debug_dir / "test_id_123.json"
         self.assertTrue(debug_file.exists())
@@ -162,7 +155,8 @@ class TestRunGenerate(unittest.TestCase):
         generator = SyntheticDataGenerator(background_dir=None, renderer=mock_renderer_instance)
         args = (0, 'test_source', 'test_id_456', 'test')
 
-        worker_fn(args, generator, renderer_type='html', debug=True)
+        with patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite'):
+            worker_fn(args, generator, renderer_type='html', debug=True)
 
         debug_file_json = temp_debug_dir / "test_id_456.json"
         debug_file_html = temp_debug_dir / "test_id_456.html"

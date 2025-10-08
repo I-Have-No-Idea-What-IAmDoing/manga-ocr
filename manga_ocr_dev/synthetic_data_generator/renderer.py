@@ -18,6 +18,32 @@ import numpy as np
 from manga_ocr_dev.vendored.html2image import Html2Image
 
 
+def blend(img1, img2):
+    """Blends two images with alpha channels."""
+    img1_alpha = img1[:, :, 3] / 255.0
+    img2_alpha = img2[:, :, 3] / 255.0
+    blended_alpha = img1_alpha + img2_alpha * (1 - img1_alpha)
+    if np.any(blended_alpha == 0):
+        blended_rgb = np.zeros_like(img1[:, :, :3])
+    else:
+        blended_rgb = (img1[:, :, :3] * img1_alpha[:, :, np.newaxis] + img2[:, :, :3] * img2_alpha[:, :, np.newaxis] * (1 - img1_alpha)[:, :, np.newaxis]) / blended_alpha[:, :, np.newaxis]
+    blended_img = np.dstack((blended_rgb, blended_alpha * 255)).astype(np.uint8)
+    return blended_img
+
+
+def rounded_rectangle(shape, radius, color):
+    """Creates an image of a rounded rectangle."""
+    height, width = shape
+    img = np.zeros((height, width, 4), dtype=np.uint8)
+    img = cv2.rectangle(img, (radius, 0), (width - radius, height), color, -1)
+    img = cv2.rectangle(img, (0, radius), (width, height - radius), color, -1)
+    img = cv2.circle(img, (radius, radius), radius, color, -1)
+    img = cv2.circle(img, (width - radius, radius), radius, color, -1)
+    img = cv2.circle(img, (radius, height - radius), radius, color, -1)
+    img = cv2.circle(img, (width - radius, height - radius), radius, color, -1)
+    return img
+
+
 def crop_by_alpha(img, margin=0):
     """Crops an image by removing transparent padding."""
     y, x = np.where(img[:, :, 3] > 0)

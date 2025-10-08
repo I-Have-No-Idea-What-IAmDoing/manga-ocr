@@ -236,12 +236,6 @@ class Composer:
             # If no backgrounds, the composed image is the final image.
             final_img_np = np.array(composed_image.convert("RGB"))
 
-        # If a minimum output size is specified, resize the image if it's too small.
-        if self.min_output_size:
-            h, w, _ = final_img_np.shape
-            if h < self.min_output_size or w < self.min_output_size:
-                final_img_np = A.SmallestMaxSize(max_size=self.min_output_size, interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
-
         # If the image is too big shrink it
         if self.max_output_size:
             h, w, _ = final_img_np.shape
@@ -251,6 +245,11 @@ class Composer:
         # If a target size is specified, resize the final image.
         if self.target_size:
             final_img_np = A.Resize(height=self.target_size[1], width=self.target_size[0], interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
+
+        if self.min_output_size:
+            h, w, _ = final_img_np.shape
+            if h < self.min_output_size or w < self.min_output_size:
+                final_img_np = A.SmallestMaxSize(max_size=self.min_output_size, interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
 
         final_img_np = cv2.cvtColor(final_img_np, cv2.COLOR_RGB2GRAY)
         return final_img_np

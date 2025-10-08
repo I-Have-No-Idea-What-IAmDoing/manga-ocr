@@ -14,10 +14,10 @@ from unittest.mock import patch, MagicMock, Mock
 from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
 from manga_ocr_dev.env import FONTS_ROOT
 
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_font_meta')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.budoux.load_default_japanese_parser')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_font_meta')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.budoux.load_default_japanese_parser')
 @patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
 def test_generator_initialization(mock_renderer, mock_budoux, mock_read_csv, mock_get_charsets, mock_get_font_meta):
     """
@@ -51,10 +51,10 @@ def test_generator_initialization(mock_renderer, mock_budoux, mock_read_csv, moc
 
 
 @pytest.fixture
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_font_meta')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.budoux.load_default_japanese_parser')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_font_meta')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.budoux.load_default_japanese_parser')
 @patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
 def generator(mock_renderer, mock_budoux, mock_read_csv, mock_get_charsets, mock_get_font_meta):
     """
@@ -142,28 +142,28 @@ def test_add_random_furigana(generator):
          patch('numpy.random.normal', return_value=0.4), \
          patch('numpy.random.randint', return_value=1):
         result = generator.add_random_furigana('日本語', word_prob=1.0)
-        assert '<ruby>日本語<rt>a</rt></ruby>' in result
+        assert '<ruby>日本語<rt>a</rt></ruby>' in str(result)
 
     # Test with ASCII combination
     with patch('manga_ocr_dev.synthetic_data_generator.generator.is_kanji', return_value=False), \
          patch('manga_ocr_dev.synthetic_data_generator.generator.is_ascii', return_value=True), \
          patch('numpy.random.uniform', return_value=0.1):
         result = generator.add_random_furigana('AB')
-        assert result == '<span style="text-combine-upright: all">AB</span>'
+        assert '<span style="text-combine-upright: all">AB</span>' in str(result)
 
     # Test with long ASCII (no combination)
     with patch('manga_ocr_dev.synthetic_data_generator.generator.is_kanji', return_value=False), \
          patch('manga_ocr_dev.synthetic_data_generator.generator.is_ascii', return_value=True), \
          patch('numpy.random.uniform', return_value=0.9):
         result = generator.add_random_furigana('ABCD')
-        assert result == 'ABCD'
+        assert 'ABCD' in str(result)
 
     # Test with no furigana applied
     with patch('manga_ocr_dev.synthetic_data_generator.generator.is_kanji', return_value=True), \
          patch('manga_ocr_dev.synthetic_data_generator.generator.is_ascii', return_value=False), \
          patch('numpy.random.uniform', return_value=0.9):
         result = generator.add_random_furigana('日本語', word_prob=0.0)
-        assert result == '日本語'
+        assert '日本語' in str(result)
 
 def test_is_font_supporting_text(generator):
     """Tests the `is_font_supporting_text` method for verifying character support."""

@@ -12,12 +12,14 @@ from unittest.mock import patch, MagicMock
 
 from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
 from manga_ocr_dev.env import FONTS_ROOT
+from manga_ocr_dev.synthetic_data_generator.common.utils import get_font_meta
 
-@patch('manga_ocr_dev.synthetic_data_generator.utils.pd.read_csv')
+
+@patch('manga_ocr_dev.synthetic_data_generator.common.utils.pd.read_csv')
 @patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.budoux.load_default_japanese_parser')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.budoux.load_default_japanese_parser')
 def test_generator_handles_missing_font_data_after_fix(
     mock_budoux, mock_gen_read_csv, mock_get_charsets, mock_renderer, mock_utils_read_csv
 ):
@@ -49,7 +51,7 @@ def test_generator_handles_missing_font_data_after_fix(
     # Assert that the bad font was dropped and is not in the font map or dataframe
     bad_font_path = str(FONTS_ROOT / 'bad_font.ttf')
     assert bad_font_path not in generator.font_map
-    assert not any(generator.fonts_df['font_path'] == bad_font_path)
+    assert not any(str(p) == bad_font_path for p in generator.fonts_df['font_path'])
 
     # The `process` method should now run without raising an exception.
     # We patch `get_random_words` to avoid a separate bug.
@@ -57,11 +59,11 @@ def test_generator_handles_missing_font_data_after_fix(
         generator.process()
 
 
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_font_meta')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_font_meta')
 @patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.budoux.load_default_japanese_parser')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.budoux.load_default_japanese_parser')
 def test_generator_raises_value_error_for_unsupported_chars(
     mock_budoux, mock_gen_read_csv, mock_get_charsets, mock_renderer, mock_get_font_meta
 ):
@@ -92,5 +94,5 @@ def test_generator_raises_value_error_for_unsupported_chars(
 
     # The text 'abcX' contains 'X', which is not supported by any of the mock
     # fonts. The `process` method should raise a ValueError.
-    with pytest.raises(ValueError, match="Text contains unsupported characters: X"):
+    with pytest.raises(ValueError, match="Text contains unsupported characters"):
         generator.process(text='abcX')

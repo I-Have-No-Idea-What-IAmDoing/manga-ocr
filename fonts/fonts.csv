@@ -1,2 +1,2 @@
-font_path,label,supported_chars
-dummy.ttf,common,"これはテストです"
+font_path,supported_chars,label,num_chars
+dummy_font.ttf,"abc",regular,3

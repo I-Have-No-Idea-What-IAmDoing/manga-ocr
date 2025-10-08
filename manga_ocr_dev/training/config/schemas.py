@@ -91,7 +91,7 @@ class TrainingConfig(BaseSettings):
     num_epochs: int = Field(8, alias="num_train_epochs", description="The total number of training epochs.")
     fp16: bool = Field(True, description="Whether to use 16-bit (mixed) precision training.")
     predict_with_generate: bool = Field(True, description="Whether to use `generate` to calculate generative metrics.")
-    eval_strategy: str = Field("steps", alias="evaluation_strategy", description="The evaluation strategy to adopt during training.")
+    evaluation_strategy: str = Field("steps", alias="eval_strategy", description="The evaluation strategy to adopt during training.")
     save_strategy: str = Field("steps", alias="save_strategy", description="The checkpoint save strategy to adopt during training.")
     dataloader_num_workers: int = Field(16, description="The number of workers for the dataloader.")
     logging_steps: int = Field(10, description="Log every `logging_steps` updates.")
