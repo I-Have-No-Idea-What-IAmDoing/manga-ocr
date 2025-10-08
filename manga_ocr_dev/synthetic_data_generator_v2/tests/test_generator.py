@@ -201,10 +201,40 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         self.assertIsInstance(img, np.ndarray)
         self.assertGreater(np.sum(img), 0)
 
-    def test_glow_effect(self):
-        """Test that the glow effect is applied correctly."""
+    def test_shadow_effect(self):
+        """Test that the shadow effect is applied correctly."""
         generator = SyntheticDataGeneratorV2(background_dir=None)
-        override_params = {'effect': 'glow', 'shadow_blur': 5, 'shadow_color': '#00FF00', 'shadow_offset': (2, 2)}
+        # Test single shadow (glow)
+        override_params = {
+            'effect': 'shadow',
+            'shadows': [{'offset': (2, 2), 'blur_radius': 5, 'color': '#00FF00'}]
+        }
+        img, _, _ = generator.process("test", override_params=override_params)
+        self.assertIsInstance(img, np.ndarray)
+        self.assertGreater(np.sum(img), 0)
+
+        # Test multiple shadows
+        override_params = {
+            'effect': 'shadow',
+            'shadows': [
+                {'offset': (2, 2), 'blur_radius': 3, 'color': '#00FF00'},
+                {'offset': (-2, -2), 'blur_radius': 3, 'color': '#0000FF'}
+            ]
+        }
+        img, _, _ = generator.process("test", override_params=override_params)
+        self.assertIsInstance(img, np.ndarray)
+        self.assertGreater(np.sum(img), 0)
+
+    def test_double_stroke_effect(self):
+        """Test that the double_stroke effect is applied correctly."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        override_params = {
+            'effect': 'double_stroke',
+            'stroke_width': 3,
+            'stroke_color': '#FF0000',
+            'stroke_width2': 1,
+            'stroke_color2': '#00FF00'
+        }
         img, _, _ = generator.process("test", override_params=override_params)
         self.assertIsInstance(img, np.ndarray)
         self.assertGreater(np.sum(img), 0)
@@ -217,12 +247,42 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
             self.assertEqual(params['effect'], 'stroke')
             self.assertIn('stroke_width', params)
             self.assertIn('stroke_color', params)
-        with unittest.mock.patch('numpy.random.choice', return_value='glow'):
+        with unittest.mock.patch('numpy.random.choice', return_value='double_stroke'):
             params = generator.get_random_render_params()
-            self.assertEqual(params['effect'], 'glow')
-            self.assertIn('shadow_blur', params)
-            self.assertIn('shadow_color', params)
-            self.assertIn('shadow_offset', params)
+            self.assertEqual(params['effect'], 'double_stroke')
+            self.assertIn('stroke_width', params)
+            self.assertIn('stroke_color', params)
+            self.assertIn('stroke_width2', params)
+            self.assertIn('stroke_color2', params)
+        with unittest.mock.patch('numpy.random.choice', return_value='shadow'):
+            params = generator.get_random_render_params()
+            self.assertEqual(params['effect'], 'shadow')
+            self.assertIn('shadows', params)
+            self.assertIsInstance(params['shadows'], list)
+
+    def test_spacing_and_rotation_params(self):
+        """Test that spacing and rotation parameters are generated."""
+        generator = SyntheticDataGeneratorV2()
+        params = generator.get_random_render_params()
+        self.assertIn('letter_spacing', params)
+        self.assertIn('line_height', params)
+        self.assertIn('rotation', params)
+
+    def test_rotation(self):
+        """Test text rotation."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        img_no_rot, _, _ = generator.process("test", override_params={'rotation': 0, 'color': '#FFFFFF'})
+        img_rot, _, _ = generator.process("test", override_params={'rotation': 10, 'color': '#FFFFFF'})
+        self.assertFalse(np.array_equal(img_no_rot, img_rot))
+        self.assertNotEqual(img_no_rot.shape, img_rot.shape)
+
+    def test_jpeg_artifacts(self):
+        """Test JPEG artifact generation."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        text = "test"
+        img_no_jpeg, _, _ = generator.process(text, override_params={'jpeg_quality': None, 'color': '#FFFFFF'})
+        img_jpeg, _, _ = generator.process(text, override_params={'jpeg_quality': 50, 'color': '#FFFFFF'})
+        self.assertFalse(np.array_equal(img_no_jpeg, img_jpeg))
 
 
 if __name__ == '__main__':

@@ -10,6 +10,9 @@ mimics the appearance of text in manga.
 from pathlib import Path
 import numpy as np
 from pictex import Canvas, Row, Column, Text, Shadow
+from PIL import Image
+import io
+from scipy.ndimage import rotate
 
 from manga_ocr_dev.env import FONTS_ROOT
 from manga_ocr_dev.synthetic_data_generator.common.base_generator import BaseDataGenerator
@@ -68,6 +71,13 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         # Randomly select a font size within the specified range
         params['font_size'] = np.random.randint(self.min_font_size, self.max_font_size)
 
+        # Add randomized character and line spacing
+        params['letter_spacing'] = np.random.randint(-2, 6)
+        params['line_height'] = np.random.uniform(0.9, 1.6)
+
+        # Add randomized text rotation
+        params['rotation'] = np.random.uniform(-2, 2)
+
         # Randomly choose a text color, either dark or light gray
         if np.random.rand() > 0.25:
             gray_value = np.random.randint(0, 30)
@@ -75,8 +85,8 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
             gray_value = np.random.randint(225, 256)
         params['color'] = f'#{gray_value:02x}{gray_value:02x}{gray_value:02x}'
 
-        # Randomly select a text effect (stroke, glow, or none)
-        effect = np.random.choice(["stroke", "glow", "none"], p=[0.35, 0.15, 0.5])
+        # Randomly select a text effect
+        effect = np.random.choice(["stroke", "double_stroke", "shadow", "none"], p=[0.25, 0.1, 0.15, 0.5])
         params['effect'] = effect
 
         # Helper function to generate a random grayscale hex color
@@ -88,10 +98,31 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         if effect == "stroke":
             params["stroke_width"] = np.random.choice([1, 2, 3])
             params["stroke_color"] = get_random_hex_color()
-        elif effect == "glow":
-            params["shadow_blur"] = np.random.choice([2, 5, 10])
-            params["shadow_color"] = get_random_hex_color()
-            params['shadow_offset'] = (0, 0)
+
+        elif effect == "double_stroke":
+            params["stroke_width"] = np.random.choice([2, 3, 4])
+            params["stroke_color"] = get_random_hex_color()
+            params["stroke_width2"] = 1
+            params["stroke_color2"] = get_random_hex_color()
+
+        elif effect == "shadow":
+            num_shadows = np.random.randint(1, 4)
+            shadows = []
+            for _ in range(num_shadows):
+                shadow = {
+                    "offset": (np.random.randint(-5, 6), np.random.randint(-5, 6)),
+                    "blur_radius": np.random.choice([2, 5, 10]),
+                    "color": get_random_hex_color(),
+                }
+                shadows.append(shadow)
+            params["shadows"] = shadows
+
+        # Add randomized JPEG compression artifacts
+        if np.random.rand() < 0.2:
+            params["jpeg_quality"] = np.random.randint(30, 95)
+        else:
+            params["jpeg_quality"] = None
+
         return params
 
     def process(self, text=None, override_params=None):
@@ -181,6 +212,12 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         # Render the text with markup to an image
         img = self.render(lines_with_markup, params)
 
+        # Apply rotation if specified
+        if params.get("rotation", 0) != 0:
+            # Rotate the image, expanding the canvas to fit.
+            # The background is filled with a transparent color (0).
+            img = rotate(img, params["rotation"], reshape=True, cval=0, order=1)
+
         # Restore the relative font path in the returned parameters
         if relative_font_path:
             params["font_path"] = relative_font_path
@@ -188,6 +225,15 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         # If a composer is available, blend the rendered text with a background image
         if self.composer:
             img = self.composer(img, params)
+
+        # Apply JPEG compression artifacts if specified
+        if params.get("jpeg_quality"):
+            img = Image.fromarray(img)
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=params["jpeg_quality"])
+            buffer.seek(0)
+            img = Image.open(buffer)
+            img = np.array(img)
 
         return img, text_gt, params
 
@@ -216,6 +262,9 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         color = params.get("color", "black")
         vertical = params.get("vertical", False)
         effect = params.get("effect", "none")
+        letter_spacing = params.get("letter_spacing", 0)
+        line_height = params.get("line_height", 1.2)
+        rotation = params.get("rotation", 0)
 
         # Initialize the pictex canvas with base font and color settings
         canvas = Canvas().font_family(str(font_path)).font_size(font_size).color(color)
@@ -232,13 +281,25 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
                     width=params.get("stroke_width", 1),
                     color=params.get("stroke_color", "white"),
                 )
-            elif effect == "glow":
-                shadow = Shadow(
-                    offset=params.get("shadow_offset", (0, 0)),
-                    blur_radius=params.get("shadow_blur", 5),
-                    color=params.get("shadow_color", "black"),
+            elif effect == "double_stroke":
+                component = component.text_stroke(
+                    width=params.get("stroke_width", 2),
+                    color=params.get("stroke_color", "white"),
+                ).text_stroke(
+                    width=params.get("stroke_width2", 1),
+                    color=params.get("stroke_color2", "black"),
                 )
-                component = component.text_shadows(shadow)
+            elif effect == "shadow":
+                shadows = [
+                    Shadow(
+                        offset=s["offset"],
+                        blur_radius=s["blur_radius"],
+                        color=s["color"],
+                    )
+                    for s in params.get("shadows", [])
+                ]
+                if shadows:
+                    component = component.text_shadows(*shadows)
             return component
 
         # Helper function to create a pictex component from a marked-up chunk
@@ -261,13 +322,13 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
             line_columns = []
             for line_chunks in lines_with_markup:
                 components = [comp for chunk in line_chunks for comp in ([create_text_component(c) for c in chunk] if isinstance(chunk, str) else [create_component(chunk)])]
-                line_columns.append(Column(*components).gap(0).horizontal_align("center"))
+                line_columns.append(Column(*components).gap(letter_spacing).horizontal_align("center"))
             # Arrange lines as columns in a row, reversing for right-to-left layout
-            composed_element = Row(*line_columns[::-1]).gap(font_size // 2).vertical_align("top")
+            composed_element = Row(*line_columns[::-1]).gap(int(font_size * (line_height - 1.0))).vertical_align("top")
         else:
-            line_rows = [Row(*[create_component(chunk) for chunk in line_chunks]).gap(0).vertical_align("bottom") for line_chunks in lines_with_markup]
+            line_rows = [Row(*[create_component(chunk) for chunk in line_chunks]).gap(letter_spacing).vertical_align("bottom") for line_chunks in lines_with_markup]
             # Arrange lines as rows in a column for horizontal layout
-            composed_element = Column(*line_rows).gap(font_size // 4).horizontal_align("left")
+            composed_element = Column(*line_rows).gap(int(font_size * (line_height - 1.0))).horizontal_align("left")
 
         # Render the composed element to an image and convert to a NumPy array
         image = canvas.render(composed_element)
