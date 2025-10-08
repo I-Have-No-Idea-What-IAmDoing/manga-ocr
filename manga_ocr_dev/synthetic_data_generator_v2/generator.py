@@ -45,10 +45,7 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         super().__init__()
         self.min_font_size = min_font_size
         self.max_font_size = max_font_size
-        if background_dir:
-            self.composer = Composer(background_dir, target_size=target_size, min_output_size=min_output_size)
-        else:
-            self.composer = None
+        self.composer = Composer(background_dir, target_size=target_size, min_output_size=min_output_size)
 
     def get_random_render_params(self):
         """Generates a dictionary of random parameters for text rendering."""
