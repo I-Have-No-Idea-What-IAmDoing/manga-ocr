@@ -116,13 +116,6 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
                 }
                 shadows.append(shadow)
             params["shadows"] = shadows
-
-        # Add randomized JPEG compression artifacts
-        if np.random.rand() < 0.2:
-            params["jpeg_quality"] = np.random.randint(30, 95)
-        else:
-            params["jpeg_quality"] = None
-
         return params
 
     def process(self, text=None, override_params=None):
@@ -214,9 +207,11 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
 
         # Apply rotation if specified
         if params.get("rotation", 0) != 0:
-            # Rotate the image, expanding the canvas to fit.
+            # Rotate the image (in degrees), expanding the canvas to fit.
             # The background is filled with a transparent color (0).
-            img = rotate(img, params["rotation"], reshape=True, cval=0, order=1)
+            # Using order=0 (nearest-neighbor) to prevent interpolation artifacts
+            # from interfering with the legibility check.
+            img = rotate(img, params["rotation"], reshape=True, cval=0, order=0)
 
         # Restore the relative font path in the returned parameters
         if relative_font_path:
@@ -225,15 +220,6 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         # If a composer is available, blend the rendered text with a background image
         if self.composer:
             img = self.composer(img, params)
-
-        # Apply JPEG compression artifacts if specified
-        if params.get("jpeg_quality"):
-            img = Image.fromarray(img)
-            buffer = io.BytesIO()
-            img.save(buffer, format="JPEG", quality=params["jpeg_quality"])
-            buffer.seek(0)
-            img = Image.open(buffer)
-            img = np.array(img)
 
         return img, text_gt, params
 

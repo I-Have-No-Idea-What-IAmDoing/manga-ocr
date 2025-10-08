@@ -276,14 +276,5 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         self.assertFalse(np.array_equal(img_no_rot, img_rot))
         self.assertNotEqual(img_no_rot.shape, img_rot.shape)
 
-    def test_jpeg_artifacts(self):
-        """Test JPEG artifact generation."""
-        generator = SyntheticDataGeneratorV2(background_dir=None)
-        text = "test"
-        img_no_jpeg, _, _ = generator.process(text, override_params={'jpeg_quality': None, 'color': '#FFFFFF'})
-        img_jpeg, _, _ = generator.process(text, override_params={'jpeg_quality': 50, 'color': '#FFFFFF'})
-        self.assertFalse(np.array_equal(img_no_jpeg, img_jpeg))
-
-
 if __name__ == '__main__':
     unittest.main()
