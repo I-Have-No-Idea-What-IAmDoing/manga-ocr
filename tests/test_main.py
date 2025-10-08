@@ -19,6 +19,9 @@ def test_main(mock_fire):
     This test ensures that when the `main()` function from `manga_ocr.__main__`
     is called, it passes the `run` function to `fire.Fire`, which is the
     expected behavior for setting up the command-line interface.
+
+    Args:
+        mock_fire: Mock for the `fire.Fire` function.
     """
     main()
     mock_fire.assert_called_once_with(run)
@@ -32,6 +35,9 @@ def test_main_entry_point(mock_fire):
     script (e.g., `python -m manga_ocr`). It verifies that this action correctly
     triggers the `main` function and, consequently, `fire.Fire` with the `run`
     function.
+
+    Args:
+        mock_fire: Mock for the `fire.Fire` function.
     """
     runpy.run_module("manga_ocr.__main__", run_name="__main__")
     mock_fire.assert_called_with(run)

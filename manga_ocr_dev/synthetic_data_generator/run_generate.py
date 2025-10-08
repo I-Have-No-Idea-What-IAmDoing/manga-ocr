@@ -24,9 +24,26 @@ DEBUG_DIR = None
 
 
 class NumpyEncoder(json.JSONEncoder):
-    """Custom JSON encoder for NumPy types."""
+    """A custom JSON encoder for NumPy data types.
+
+    This class extends `json.JSONEncoder` to handle data types that are not
+    natively serializable by Python's `json` module. It provides a `default`
+    method to convert NumPy generic types (e.g., `np.int64`) to their
+    standard Python equivalents and to convert NumPy arrays into Python lists.
+    It also handles `pathlib.Path` objects by converting them to strings.
+
+    """
 
     def default(self, obj):
+        """Encodes NumPy and Path objects into JSON-serializable formats.
+
+        Args:
+            obj: The object to encode.
+
+        Returns:
+            A JSON-serializable representation of the object.
+
+        """
         if isinstance(obj, np.generic):
             return obj.item()
         elif isinstance(obj, np.ndarray):
@@ -37,7 +54,27 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 def worker_fn(args, generator, renderer_type, debug=False):
-    """A worker function for processing a single data sample in parallel."""
+    """A worker function for processing a single data sample in parallel.
+
+    This function is designed to be executed by a thread pool. It takes a set
+    of arguments, including the text to render, and uses the provided data
+    generator to create a synthetic image. It then saves the image and, if in
+    debug mode, saves the rendering parameters and HTML for inspection.
+
+    Args:
+        args (tuple): A tuple containing the index, source, ID, and text for
+            the data sample.
+        generator (SyntheticDataGenerator or SyntheticDataGeneratorV2): An
+            instance of a data generator.
+        renderer_type (str): The type of renderer being used ('html' or
+            'pictex').
+        debug (bool, optional): If True, enables debug logging and saves
+            additional debugging artifacts. Defaults to False.
+
+    Returns:
+        tuple or None: A tuple containing metadata about the generated sample
+        (source, ID, text, vertical, font_path) if successful, otherwise None.
+    """
     try:
         i, source, id_, text = args
         if debug:
@@ -100,7 +137,44 @@ def run(
     min_output_size=None,
     cdp_port=9222,
 ):
-    """Generates a package of synthetic data, including images and metadata."""
+    """Generates a package of synthetic data, including images and metadata.
+
+    This function orchestrates the entire synthetic data generation process.
+    It reads a list of text lines from a CSV file, generates a specified number
+    of random text samples, and then uses a thread pool to generate images for
+    each line of text. The generated images and their corresponding metadata
+    are saved to the appropriate directories.
+
+    Args:
+        renderer (str, optional): The rendering engine to use. Can be either
+            'pictex' or 'html'. Defaults to 'pictex'.
+        package (int, optional): The ID of the data package to generate. This
+            is used to locate the input CSV file and name the output
+            directories. Defaults to 0.
+        n_random (int, optional): The number of random text samples to
+            generate. Defaults to 10000.
+        n_limit (int, optional): The total number of samples to generate. If
+            None, all samples will be processed. Defaults to None.
+        max_workers (int, optional): The maximum number of worker threads to use
+            for parallel processing. Defaults to 14.
+        debug (bool, optional): If True, enables debug mode, which saves
+            additional artifacts for inspection. Defaults to False.
+        min_font_size (int, optional): The minimum font size for text
+            rendering. Defaults to 40.
+        max_font_size (int, optional): The maximum font size for text
+            rendering. Defaults to 60.
+        target_size (str, optional): The target size of the output images,
+            formatted as "width,height". Defaults to None.
+        min_output_size (int, optional): The minimum size of the smallest
+            dimension of the output images. Defaults to None.
+        cdp_port (int, optional): The port for the Chrome DevTools Protocol,
+            used when the renderer is 'html'. Defaults to 9222.
+
+    Raises:
+        FileNotFoundError: If the input CSV file for the specified package
+            does not exist.
+        ValueError: If the specified renderer is not 'pictex' or 'html'.
+    """
     package = int(package)
     n_random = int(n_random)
     if n_limit is not None:

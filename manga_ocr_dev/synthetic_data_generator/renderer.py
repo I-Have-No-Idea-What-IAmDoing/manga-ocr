@@ -19,7 +19,22 @@ from manga_ocr_dev.vendored.html2image import Html2Image
 
 
 def crop_by_alpha(img, margin=0):
-    """Crops an image by removing transparent padding."""
+    """Crops an image by removing transparent padding.
+
+    This function inspects the alpha channel of an image to find the bounding
+    box of the non-transparent content. It then crops the image to this
+    bounding box, with an optional margin.
+
+    Args:
+        img (np.ndarray): The input image as a NumPy array with an alpha
+            channel (e.g., BGRA or RGBA).
+        margin (int, optional): The number of pixels to add as a margin around
+            the cropped content. Defaults to 0.
+
+    Returns:
+        np.ndarray: The cropped image. If the image is fully transparent, a
+        1x1 transparent image is returned.
+    """
     y, x = np.where(img[:, :, 3] > 0)
     if y.size == 0 or x.size == 0:
         return np.zeros((1, 1, 4), dtype=img.dtype)
@@ -37,7 +52,38 @@ def get_css(
     stroke_color="black", letter_spacing=None, line_height=0.5,
     text_orientation=None,
 ):
-    """Generates a CSS string for styling text rendered in a browser."""
+    """Generates a CSS string for styling text rendered in a browser.
+
+    This function constructs a CSS string that defines the appearance of text
+    to be rendered with `html2image`. It includes properties for font, color,
+    layout, and various text effects like glow and stroke.
+
+    Args:
+        font_size (int): The font size in pixels.
+        font_path (str or Path): The path to the font file.
+        vertical (bool, optional): If True, enables vertical writing mode.
+            Defaults to True.
+        background_color (str, optional): The background color of the text.
+            Defaults to "white".
+        text_color (str, optional): The color of the text. Defaults to "black".
+        glow_size (int, optional): The size of the text glow effect. If 0, no
+            glow is applied. Defaults to 0.
+        glow_color (str, optional): The color of the glow effect. Defaults to
+            "black".
+        stroke_size (int, optional): The size of the text stroke (outline).
+            If 0, no stroke is applied. Defaults to 0.
+        stroke_color (str, optional): The color of the stroke. Defaults to
+            "black".
+        letter_spacing (float, optional): The spacing between letters in 'em'
+            units. If None, the default spacing is used. Defaults to None.
+        line_height (float, optional): The height of each line of text.
+            Defaults to 0.5.
+        text_orientation (str, optional): The orientation of the text (e.g.,
+            "upright"). If None, the default is used. Defaults to None.
+
+    Returns:
+        str: The generated CSS string.
+    """
     styles = [
         f"background-color: {background_color};",
         f"font-size: {font_size}px;",

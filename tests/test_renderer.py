@@ -23,6 +23,9 @@ def renderer(mock_find_chrome):
     dependencies, such as browser discovery. This allows for isolated testing
     of the renderer's logic.
 
+    Args:
+        mock_find_chrome: Mock for the `find_chrome` function.
+
     Returns:
         A `Renderer` instance ready for testing.
     """
@@ -32,16 +35,27 @@ def renderer(mock_find_chrome):
     return r
 
 def test_renderer_initialization(renderer):
-    """Tests that the Renderer initializes correctly."""
+    """Tests that the Renderer initializes correctly.
+
+    This test uses the `renderer` fixture to get a mocked `Renderer` instance
+    and asserts that the `hti` (Html2Image) attribute is not None, confirming
+    that the renderer has been initialized.
+
+    Args:
+        renderer: The mocked `Renderer` fixture.
+    """
     assert renderer.hti is not None
 
-def test_render_text(renderer):
-    """
-    Tests the `render_text` method for correct image and parameter output.
+def test_render(renderer):
+    """Tests the `render` method for correct image and parameter output.
 
-    This test ensures that `render_text` successfully produces an image with
-    the correct format (BGRA) and returns a dictionary of the CSS parameters
-    used for rendering.
+    This test ensures that the `render` method successfully produces an image
+    with the correct format (BGRA, indicating an alpha channel) and returns a
+    dictionary of the CSS parameters that were used for rendering. It uses a
+    mocked `hti` object to simulate the screenshot process.
+
+    Args:
+        renderer: The mocked `Renderer` fixture.
     """
     renderer.hti.screenshot_as_bytes.return_value = cv2.imencode('.png', np.zeros((100, 100, 3), dtype=np.uint8))[1].tobytes()
 
@@ -53,13 +67,25 @@ def test_render_text(renderer):
     assert isinstance(params, dict)
 
 def test_get_random_css_params():
-    """Tests the generation of random CSS parameters."""
+    """Tests the generation of random CSS parameters.
+
+    This test verifies that the `get_random_css_params` static method returns
+    a dictionary of parameters and that the dictionary contains essential keys
+    like `font_size`. This ensures that the method is correctly producing a
+    parameter set for styling.
+    """
     params = Renderer.get_random_css_params()
     assert isinstance(params, dict)
     assert 'font_size' in params
 
 def test_get_css():
-    """Tests the `get_css` function for correct CSS string generation."""
+    """Tests the `get_css` function for correct CSS string generation.
+
+    This test verifies that the `get_css` utility function correctly
+    constructs a CSS string from a given set of parameters. It checks for the
+    presence of key CSS properties to ensure that the function is correctly
+    translating the parameters into a valid stylesheet.
+    """
     css = get_css(font_size=12, font_path='dummy.ttf', vertical=True, glow_size=1, stroke_size=1, letter_spacing=0.1, text_orientation='upright')
     assert 'font-size: 12px;' in css
     assert 'writing-mode: vertical-rl;' in css
@@ -69,14 +95,30 @@ def test_get_css():
 
 
 def test_get_css_transparent_background():
-    """Tests that get_css generates CSS for a transparent background."""
+    """Tests that `get_css` can generate CSS for a transparent background.
+
+    This test specifically verifies that when `background_color` is set to
+    'transparent', the resulting CSS correctly includes this property. This
+    is important for rendering text on a transparent layer that can be
+    overlaid on other images.
+    """
     css = get_css(font_size=12, font_path='dummy.ttf', background_color='transparent')
     assert 'background-color: transparent;' in css
     assert 'html, body {' in css
 
 
 def test_crop_by_alpha():
-    """Tests the `crop_by_alpha` function with various image scenarios."""
+    """Tests the `crop_by_alpha` function with various image scenarios.
+
+    This comprehensive test covers multiple edge cases for the `crop_by_alpha`
+    function, ensuring that it correctly crops images based on their alpha
+    channel. The tested scenarios include:
+    - A standard crop with a margin.
+    - A crop with no margin.
+    - An image that is fully transparent.
+    - An image that is fully opaque.
+    - An image where the content touches the border.
+    """
     # Test case 1: Standard crop with margin
     img = np.zeros((100, 100, 4), dtype=np.uint8)
     content_rgba = (128, 150, 170, 255)
@@ -125,7 +167,14 @@ def test_crop_by_alpha():
     assert np.array_equal(cropped_border, expected_content)
 
 def test_get_css_stroke():
-    """Tests that get_css generates a correct stroke effect."""
+    """Tests that `get_css` generates a correct stroke effect.
+
+    This test verifies that the `get_css` function produces the correct CSS
+    for a hard-edged text stroke. A proper stroke is typically achieved by
+    layering multiple text shadows with no blur. This test asserts that the
+    generated CSS contains the expected `text-shadow` properties for a stroke
+    and does not contain properties for a glow effect.
+    """
     css = get_css(
         font_size=48,
         font_path='dummy.ttf',
@@ -146,7 +195,12 @@ def test_get_css_stroke():
     assert "0 0 1px" not in css
 
 def test_get_css_glow():
-    """Tests that get_css generates a correct glow effect."""
+    """Tests that `get_css` generates a correct glow effect.
+
+    This test ensures that the `get_css` function correctly generates the
+    `text-shadow` property for a glow effect, using the specified size and
+    color. This verifies that the glow styling is applied as expected.
+    """
     css = get_css(
         font_size=48,
         font_path='dummy.ttf',
@@ -157,6 +211,8 @@ def test_get_css_glow():
 
 
 class TestRendererParams(unittest.TestCase):
+    """Tests for the random parameter generation in the Renderer."""
+
     @patch("numpy.random.choice")
     @patch("numpy.random.randint")
     @patch("numpy.random.uniform")
@@ -164,7 +220,21 @@ class TestRendererParams(unittest.TestCase):
     def test_get_random_css_params_uses_new_ranges(
         self, mock_rand, mock_uniform, mock_randint, mock_choice
     ):
-        """Verify that get_random_css_params uses the updated ranges for improved readability."""
+        """Verify that get_random_css_params uses the updated ranges.
+
+        This test ensures that the `get_random_css_params` method uses the
+        correct, updated ranges for generating random styling parameters. It
+        mocks the `numpy.random` functions to control the generated values
+        and asserts that the method calls these functions with the expected
+        range arguments. This is important for ensuring that the generated
+        data has the desired variety and readability.
+
+        Args:
+            mock_rand: Mock for `numpy.random.rand`.
+            mock_uniform: Mock for `numpy.random.uniform`.
+            mock_randint: Mock for `numpy.random.randint`.
+            mock_choice: Mock for `numpy.random.choice`.
+        """
         # Arrange
         # Mock random values to control the parameters generated
         # The order of calls to rand() is: vertical, text_color, text_orientation, letter_spacing
@@ -207,9 +277,20 @@ import json
 @patch('manga_ocr_dev.vendored.html2image.browsers.chrome_cdp.requests.get')
 @patch('manga_ocr_dev.vendored.html2image.browsers.chrome_cdp.create_connection')
 def test_chrome_cdp_screenshot_sets_transparent_background(mock_create_conn, mock_requests_get, mock_find_chrome):
-    """
-    Tests that the modified ChromeCDP screenshot method injects JavaScript
-    to set a transparent background before taking the screenshot.
+    """Tests that the CDP screenshot method sets a transparent background.
+
+    This test verifies a key modification in the vendored `ChromeCDP` class.
+    It ensures that before a screenshot is taken, JavaScript is executed to
+    set the background of the HTML body and document element to transparent.
+    This is critical for generating text images with an alpha channel that can
+    be composed with other backgrounds.
+
+    Args:
+        mock_create_conn: Mock for the WebSocket connection.
+        mock_requests_get: Mock for `requests.get` to simulate finding a
+            CDP session.
+        mock_find_chrome: Mock for `find_chrome` to avoid needing a real
+            browser.
     """
     # Arrange
     mock_find_chrome.return_value = 'dummy_chrome_path'
