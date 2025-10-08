@@ -11,6 +11,7 @@ from pathlib import Path
 import budoux
 import numpy as np
 import pandas as pd
+from pykakasi import kakasi
 
 from manga_ocr_dev.env import ASSETS_PATH, FONTS_ROOT
 from manga_ocr_dev.synthetic_data_generator.common.utils import (
@@ -60,6 +61,10 @@ class BaseDataGenerator:
         self.len_to_p = pd.read_csv(ASSETS_PATH / "len_to_p.csv")
         # Initialize the BudouX parser for semantic text splitting
         self.parser = budoux.load_default_japanese_parser()
+
+        # Initialize the pykakasi converter for furigana generation
+        self.kakasi = kakasi()
+
         # Load font metadata and the character support map
         self.fonts_df, self.font_map = get_font_meta()
         # Determine font labels and their sampling probabilities for weighted selection
@@ -190,12 +195,12 @@ class BaseDataGenerator:
 
         return lines
 
-    def add_random_furigana(self, line, word_prob=1.0, vocab=None):
-        """Adds furigana and other markup to a line of text.
+    def add_random_furigana(self, line, word_prob=1.0):
+        """Adds furigana and other markup to a line of text using pykakasi.
 
-        This method processes a line of text, identifying groups of kanji and
-        ASCII characters. It then randomly applies furigana (ruby text) to
-        kanji groups and Tate-Chu-Yoko (TCY) markup to short ASCII groups.
+        This method processes a line of text, converting kanji to their phonetic
+        (hiragana) readings. It then randomly applies furigana markup to the
+        kanji. It also handles Tate-Chu-Yoko (TCY) markup for short ASCII groups.
         The output is a list of chunks, where each chunk is either a string
         or a tuple representing marked-up text.
 
@@ -203,79 +208,43 @@ class BaseDataGenerator:
             line (str): The line of text to process.
             word_prob (float): The probability of applying furigana to a
                 kanji group.
-            vocab (set[str], optional): The character set to use for
-                generating furigana text. If None, the generator's default
-                vocabulary is used.
 
         Returns:
             list: A list of processed chunks. Strings are plain text, while
             tuples like ('furigana', base, ruby) or ('tcy', text) represent
             text with markup.
         """
-        if vocab is None:
-            vocab = self.vocab
-
-        def flush_kanji_group(group):
-            """Processes a group of consecutive kanji, optionally adding furigana."""
-            if not group:
-                return []
-            # Randomly decide whether to add furigana
-            if np.random.uniform() < word_prob:
-                # Determine the length and character set for the furigana
-                furigana_len = int(np.clip(np.random.normal(1.5, 0.5), 1, 4) * len(group))
-                char_source_key = np.random.choice(["hiragana", "katakana", "all"], p=[0.8, 0.15, 0.05])
-                char_source = {"hiragana": self.hiragana, "katakana": self.katakana, "all": vocab}[char_source_key]
-                furigana = "".join(np.random.choice(list(char_source), furigana_len))
-                # Return a tuple representing the furigana markup
-                return [('furigana', group, furigana)]
-            else:
-                return [group]
-
-        def flush_ascii_group(group):
-            """Processes a group of consecutive ASCII characters, optionally adding TCY markup."""
-            if not group:
-                return []
-            # For short ASCII sequences, randomly apply Tate-Chu-Yoko (TCY)
-            if len(group) <= 3 and np.random.uniform() < 0.7:
-                return [('tcy', group)]
-            else:
-                return [group]
-
         processed_chunks = []
-        kanji_group = ""
-        ascii_group = ""
+        # Use kakasi to convert the line into a list of dictionaries,
+        # each containing the original text, hiragana, and other forms.
+        converted = self.kakasi.convert(line)
 
-        # Iterate through the line character by character to identify and group character types
-        for c in line:
-            if is_kanji(c):
-                # If an ASCII group is active, process it before starting a new kanji group
-                if ascii_group:
-                    processed_chunks.extend(flush_ascii_group(ascii_group))
-                    ascii_group = ""
-                kanji_group += c
-            elif is_ascii(c):
-                # If a kanji group is active, process it before starting a new ASCII group
-                if kanji_group:
-                    processed_chunks.extend(flush_kanji_group(kanji_group))
-                    kanji_group = ""
-                ascii_group += c
+        for item in converted:
+            original = item['orig']
+            hiragana = item['hira']
+
+            # Check if the original text contains any kanji characters.
+            if any(is_kanji(c) for c in original):
+                # Randomly decide whether to add furigana to this kanji group.
+                if np.random.uniform() < word_prob:
+                    # Create a furigana markup tuple.
+                    processed_chunks.append(('furigana', original, hiragana))
+                else:
+                    # If not adding furigana, just append the original kanji text.
+                    processed_chunks.append(original)
+            # Check if the text is a short ASCII sequence (e.g., numbers, acronyms).
+            elif any(is_ascii(c) for c in original) and len(original) <= 3:
+                # Randomly apply Tate-Chu-Yoko (TCY) markup.
+                if np.random.uniform() < 0.7:
+                    processed_chunks.append(('tcy', original))
+                else:
+                    processed_chunks.append(original)
             else:
-                # If the character is neither kanji nor ASCII, process any active groups
-                if kanji_group:
-                    processed_chunks.extend(flush_kanji_group(kanji_group))
-                    kanji_group = ""
-                if ascii_group:
-                    processed_chunks.extend(flush_ascii_group(ascii_group))
-                    ascii_group = ""
-                processed_chunks.append(c)
+                # For all other text (hiragana, katakana, punctuation), append as is.
+                processed_chunks.append(original)
 
-        # Process any remaining character groups at the end of the line
-        if kanji_group:
-            processed_chunks.extend(flush_kanji_group(kanji_group))
-        if ascii_group:
-            processed_chunks.extend(flush_ascii_group(ascii_group))
-
-        # Combine consecutive string chunks into single strings for cleaner output
+        # The following logic to merge consecutive string chunks is retained
+        # to ensure the output format is clean and optimized.
         final_chunks = []
         current_string = ""
         for chunk in processed_chunks:
