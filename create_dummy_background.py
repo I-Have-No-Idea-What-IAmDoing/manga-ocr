@@ -28,13 +28,13 @@ sys.path.insert(0, str(ROOT_DIR))
 from manga_ocr_dev.env import BACKGROUND_DIR
 
 
-# Create the directory for the dummy background images
+# Ensure the target directory for background images exists
 BACKGROUND_DIR.mkdir(parents=True, exist_ok=True)
 
-# Create a black image
+# Create a 1024x1024 black image using NumPy
 dummy_image = np.zeros((1024, 1024, 3), dtype=np.uint8)
 
-# Save the image with a filename that matches the expected format
+# Save the image with a filename that includes its dimensions, as expected by the data generator
 cv2.imwrite(str(Path(BACKGROUND_DIR) / "dummy_0_1024_0_1024.png"), dummy_image)
 
 print("Dummy background image created successfully in the correct directory.")

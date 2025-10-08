@@ -32,7 +32,9 @@ def get_books():
             - `images`: The full path to the directory containing the book's
               images.
     """
+    # Define the root directory of the Manga109-s dataset
     root = Path(MANGA109_ROOT) / "Manga109s_released_2021_02_28"
+    # Read the list of book titles from books.txt
     books = (root / "books.txt").read_text().splitlines()
     books = pd.DataFrame(
         {
@@ -57,14 +59,19 @@ def export_frames():
     `frames.csv` in the `MANGA109_ROOT` directory. This file is used by other
     scripts, such as `generate_backgrounds.py`, to identify non-text areas.
     """
+    # Retrieve the list of books in the dataset
     books = get_books()
 
     data = []
+    # Iterate over each book to process its annotations
     for book in tqdm(books.itertuples(), total=len(books)):
         tree = ET.parse(book.annotations)
         root = tree.getroot()
+        # Find all page elements in the XML
         for page in root.findall("./pages/page"):
+            # Find all frame elements within each page
             for frame in page.findall("./frame"):
+                # Extract frame attributes and page information
                 row = {}
                 row["book"] = book.book
                 row["page_index"] = int(page.attrib["index"])
@@ -79,9 +86,12 @@ def export_frames():
                 row["xmax"] = int(frame.attrib["xmax"])
                 row["ymax"] = int(frame.attrib["ymax"])
                 data.append(row)
+    # Convert the collected data into a pandas DataFrame
     data = pd.DataFrame(data)
 
+    # Normalize the page paths to be relative to the project structure
     data.page_path = data.page_path.apply(lambda x: "/".join(Path(x).parts[-4:]))
+    # Save the DataFrame to a CSV file
     data.to_csv(Path(MANGA109_ROOT) / "frames.csv", index=False)
 
 
@@ -99,18 +109,24 @@ def export_crops():
     crops serve as the primary source of real-world data for training the
     OCR model.
     """
+    # Set up the directory for saving cropped images and define the margin
     crops_root = Path(MANGA109_ROOT) / "crops"
     crops_root.mkdir(parents=True, exist_ok=True)
     margin = 10
 
+    # Retrieve the list of books
     books = get_books()
 
     data = []
+    # Process each book to extract text annotations
     for book in tqdm(books.itertuples(), total=len(books)):
         tree = ET.parse(book.annotations)
         root = tree.getroot()
+        # Find all page elements
         for page in root.findall("./pages/page"):
+            # Find all text elements within each page
             for text in page.findall("./text"):
+                # Extract text attributes and page information
                 row = {}
                 row["book"] = book.book
                 row["page_index"] = int(page.attrib["index"])
@@ -126,29 +142,40 @@ def export_crops():
                 row["xmax"] = int(text.attrib["xmax"])
                 row["ymax"] = int(text.attrib["ymax"])
                 data.append(row)
+    # Convert the list of dictionaries to a DataFrame
     data = pd.DataFrame(data)
 
+    # Split the data into training and testing sets (90% train, 10% test)
     n_test = int(0.1 * len(data))
     data["split"] = "train"
     data.loc[data.sample(len(data)).iloc[:n_test].index, "split"] = "test"
 
+    # Define the path for each cropped image
     data["crop_path"] = str(crops_root) + "/" + data.id + ".png"
 
+    # Normalize page and crop paths
     data.page_path = data.page_path.apply(lambda x: "/".join(Path(x).parts[-4:]))
     data.crop_path = data.crop_path.apply(lambda x: "/".join(Path(x).parts[-2:]))
+    # Save the consolidated metadata to a CSV file
     data.to_csv(Path(MANGA109_ROOT) / "data.csv", index=False)
 
+    # Group data by page to process images efficiently
     for page_path, boxes in tqdm(
         data.groupby("page_path"), total=data.page_path.nunique()
     ):
+        # Load the page image
         img = cv2.imread(str(Path(MANGA109_ROOT) / page_path))
 
+        # Iterate over each text box on the page
         for box in boxes.itertuples():
+            # Calculate crop coordinates with a margin, ensuring they are within image bounds
             xmin = max(box.xmin - margin, 0)
             xmax = min(box.xmax + margin, img.shape[1])
             ymin = max(box.ymin - margin, 0)
             ymax = min(box.ymax + margin, img.shape[0])
+            # Crop the image
             crop = img[ymin:ymax, xmin:xmax]
+            # Define the output path and save the cropped image
             out_path = (crops_root / box.id).with_suffix(".png")
             cv2.imwrite(str(out_path), crop)
 

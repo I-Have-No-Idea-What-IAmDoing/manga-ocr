@@ -14,13 +14,13 @@ Usage:
 from PIL import Image
 import os
 
-# Create a black image
+# Create a 600x800 black image using PIL
 img = Image.new('RGB', (600, 800), color = 'black')
 
-# Ensure the directory exists
+# Ensure the output directory exists, creating it if necessary
 os.makedirs("assets/backgrounds", exist_ok=True)
 
-# Save the image
+# Save the dummy image to the specified path
 img.save("assets/backgrounds/dummy_background.png")
 
 print("Dummy image created at assets/backgrounds/dummy_background.png")

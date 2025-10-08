@@ -79,14 +79,21 @@ class TrainingConfig(BaseSettings):
     environments, such as the number of dataloader workers.
     """
 
+    # model_config defines how Pydantic-settings loads configuration values.
     model_config = SettingsConfigDict(
+        # Specifies the .env file to load environment variables from.
         env_file=".env",
         env_file_encoding="utf-8",
+        # Allows the model to ignore extra fields in the config sources.
         extra="ignore",
+        # Adds a prefix to environment variables to avoid naming conflicts.
         env_prefix="MANGA_OCR_TRAINING_",
+        # Allows populating fields by their alias names.
         populate_by_name=True,
     )
 
+    # The `alias` parameter maps the Pydantic field name to the corresponding
+    # argument name in `Seq2SeqTrainingArguments`.
     batch_size: int = Field(64, alias="per_device_train_batch_size", description="The batch size for training.")
     num_epochs: int = Field(8, alias="num_train_epochs", description="The total number of training epochs.")
     fp16: bool = Field(True, description="Whether to use 16-bit (mixed) precision training.")
@@ -126,8 +133,17 @@ class AppConfig(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """
-        Define the priority of configuration sources.
+        """Define the priority of configuration sources.
+
+        This method customizes the order in which Pydantic-settings looks for
+        configuration values. The order of sources in the returned tuple
+        determines their priority, with earlier sources overriding later ones.
+        In this case, the priority is:
+        1.  `init_settings`: Values passed directly to the `AppConfig` constructor.
+        2.  `YamlConfigSettingsSource`: Values from the `config.yaml` file.
+        3.  `env_settings`: System environment variables.
+        4.  `dotenv_settings`: Variables loaded from a `.env` file.
+        5.  `file_secret_settings`: Settings from Docker-style secrets files.
         """
         return (
             init_settings,

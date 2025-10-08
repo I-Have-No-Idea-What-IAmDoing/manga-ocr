@@ -54,10 +54,15 @@ class BaseDataGenerator:
         including character sets from `vocab.csv`, font metadata from
         `fonts.csv`, and the BudouX text parser.
         """
+        # Load character sets (full vocabulary, hiragana, katakana)
         self.vocab, self.hiragana, self.katakana = get_charsets()
+        # Load the probability distribution for text lengths
         self.len_to_p = pd.read_csv(ASSETS_PATH / "len_to_p.csv")
+        # Initialize the BudouX parser for semantic text splitting
         self.parser = budoux.load_default_japanese_parser()
+        # Load font metadata and the character support map
         self.fonts_df, self.font_map = get_font_meta()
+        # Determine font labels and their sampling probabilities for weighted selection
         self.font_labels, self.font_p = self.get_font_labels_prob()
 
     def get_font_labels_prob(self):
@@ -73,12 +78,15 @@ class BaseDataGenerator:
                 - np.ndarray: A NumPy array of corresponding sampling
                   probabilities.
         """
+        # Define the base weights for each font category
         labels = {
             "common": 0.2,
             "regular": 0.75,
             "special": 0.05,
         }
+        # Filter the labels to include only those present in the loaded fonts
         labels = {k: labels[k] for k in self.fonts_df.label.unique()}
+        # Convert the weights to a NumPy array and normalize them to sum to 1
         p = np.array(list(labels.values()))
         p = p / p.sum()
         labels = list(labels.keys())
@@ -97,11 +105,14 @@ class BaseDataGenerator:
             list[str]: A list of randomly generated words.
         """
         vocab = list(vocab)
+        # Determine the maximum length of the text to be generated based on the probability distribution
         max_text_len = np.random.choice(self.len_to_p["len"], p=self.len_to_p["p"])
 
         words = []
         text_len = 0
+        # Continuously generate words until the total text length reaches the maximum
         while True:
+            # Generate a random word with a length between 1 and 3 characters
             word = "".join(np.random.choice(vocab, np.random.randint(1, 4)))
             words.append(word)
             text_len += len(word)
@@ -123,13 +134,16 @@ class BaseDataGenerator:
         Returns:
             list[str]: A list of words.
         """
+        # Determine the maximum text length from the probability distribution
         max_text_len = np.random.choice(self.len_to_p["len"], p=self.len_to_p["p"])
 
         words = []
         text_len = 0
+        # Use the BudouX parser to split the text into words
         for word in self.parser.parse(text):
             words.append(word)
             text_len += len(word)
+            # Stop once the total text length reaches the maximum
             if text_len >= max_text_len:
                 break
 
@@ -150,22 +164,27 @@ class BaseDataGenerator:
         """
         text = "".join(words)
 
+        # Determine a dynamic maximum line length based on the total text length
         max_num_lines = 10
         min_line_len = len(text) // max_num_lines if text else 0
         max_line_len = 20
         if min_line_len > max_line_len:
             max_line_len = min_line_len + 5
+        # Add randomness to the line length for more variety
         max_line_len = np.clip(np.random.poisson(10), min_line_len, max_line_len)
 
         lines = []
         current_line = ""
+        # Iterate through the words and arrange them into lines
         for word in words:
+            # If adding the next word exceeds the max line length, start a new line
             if len(current_line) + len(word) > max_line_len:
                 if current_line:
                     lines.append(current_line)
                 current_line = word
             else:
                 current_line += word
+        # Add the last line to the list
         if current_line:
             lines.append(current_line)
 
@@ -197,28 +216,26 @@ class BaseDataGenerator:
             vocab = self.vocab
 
         def flush_kanji_group(group):
+            """Processes a group of consecutive kanji, optionally adding furigana."""
             if not group:
                 return []
+            # Randomly decide whether to add furigana
             if np.random.uniform() < word_prob:
-                furigana_len = int(
-                    np.clip(np.random.normal(1.5, 0.5), 1, 4) * len(group)
-                )
-                char_source = np.random.choice(
-                    ["hiragana", "katakana", "all"], p=[0.8, 0.15, 0.05]
-                )
-                char_source = {
-                    "hiragana": self.hiragana,
-                    "katakana": self.katakana,
-                    "all": vocab,
-                }[char_source]
+                # Determine the length and character set for the furigana
+                furigana_len = int(np.clip(np.random.normal(1.5, 0.5), 1, 4) * len(group))
+                char_source_key = np.random.choice(["hiragana", "katakana", "all"], p=[0.8, 0.15, 0.05])
+                char_source = {"hiragana": self.hiragana, "katakana": self.katakana, "all": vocab}[char_source_key]
                 furigana = "".join(np.random.choice(list(char_source), furigana_len))
+                # Return a tuple representing the furigana markup
                 return [('furigana', group, furigana)]
             else:
                 return [group]
 
         def flush_ascii_group(group):
+            """Processes a group of consecutive ASCII characters, optionally adding TCY markup."""
             if not group:
                 return []
+            # For short ASCII sequences, randomly apply Tate-Chu-Yoko (TCY)
             if len(group) <= 3 and np.random.uniform() < 0.7:
                 return [('tcy', group)]
             else:
@@ -228,18 +245,22 @@ class BaseDataGenerator:
         kanji_group = ""
         ascii_group = ""
 
+        # Iterate through the line character by character to identify and group character types
         for c in line:
             if is_kanji(c):
+                # If an ASCII group is active, process it before starting a new kanji group
                 if ascii_group:
                     processed_chunks.extend(flush_ascii_group(ascii_group))
                     ascii_group = ""
                 kanji_group += c
             elif is_ascii(c):
+                # If a kanji group is active, process it before starting a new ASCII group
                 if kanji_group:
                     processed_chunks.extend(flush_kanji_group(kanji_group))
                     kanji_group = ""
                 ascii_group += c
             else:
+                # If the character is neither kanji nor ASCII, process any active groups
                 if kanji_group:
                     processed_chunks.extend(flush_kanji_group(kanji_group))
                     kanji_group = ""
@@ -248,11 +269,13 @@ class BaseDataGenerator:
                     ascii_group = ""
                 processed_chunks.append(c)
 
+        # Process any remaining character groups at the end of the line
         if kanji_group:
             processed_chunks.extend(flush_kanji_group(kanji_group))
         if ascii_group:
             processed_chunks.extend(flush_ascii_group(ascii_group))
 
+        # Combine consecutive string chunks into single strings for cleaner output
         final_chunks = []
         current_string = ""
         for chunk in processed_chunks:
@@ -279,12 +302,15 @@ class BaseDataGenerator:
             bool: True if the font supports all non-whitespace characters in
             the text, False otherwise.
         """
+        # Get the set of supported characters for the given font
         chars = self.font_map.get(font_path)
         if not chars:
             return False
+        # Check each character in the text, skipping whitespace
         for c in text:
             if c.isspace():
                 continue
+            # If any character is not in the font's supported set, return False
             if c not in chars:
                 return False
         return True
@@ -307,19 +333,24 @@ class BaseDataGenerator:
             ValueError: If no font can be found that supports all characters
                 in the provided text.
         """
+        # Select a font category based on the predefined probabilities
         label = np.random.choice(self.font_labels, p=self.font_p)
+        # Filter the font DataFrame to include only fonts of the selected category
         df = self.fonts_df[self.fonts_df.label == label]
+        # If no text is provided, randomly sample one font from the filtered DataFrame
         if text is None:
             return df.sample(1).iloc[0].font_path
 
-        # Use relative paths for checking support
+        # If text is provided, find all fonts in the category that support it
         valid_mask = df.font_path.apply(lambda x: self.is_font_supporting_text(x, text))
 
+        # If no supporting font is found in the category, search all fonts
         if not valid_mask.any():
             valid_mask = self.fonts_df.font_path.apply(
                 lambda x: self.is_font_supporting_text(x, text)
             )
             df = self.fonts_df
+            # If still no supporting font is found, raise an error
             if not valid_mask.any():
                 unsupported_chars = {
                     c for c in text if not self.is_char_supported_by_any_font(c)
@@ -327,6 +358,7 @@ class BaseDataGenerator:
                 raise ValueError(
                     f"Text contains unsupported characters: {''.join(unsupported_chars)}"
                 )
+        # Randomly sample one font from the list of valid fonts
         return df[valid_mask].sample(1).iloc[0].font_path
 
     def is_char_supported_by_any_font(self, char):

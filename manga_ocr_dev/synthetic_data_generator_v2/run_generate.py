@@ -22,4 +22,6 @@ import fire
 from manga_ocr_dev.synthetic_data_generator.run_generate import run
 
 if __name__ == "__main__":
+    # Use fire to create a command-line interface, forwarding all arguments to the main
+    # run function while hardcoding the renderer to 'pictex'.
     fire.Fire(lambda **kwargs: run(renderer='pictex', **kwargs))

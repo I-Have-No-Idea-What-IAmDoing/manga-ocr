@@ -87,7 +87,7 @@ class TestRunGenerate(unittest.TestCase):
         """Test that the main run function creates output files for the pictex renderer."""
         run(renderer='pictex', package=0, n_random=1, n_limit=2, max_workers=1)
         output_img_dir = self.synthetic_data_root / "img_v2" / "0000"
-        output_meta_dir = self.synthetic_data_root / "meta"
+        output_meta_dir = self.synthetic_data_root / "meta_v2"
         self.assertTrue(output_img_dir.exists())
         self.assertTrue(output_meta_dir.exists())
         self.assertEqual(len(list(output_img_dir.glob('*.jpg'))), 2)
@@ -109,7 +109,7 @@ class TestRunGenerate(unittest.TestCase):
         run(renderer='html', package=0, n_random=1, n_limit=2, max_workers=1)
 
         output_img_dir = self.synthetic_data_root / "img_v1" / "0000"
-        output_meta_dir = self.synthetic_data_root / "meta"
+        output_meta_dir = self.synthetic_data_root / "meta_v1"
         self.assertTrue(output_img_dir.exists())
         self.assertTrue(output_meta_dir.exists())
         self.assertEqual(len(list(output_img_dir.glob('*.jpg'))), 2)

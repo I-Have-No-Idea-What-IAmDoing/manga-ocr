@@ -33,9 +33,12 @@ def _param_preprocessor(params: Dict[str, Any]) -> Dict[str, Any]:
         ValueError: If an unknown OpenCV constant is encountered.
     """
     processed_params = params.copy()
+    # Iterate over each parameter to check for special string values
     for key, value in processed_params.items():
+        # If a string parameter starts with "cv2.", it's treated as a constant
         if isinstance(value, str) and value.startswith("cv2."):
             constant_name = value.split(".")[-1]
+            # Resolve the string to the actual cv2 constant value
             if hasattr(cv2, constant_name):
                 processed_params[key] = getattr(cv2, constant_name)
             else:
@@ -60,24 +63,27 @@ def build_transforms(aug_list: List[Dict[str, Any]]) -> List[A.BasicTransform]:
         A list of instantiated Albumentations transform objects.
     """
     transforms = []
+    # Iterate over each augmentation definition in the list
     for aug in aug_list:
         name = aug["name"]
+        # Preprocess the parameters to resolve any special string values
         params = _param_preprocessor(aug.get("params", {}))
 
-        # Handle nested transforms for composite augmentations like `OneOf`.
+        # Check for and handle nested transforms for composite augmentations like `OneOf`
         if "transforms" in params:
-            # Recursively build the list of nested transforms.
+            # Recursively build the list of nested transforms
             nested_transforms = build_transforms(params.pop("transforms"))
         else:
             nested_transforms = []
 
+        # Get the transform class from either albumentations.pytorch or the main albumentations library
         if name == "ToTensorV2":
             transform_class = getattr(AP, name)
         else:
             transform_class = getattr(A, name)
 
+        # Instantiate the transform, passing nested transforms as a positional argument if they exist
         if nested_transforms:
-            # Assumes the nested transforms are the first positional argument.
             instance = transform_class(nested_transforms, **params)
         else:
             instance = transform_class(**params)

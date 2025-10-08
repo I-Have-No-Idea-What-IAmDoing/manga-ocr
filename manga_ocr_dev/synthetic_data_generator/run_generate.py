@@ -76,24 +76,30 @@ def worker_fn(args, generator, renderer_type, debug=False):
         (source, ID, text, vertical, font_path) if successful, otherwise None.
     """
     try:
+        # Unpack the arguments for the current sample
         i, source, id_, text = args
         if debug:
             print(f"Processing sample {id_}: '{text}'")
 
+        # Generate the synthetic image and get ground truth text and parameters
         filename = f"{id_}.jpg"
         img, text_gt, params = generator.process(text)
 
+        # If image generation fails, skip this sample
         if img is None:
             print(f"Skipping render for text: {text}")
             return None
 
+        # Save the generated image
         img_path = Path(OUT_DIR) / filename
         cv2.imwrite(str(img_path), img)
         if debug:
             print(f"  - Saved image to {img_path}")
 
+        # In debug mode, save additional artifacts like HTML and JSON parameters
         if debug:
             debug_info = params.copy()
+            # If using the HTML renderer, save the generated HTML
             if renderer_type == 'html':
                 html = debug_info.pop("html", "")
                 html_path = Path(DEBUG_DIR) / f"{id_}.html"
@@ -105,21 +111,25 @@ def worker_fn(args, generator, renderer_type, debug=False):
                 if isinstance(value, Path):
                     debug_info[key] = str(value)
 
+            # Save rendering parameters to a JSON file
             json_path = Path(DEBUG_DIR) / f"{id_}.json"
             json_path.write_text(
                 json.dumps(debug_info, indent=4, cls=NumpyEncoder), encoding="utf-8"
             )
             print(f"  - Saved params to {json_path}")
 
+        # Collect metadata for the final CSV record
         font_path = params.get("font_path")
         vertical = params.get("vertical", False)
         ret = source, id_, text_gt, vertical, str(font_path)
         return ret
 
     except ValueError as e:
+        # Handle cases where image generation is intentionally skipped
         print(f"Skipping due to error: {e}")
         return None
     except Exception:
+        # Log any other exceptions and re-raise to stop the process
         print(traceback.format_exc())
         raise
 
@@ -175,6 +185,7 @@ def run(
             does not exist.
         ValueError: If the specified renderer is not 'pictex' or 'html'.
     """
+    # Parse and validate command-line arguments
     package = int(package)
     n_random = int(n_random)
     if n_limit is not None:
@@ -184,20 +195,25 @@ def run(
     if renderer not in ['pictex', 'html']:
         raise ValueError("`renderer` must be either 'pictex' or 'html'")
 
+    # Load the text lines from the specified package
     package_id = f"{package:04d}"
     lines_path = Path(DATA_SYNTHETIC_ROOT) / f"lines/{package_id}.csv"
     if not lines_path.exists():
         raise FileNotFoundError(f"Lines file not found: {lines_path}")
-
     lines = pd.read_csv(lines_path)
+
+    # Generate additional random samples if specified
     random_lines = pd.DataFrame(
         {"source": "random", "id": [f"random_{package_id}_{i}" for i in range(n_random)], "line": None}
     )
     lines = pd.concat([lines, random_lines], ignore_index=True)
+
+    # Limit the number of samples if n_limit is set
     if n_limit:
         lines = lines.sample(n_limit)
     args = [(i, *values) for i, values in enumerate(lines.values)]
 
+    # Set up output directories for images and metadata
     global OUT_DIR, DEBUG_DIR
     version_str = 'v2' if renderer == 'pictex' else 'v1'
     OUT_DIR = Path(DATA_SYNTHETIC_ROOT) / f"img_{version_str}" / package_id
@@ -206,16 +222,16 @@ def run(
         DEBUG_DIR = Path(DATA_SYNTHETIC_ROOT) / "debug" / package_id
         DEBUG_DIR.mkdir(parents=True, exist_ok=True)
 
-    background_dir = Path(BACKGROUND_DIR)
-
+    # Parse image size parameters
     if isinstance(target_size, str):
         target_size = tuple(map(int, target_size.split(',')))
     if min_output_size is not None:
         min_output_size = int(min_output_size)
 
+    # Initialize the appropriate data generator based on the selected renderer
     if renderer == 'pictex':
         generator = SyntheticDataGeneratorV2(
-            background_dir=background_dir,
+            background_dir=Path(BACKGROUND_DIR),
             min_font_size=int(min_font_size),
             max_font_size=int(max_font_size),
             target_size=target_size,
@@ -228,7 +244,7 @@ def run(
         browser_executable = os.environ.get("CHROME_EXECUTABLE_PATH")
         with Renderer(cdp_port=int(cdp_port), browser_executable=browser_executable, debug=debug) as renderer_instance:
             generator = SyntheticDataGenerator(
-                background_dir=background_dir,
+                background_dir=Path(BACKGROUND_DIR),
                 renderer=renderer_instance,
                 target_size=target_size,
                 min_output_size=min_output_size,
@@ -236,13 +252,15 @@ def run(
             f_with_generator = partial(worker_fn, generator=generator, renderer_type=renderer, debug=debug)
             results = thread_map(f_with_generator, args, max_workers=max_workers, desc=f"Processing package {package_id} (html)")
 
+    # Filter out any samples that failed during generation
     data = [res for res in results if res is not None]
     if not data:
         print("No data generated.")
         return
 
+    # Save the metadata for the generated samples to a CSV file
     data = pd.DataFrame(data, columns=["source", "id", "text", "vertical", "font_path"])
-    meta_path = Path(DATA_SYNTHETIC_ROOT) / f"meta/{package_id}.csv"
+    meta_path = Path(DATA_SYNTHETIC_ROOT) / f"meta_{version_str}" / f"{package_id}.csv"
     meta_path.parent.mkdir(parents=True, exist_ok=True)
     data.to_csv(meta_path, index=False)
 
