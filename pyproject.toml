@@ -41,6 +41,7 @@ dev = [
     "wandb",
     "pictex",
     "scipy",
+    "pykakasi",
 ]
 
 [project.urls]
