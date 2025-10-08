@@ -21,9 +21,26 @@ from manga_ocr_dev.env import FONTS_ROOT
 def test_generator_handles_missing_font_data_after_fix(
     mock_budoux, mock_gen_read_csv, mock_get_charsets, mock_renderer, mock_utils_read_csv
 ):
-    """
-    Test that SyntheticDataGenerator initializes and runs correctly after fixing `get_font_meta`
-    to handle fonts with missing data.
+    """Tests that the generator can handle malformed font metadata.
+
+    This test verifies that the `SyntheticDataGenerator` can initialize and
+    operate correctly even when the `fonts.csv` file contains rows with
+    missing data (e.g., NaN values). It specifically tests the fix in the
+    `get_font_meta` function, which should now gracefully handle such malformed
+    entries by dropping them.
+
+    The test mocks the `pd.read_csv` call within the `utils` module to simulate
+    loading a defective `fonts.csv`, then asserts that the generator
+    initializes without error and that the invalid font is excluded from its
+    internal font map.
+
+    Args:
+        mock_budoux: Mock for the BudouX parser.
+        mock_gen_read_csv: Mock for `pd.read_csv` in the generator module.
+        mock_get_charsets: Mock for the `get_charsets` utility.
+        mock_renderer: Mock for the `Renderer` class.
+        mock_utils_read_csv: Mock for `pd.read_csv` in the `utils` module,
+            used to inject faulty font data.
     """
     # This test is unique because it mocks the `pd.read_csv` inside `utils` to test
     # the real `get_font_meta` function's ability to handle bad data.
@@ -70,7 +87,26 @@ def test_generator_handles_missing_font_data_after_fix(
 def test_generator_raises_value_error_for_unsupported_chars(
     mock_budoux, mock_gen_read_csv, mock_get_charsets, mock_renderer, mock_get_font_meta
 ):
-    """Test that SyntheticDataGenerator raises ValueError for unsupported characters."""
+    """Tests that the generator raises an error for unsupported characters.
+
+    This test ensures that the `SyntheticDataGenerator` correctly identifies
+    when a given input text contains characters that are not supported by any
+    of the available fonts. When such a situation occurs, the generator is
+    expected to raise a `ValueError` to prevent attempting to render text that
+    would result in missing or incorrect glyphs.
+
+    The test sets up a mock font environment where no font supports the
+    character 'X', and then attempts to process a text containing 'X',
+    asserting that the expected `ValueError` is raised.
+
+    Args:
+        mock_budoux: Mock for the BudouX parser.
+        mock_gen_read_csv: Mock for `pd.read_csv` in the generator module.
+        mock_get_charsets: Mock for the `get_charsets` utility.
+        mock_renderer: Mock for the `Renderer` class.
+        mock_get_font_meta: Mock for `get_font_meta` to provide a controlled
+            set of fonts and supported characters.
+    """
     # Mock dependencies for SyntheticDataGenerator initialization
     mock_get_charsets.return_value = (set('abc'), set('a'), set('b'))
     mock_gen_read_csv.return_value = pd.DataFrame({'len': [10], 'p': [1.0]})

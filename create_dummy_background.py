@@ -1,10 +1,19 @@
-"""Creates a dummy background image for the synthetic data generator.
+"""Generates a placeholder background image for the data generator.
 
-This script generates a simple black 1024x1024 image and saves it to the
-`BACKGROUND_DIR`. Its primary purpose is to serve as a placeholder, ensuring
-that the data generation pipeline does not fail if the background directory
-is empty. The filename is formatted to be compatible with the background
-loading logic, which expects dimensions to be encoded in the name.
+This script creates a simple 1024x1024 black image and saves it to the
+directory specified by `BACKGROUND_DIR` from `manga_ocr_dev.env`.
+
+The primary purpose of this utility is to prevent errors in the synthetic
+data generation pipeline, which expects at least one background image to be
+present. Running this script ensures that the `Composer` class can always
+find a background, even if real background images have not yet been added.
+
+The filename `dummy_0_1024_0_1024.png` is deliberately formatted to be
+compatible with the `get_background_df` function, which parses image
+dimensions from the filename.
+
+Usage:
+    python create_dummy_background.py
 """
 
 import cv2

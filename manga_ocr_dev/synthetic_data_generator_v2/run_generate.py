@@ -1,6 +1,15 @@
-"""
-This script is a wrapper for the main run_generate.py script,
-calling it with the `pictex` renderer.
+"""Entry point for generating synthetic data using the PicTex renderer.
+
+This script serves as a convenient wrapper around the main data generation
+script located in `manga_ocr_dev.synthetic_data_generator.run_generate`.
+It is specifically configured to invoke the generation process with the
+`renderer` argument set to 'pictex', utilizing the `SyntheticDataGeneratorV2`
+engine.
+
+This allows for a clear separation of concerns, providing a dedicated entry
+point for the V2 data generation pipeline while reusing the common argument
+parsing and execution logic from the main script. All command-line arguments
+passed to this script are forwarded to the underlying `run` function.
 """
 import sys
 from pathlib import Path

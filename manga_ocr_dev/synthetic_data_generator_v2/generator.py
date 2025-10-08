@@ -51,7 +51,18 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
             self.composer = None
 
     def get_random_render_params(self):
-        """Generates a dictionary of random parameters for text rendering."""
+        """Generates a dictionary of random parameters for text rendering.
+
+        This method creates a set of randomized parameters that control the
+        visual appearance of the rendered text. These parameters include text
+        orientation, font size, color, and visual effects like stroke or glow.
+        This helps to create a diverse dataset that exposes the OCR model to a
+        wide range of text styles.
+
+        Returns:
+            dict: A dictionary containing randomly generated rendering
+            parameters.
+        """
         params = {}
         params['vertical'] = np.random.choice([True, False], p=[0.8, 0.2])
         params['font_size'] = np.random.randint(self.min_font_size, self.max_font_size)
@@ -79,7 +90,27 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         return params
 
     def process(self, text=None, override_params=None):
-        """Processes text to generate a synthetic image and ground truth."""
+        """Processes text to generate a synthetic image and ground truth.
+
+        This method orchestrates the generation of a single synthetic sample.
+        It takes optional input text, or generates random text if none is
+        provided. It then determines rendering parameters, applies random
+        markup (like furigana), renders the text to an image, and composes it
+        with a background if a composer is available.
+
+        Args:
+            text (str, optional): The text to be rendered. If None, random
+                text will be generated. Defaults to None.
+            override_params (dict, optional): A dictionary of rendering
+                parameters to override the randomly generated ones. Defaults to
+                None.
+
+        Returns:
+            A tuple containing:
+                - np.ndarray: The generated image as a NumPy array.
+                - str: The ground truth text.
+                - dict: The parameters used for rendering.
+        """
         params = self.get_random_render_params()
         if override_params:
             params.update(override_params)
@@ -144,7 +175,24 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         return img, text_gt, params
 
     def render(self, lines_with_markup, params):
-        """Renders text with markup into a NumPy image array using pictex."""
+        """Renders text with markup into a NumPy image array using pictex.
+
+        This method takes text that has been processed and marked up (e.g.,
+        with furigana) and uses the `pictex` library to render it into an
+        image. It constructs a layout of text components based on the markup
+        and rendering parameters, then generates the final image.
+
+        Args:
+            lines_with_markup (list[list]): A nested list where each inner list
+                contains chunks of a line. Chunks can be strings or tuples
+                representing marked-up text.
+            params (dict): A dictionary of rendering parameters, including font
+                path, size, color, and effects.
+
+        Returns:
+            np.ndarray: The rendered image as a NumPy array. Returns an empty
+            array if rendering fails or if there is no text to render.
+        """
         font_path = params.get("font_path", "NotoSansJP-Regular.otf")
         font_size = params.get("font_size", 32)
         color = params.get("color", "black")

@@ -9,8 +9,15 @@ from manga_ocr_dev.synthetic_data_generator.run_generate import worker_fn, run
 
 @patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite')
 def test_worker_fn(mock_imwrite):
-    """
-    Tests the `worker_fn` for correct data processing.
+    """Tests the `worker_fn` for correct data processing and output.
+
+    This test verifies that the `worker_fn`, which is responsible for
+    processing a single data sample in parallel, correctly interacts with the
+    data generator, saves the resulting image, and returns the appropriate
+    metadata.
+
+    Args:
+        mock_imwrite: Mock for `cv2.imwrite` to prevent file system writes.
     """
     mock_generator = MagicMock()
     mock_generator.process.return_value = (MagicMock(), 'test_text', {'font_path': 'dummy.ttf', 'vertical': True})
@@ -30,8 +37,23 @@ def test_worker_fn(mock_imwrite):
 @patch('manga_ocr_dev.synthetic_data_generator.generator.SyntheticDataGenerator')
 @patch('manga_ocr_dev.synthetic_data_generator.run_generate.os.environ.get')
 def test_run(mock_os_get, mock_generator_class, mock_renderer_class, mock_thread_map, mock_mkdir, mock_to_csv, mock_read_csv, mock_exists, tmp_path):
-    """
-    Tests the main `run` function for orchestrating data generation.
+    """Tests the main `run` function for orchestrating data generation.
+
+    This test verifies that the main `run` function correctly coordinates the
+    entire data generation pipeline. It checks that the function reads the
+    input data, initializes the necessary components, invokes the parallel
+    worker function via `thread_map`, and saves the final metadata.
+
+    Args:
+        mock_os_get: Mock for `os.environ.get`.
+        mock_generator_class: Mock for the `SyntheticDataGenerator` class.
+        mock_renderer_class: Mock for the `Renderer` class.
+        mock_thread_map: Mock for `thread_map` to simulate parallel execution.
+        mock_mkdir: Mock for `pathlib.Path.mkdir` to prevent directory creation.
+        mock_to_csv: Mock for `pd.DataFrame.to_csv` to prevent file writes.
+        mock_read_csv: Mock for `pd.read_csv` to provide mock input data.
+        mock_exists: Mock for `pathlib.Path.exists`.
+        tmp_path: The pytest fixture for a temporary directory.
     """
     # Setup temporary directories and files
     background_dir = tmp_path / "backgrounds"
@@ -60,8 +82,15 @@ def test_run(mock_os_get, mock_generator_class, mock_renderer_class, mock_thread
 @patch('manga_ocr_dev.synthetic_data_generator.run_generate.cv2.imwrite')
 @patch('builtins.print')
 def test_worker_fn_exception_handling(mock_print, mock_imwrite):
-    """
-    Tests that the `worker_fn` correctly handles exceptions.
+    """Tests that the `worker_fn` correctly handles exceptions.
+
+    This test ensures that if an exception occurs during the processing of a
+    sample within the `worker_fn`, the exception is caught and printed, and
+    the function does not crash the entire data generation process.
+
+    Args:
+        mock_print: Mock for the built-in `print` function.
+        mock_imwrite: Mock for `cv2.imwrite`.
     """
     mock_generator = MagicMock()
     mock_generator.process.side_effect = Exception("Test exception")

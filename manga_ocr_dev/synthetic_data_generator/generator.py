@@ -134,7 +134,26 @@ class SyntheticDataGenerator(BaseDataGenerator):
         return img, text_gt, params
 
     def add_random_furigana(self, line, word_prob=1.0, vocab=None):
-        """Adds random furigana to kanji characters in a line of text for HTML rendering."""
+        """Adds random furigana to kanji characters in a line of text.
+
+        This method processes a line of text, identifies sequences of kanji
+        characters, and randomly adds furigana (ruby text) to them. This is
+        used to generate more realistic and diverse training data that mimics
+        the appearance of text in manga. It also handles special styling for
+        short ASCII sequences.
+
+        Args:
+            line (str): The line of text to process.
+            word_prob (float, optional): The probability of adding furigana to
+                a group of kanji characters. Defaults to 1.0.
+            vocab (set, optional): A set of allowed characters for generating
+                furigana. If None, the default vocabulary is used. Defaults to
+                None.
+
+        Returns:
+            str: The processed line with HTML-like tags for furigana and other
+            styling.
+        """
         if vocab is None:
             vocab = self.vocab
 
