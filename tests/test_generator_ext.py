@@ -14,10 +14,10 @@ from unittest.mock import patch, MagicMock, Mock
 from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
 from manga_ocr_dev.env import FONTS_ROOT
 
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_font_meta')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.budoux.load_default_japanese_parser')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_font_meta')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.budoux.load_default_japanese_parser')
 @patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
 def test_generator_initialization(mock_renderer, mock_budoux, mock_read_csv, mock_get_charsets, mock_get_font_meta):
     """
@@ -51,10 +51,10 @@ def test_generator_initialization(mock_renderer, mock_budoux, mock_read_csv, moc
 
 
 @pytest.fixture
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_font_meta')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.budoux.load_default_japanese_parser')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_font_meta')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.budoux.load_default_japanese_parser')
 @patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
 def generator(mock_renderer, mock_budoux, mock_read_csv, mock_get_charsets, mock_get_font_meta):
     """

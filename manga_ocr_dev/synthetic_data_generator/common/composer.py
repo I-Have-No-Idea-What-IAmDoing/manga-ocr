@@ -81,12 +81,12 @@ class Composer:
         is_light_text = brightness > 382
 
         if is_light_text:
-            grayscale = np.random.randint(0, 15)
+            grayscale = np.random.randint(0, 16)
              # Light text gets a dark bubble
             fill = (grayscale, grayscale, grayscale, 255)
             outline = 'white'
         else:
-            grayscale = np.random.randint(245, 255)
+            grayscale = np.random.randint(245, 256)
             fill = (grayscale, grayscale, grayscale, 255)
             outline = 'black'
 

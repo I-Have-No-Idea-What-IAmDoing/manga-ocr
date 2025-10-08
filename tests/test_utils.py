@@ -10,7 +10,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
-from manga_ocr_dev.synthetic_data_generator.utils import (
+from manga_ocr_dev.synthetic_data_generator.common.utils import (
     get_background_df,
     is_kanji,
     is_hiragana,
@@ -78,20 +78,20 @@ def test_get_background_df(tmp_path):
     assert df.h.iloc[0] == 100
     assert df.w.iloc[0] == 100
 
-@patch('manga_ocr_dev.synthetic_data_generator.utils.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.utils.pd.read_csv')
 def test_get_charsets(mock_read_csv):
     """Tests the `get_charsets` function for correct character categorization."""
     mock_read_csv.return_value = pd.DataFrame({'char': ['日', 'あ', 'ア', 'a']})
 
-    with patch('manga_ocr_dev.synthetic_data_generator.utils.is_hiragana', side_effect=lambda c: c == 'あ'), \
-         patch('manga_ocr_dev.synthetic_data_generator.utils.is_katakana', side_effect=lambda c: c == 'ア'):
+    with patch('manga_ocr_dev.synthetic_data_generator.common.utils.is_hiragana', side_effect=lambda c: c == 'あ'), \
+         patch('manga_ocr_dev.synthetic_data_generator.common.utils.is_katakana', side_effect=lambda c: c == 'ア'):
         vocab, hiragana, katakana = get_charsets()
 
     assert '日' in vocab
     assert 'あ' in hiragana
     assert 'ア' in katakana
 
-@patch('manga_ocr_dev.synthetic_data_generator.utils.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.utils.pd.read_csv')
 def test_get_font_meta(mock_read_csv):
     """Tests the `get_font_meta` function for correct metadata loading."""
     mock_df = pd.DataFrame({

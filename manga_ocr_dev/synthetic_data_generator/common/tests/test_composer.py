@@ -50,19 +50,21 @@ class TestComposer(unittest.TestCase):
         """Test that the bubble color contrasts with the text color."""
         composer = Composer(self.backgrounds_dir)
 
-        # Dark text should get a light bubble
+        # Dark text should get a light bubble (high grayscale value)
         bubble_for_dark_text = composer.draw_bubble(100, 50, text_color='#000000')
         bubble_array = np.array(bubble_for_dark_text)
         center_pixel_color = bubble_array[bubble_array.shape[0] // 2, bubble_array.shape[1] // 2]
-        self.assertTrue(np.array_equal(center_pixel_color, [255, 255, 255, 255]), "Dark text should get a white bubble")
+        self.assertGreater(center_pixel_color[0], 200, "Bubble for dark text should be light.")
 
-        # Light text should get a dark bubble
+        # Light text should get a dark bubble (low grayscale value)
         bubble_for_light_text = composer.draw_bubble(100, 50, text_color='#FFFFFF')
         bubble_array = np.array(bubble_for_light_text)
         center_pixel_color = bubble_array[bubble_array.shape[0] // 2, bubble_array.shape[1] // 2]
-        self.assertTrue(np.array_equal(center_pixel_color, [0, 0, 0, 255]), "Light text should get a black bubble")
+        self.assertLess(center_pixel_color[0], 50, "Bubble for light text should be dark.")
 
-    def test_composition_with_background(self):
+    @patch('numpy.random.rand', return_value=0.8)  # Ensure no bubble is drawn
+    @patch('albumentations.Compose', lambda transforms: lambda image: {'image': image})
+    def test_composition_with_background(self, mock_rand):
         """Test composing a text image with a background."""
         composer = Composer(self.backgrounds_dir)
         final_image = composer(self.dummy_text_image, {})
@@ -144,7 +146,9 @@ class TestComposer(unittest.TestCase):
         self.assertGreater(result.shape[0], self.dummy_text_image.shape[0])
         self.assertGreater(result.shape[1], self.dummy_text_image.shape[1])
 
-    def test_resizing_logic(self):
+    @patch('numpy.random.rand', return_value=0.8)  # Ensure no bubble
+    @patch('albumentations.Compose', lambda transforms: lambda image: {'image': image})
+    def test_resizing_logic(self, mock_rand):
         """Test the target_size and min_output_size resizing logic."""
         # Test target_size
         composer_target = Composer(self.backgrounds_dir, target_size=(120, 80))

@@ -14,8 +14,6 @@ sys.path.insert(0, str(project_root))
 
 from manga_ocr_dev.synthetic_data_generator.run_generate import run, worker_fn
 import manga_ocr_dev.synthetic_data_generator.run_generate as run_generate_module
-import manga_ocr_dev.synthetic_data_generator.common.utils as utils_module
-import manga_ocr_dev.synthetic_data_generator.common.base_generator as base_generator_module
 from manga_ocr_dev.env import FONTS_ROOT as PROJECT_FONTS_ROOT
 from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
 from manga_ocr_dev.synthetic_data_generator_v2.generator import SyntheticDataGeneratorV2
@@ -42,7 +40,6 @@ class TestRunGenerate(unittest.TestCase):
         run_generate_module.DATA_SYNTHETIC_ROOT = cls.synthetic_data_root
         run_generate_module.BACKGROUND_DIR = cls.backgrounds_dir
 
-        # Patch paths in the imported modules
         cls.patcher_assets_utils = patch('manga_ocr_dev.synthetic_data_generator.common.utils.ASSETS_PATH', cls.assets_dir)
         cls.patcher_fonts_utils = patch('manga_ocr_dev.synthetic_data_generator.common.utils.FONTS_ROOT', cls.fonts_dir)
         cls.patcher_assets_base = patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.ASSETS_PATH', cls.assets_dir)
@@ -90,7 +87,7 @@ class TestRunGenerate(unittest.TestCase):
         """Test that the main run function creates output files for the pictex renderer."""
         run(renderer='pictex', package=0, n_random=1, n_limit=2, max_workers=1)
         output_img_dir = self.synthetic_data_root / "img_v2" / "0000"
-        output_meta_dir = self.synthetic_data_root / "meta_v2"
+        output_meta_dir = self.synthetic_data_root / "meta"
         self.assertTrue(output_img_dir.exists())
         self.assertTrue(output_meta_dir.exists())
         self.assertEqual(len(list(output_img_dir.glob('*.jpg'))), 2)
@@ -112,7 +109,7 @@ class TestRunGenerate(unittest.TestCase):
         run(renderer='html', package=0, n_random=1, n_limit=2, max_workers=1)
 
         output_img_dir = self.synthetic_data_root / "img_v1" / "0000"
-        output_meta_dir = self.synthetic_data_root / "meta_v1"
+        output_meta_dir = self.synthetic_data_root / "meta"
         self.assertTrue(output_img_dir.exists())
         self.assertTrue(output_meta_dir.exists())
         self.assertEqual(len(list(output_img_dir.glob('*.jpg'))), 2)

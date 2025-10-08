@@ -13,11 +13,11 @@ from unittest.mock import patch, MagicMock
 from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
 from manga_ocr_dev.env import FONTS_ROOT
 
-@patch('manga_ocr_dev.synthetic_data_generator.utils.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.utils.pd.read_csv')
 @patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.budoux.load_default_japanese_parser')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.budoux.load_default_japanese_parser')
 def test_generator_handles_missing_font_data_after_fix(
     mock_budoux, mock_gen_read_csv, mock_get_charsets, mock_renderer, mock_utils_read_csv
 ):
@@ -25,6 +25,10 @@ def test_generator_handles_missing_font_data_after_fix(
     Test that SyntheticDataGenerator initializes and runs correctly after fixing `get_font_meta`
     to handle fonts with missing data.
     """
+    # This test is unique because it mocks the `pd.read_csv` inside `utils` to test
+    # the real `get_font_meta` function's ability to handle bad data.
+    # We don't mock `get_font_meta` itself here.
+
     # Mock the return of `pd.read_csv` in `utils.py` to simulate reading a fonts.csv
     # with a row that contains NaN.
     mock_fonts_df_with_nan = pd.DataFrame({
@@ -35,7 +39,7 @@ def test_generator_handles_missing_font_data_after_fix(
     })
     mock_utils_read_csv.return_value = mock_fonts_df_with_nan
 
-    # Mock other dependencies for SyntheticDataGenerator initialization
+    # Mock other dependencies for BaseDataGenerator initialization
     mock_get_charsets.return_value = (set('abc'), set('a'), set('b'))
     mock_gen_read_csv.return_value = pd.DataFrame({'len': [10], 'p': [1.0]})
 
@@ -47,21 +51,22 @@ def test_generator_handles_missing_font_data_after_fix(
     generator = SyntheticDataGenerator()
 
     # Assert that the bad font was dropped and is not in the font map or dataframe
-    bad_font_path = str(FONTS_ROOT / 'bad_font.ttf')
+    bad_font_path = 'bad_font.ttf'
     assert bad_font_path not in generator.font_map
     assert not any(generator.fonts_df['font_path'] == bad_font_path)
 
     # The `process` method should now run without raising an exception.
-    # We patch `get_random_words` to avoid a separate bug.
+    # We patch `get_random_words` and `get_random_font` to avoid unrelated errors.
     with patch.object(generator, 'get_random_words', return_value=['a']):
-        generator.process()
+        with patch.object(generator, 'get_random_font', return_value='good_font.ttf'):
+            generator.process()
 
 
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_font_meta')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_font_meta')
 @patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.pd.read_csv')
-@patch('manga_ocr_dev.synthetic_data_generator.generator.budoux.load_default_japanese_parser')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.budoux.load_default_japanese_parser')
 def test_generator_raises_value_error_for_unsupported_chars(
     mock_budoux, mock_gen_read_csv, mock_get_charsets, mock_renderer, mock_get_font_meta
 ):
