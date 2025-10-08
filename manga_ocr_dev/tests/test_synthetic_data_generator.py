@@ -15,9 +15,9 @@ from manga_ocr_dev.env import FONTS_ROOT
 
 
 class TestSyntheticDataGenerator(unittest.TestCase):
-    @patch('manga_ocr_dev.synthetic_data_generator.generator.get_font_meta')
-    @patch('pandas.read_csv')
-    @patch('manga_ocr_dev.synthetic_data_generator.generator.get_charsets')
+    @patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_font_meta')
+    @patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.pd.read_csv')
+    @patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_charsets')
     def setUp(self, mock_get_charsets, mock_read_csv, mock_get_font_meta):
         # Mock the dependencies that read from the filesystem
         mock_get_charsets.return_value = (set("a字b"), ["あ"], ["ア"])

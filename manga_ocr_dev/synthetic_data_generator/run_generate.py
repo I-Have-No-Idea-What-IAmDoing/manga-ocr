@@ -126,7 +126,7 @@ def run(
 
     global OUT_DIR, DEBUG_DIR
     version_str = 'v2' if renderer == 'pictex' else 'v1'
-    OUT_DIR = Path(DATA_SYNTHETIC_ROOT) / "img" / package_id
+    OUT_DIR = Path(DATA_SYNTHETIC_ROOT) / f"img_{version_str}" / package_id
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     if debug:
         DEBUG_DIR = Path(DATA_SYNTHETIC_ROOT) / "debug" / package_id
