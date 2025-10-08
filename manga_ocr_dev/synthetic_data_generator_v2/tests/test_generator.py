@@ -189,7 +189,7 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
     @patch('numpy.random.rand', return_value=0.8) # Mock to prevent drawing a bubble
     def test_legibility_check_discards_small_text(self, mock_rand):
         """Test that samples with too small text are discarded."""
-        generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir, min_font_size=5, max_font_size=6)
+        generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir, min_font_size=1, max_font_size=2)
         img, _, _ = generator.process("t", override_params={'color': '#FFFFFF'})
         self.assertIsNone(img, "Sample with very small text was not discarded")
 

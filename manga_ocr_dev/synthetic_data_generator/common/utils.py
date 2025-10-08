@@ -33,6 +33,9 @@ def get_background_df(background_dir):
         containing the path, height, width, and aspect ratio of each
         background image.
     """
+    if background_dir is None:
+        return pd.DataFrame(columns=['path', 'h', 'w', 'ratio'])
+
     background_df = []
     for path in Path(background_dir).iterdir():
         if not path.is_file():
