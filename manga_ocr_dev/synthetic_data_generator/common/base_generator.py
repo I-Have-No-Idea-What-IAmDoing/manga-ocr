@@ -198,11 +198,9 @@ class BaseDataGenerator:
     def add_random_furigana(self, line, word_prob=1.0):
         """Adds furigana and other markup to a line of text using pykakasi.
 
-        This method processes a line of text, converting kanji to their phonetic
-        (hiragana) readings. It then randomly applies furigana markup to the
-        kanji. It also handles Tate-Chu-Yoko (TCY) markup for short ASCII groups.
-        The output is a list of chunks, where each chunk is either a string
-        or a tuple representing marked-up text.
+        This method tokenizes the line using pykakasi and then applies furigana
+        only to the kanji parts, correctly handling okurigana by stripping
+        matching kana from the beginning and end of each segment.
 
         Args:
             line (str): The line of text to process.
@@ -210,41 +208,51 @@ class BaseDataGenerator:
                 kanji group.
 
         Returns:
-            list: A list of processed chunks. Strings are plain text, while
-            tuples like ('furigana', base, ruby) or ('tcy', text) represent
-            text with markup.
+            list: A list of processed chunks suitable for rendering.
         """
         processed_chunks = []
-        # Use kakasi to convert the line into a list of dictionaries,
-        # each containing the original text, hiragana, and other forms.
         converted = self.kakasi.convert(line)
 
         for item in converted:
             original = item['orig']
             hiragana = item['hira']
 
-            # Check if the original text contains any kanji characters.
-            if any(is_kanji(c) for c in original):
-                # Randomly decide whether to add furigana to this kanji group.
-                if np.random.uniform() < word_prob:
-                    # Create a furigana markup tuple.
-                    processed_chunks.append(('furigana', original, hiragana))
-                else:
-                    # If not adding furigana, just append the original kanji text.
-                    processed_chunks.append(original)
-            # Check if the text is a short ASCII sequence (e.g., numbers, acronyms).
-            elif any(is_ascii(c) for c in original) and len(original) <= 3:
-                # Randomly apply Tate-Chu-Yoko (TCY) markup.
-                if np.random.uniform() < 0.7:
-                    processed_chunks.append(('tcy', original))
-                else:
-                    processed_chunks.append(original)
+            if any(is_kanji(c) for c in original) and original != hiragana:
+                # Handle okurigana by stripping matching prefixes and suffixes.
+                prefix_len = 0
+                while (prefix_len < len(original) and prefix_len < len(hiragana) and
+                       original[prefix_len] == hiragana[prefix_len] and not is_kanji(original[prefix_len])):
+                    prefix_len += 1
+
+                suffix_len = 0
+                while (suffix_len < len(original) - prefix_len and suffix_len < len(hiragana) - prefix_len and
+                       original[len(original) - 1 - suffix_len] == hiragana[len(hiragana) - 1 - suffix_len] and
+                       not is_kanji(original[len(original) - 1 - suffix_len])):
+                    suffix_len += 1
+
+                prefix = original[:prefix_len]
+                suffix = original[len(original) - suffix_len:]
+                kanji_part = original[prefix_len:len(original) - suffix_len]
+                furigana_part = hiragana[prefix_len:len(hiragana) - suffix_len]
+
+                if prefix:
+                    processed_chunks.append(prefix)
+
+                if kanji_part:
+                    if np.random.uniform() < word_prob and furigana_part and kanji_part != furigana_part:
+                        processed_chunks.append(('furigana', kanji_part, furigana_part))
+                    else:
+                        processed_chunks.append(kanji_part)
+
+                if suffix:
+                    processed_chunks.append(suffix)
+
+            elif any(is_ascii(c) for c in original) and len(original) <= 3 and np.random.uniform() < 0.7:
+                processed_chunks.append(('tcy', original))
             else:
-                # For all other text (hiragana, katakana, punctuation), append as is.
                 processed_chunks.append(original)
 
-        # The following logic to merge consecutive string chunks is retained
-        # to ensure the output format is clean and optimized.
+        # Merge consecutive string chunks for a cleaner output format.
         final_chunks = []
         current_string = ""
         for chunk in processed_chunks:

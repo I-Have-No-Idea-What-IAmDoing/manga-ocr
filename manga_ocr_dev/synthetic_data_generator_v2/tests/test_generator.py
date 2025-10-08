@@ -62,8 +62,8 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
 
     @classmethod
     def create_dummy_files(cls):
-        # Extended vocabulary to support furigana tests
-        vocab_chars = list('あいうえおカキクABC123漢字tesvibl日本語にほんごかんじ')
+        # Extended vocabulary to support furigana and okurigana tests
+        vocab_chars = list('あいうえおカキクABC123漢字tesvibl日本語にほんごかんじ食べるお茶たべちゃ')
         vocab_df = pd.DataFrame({'char': vocab_chars})
         vocab_df.to_csv(cls.assets_dir / "vocab.csv", index=False)
 
@@ -144,6 +144,22 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
 
         # Verify that the ruby text (furigana) is the correct phonetic reading.
         self.assertEqual(chunk[2], "にほんご")
+
+    def test_furigana_with_okurigana(self):
+        """Test furigana generation for words containing both kanji and okurigana."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+
+        # Test case 1: Suffix okurigana (e.g., 食べる -> たべる)
+        chunks = generator.add_random_furigana("食べる", word_prob=1.0)
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(chunks[0], ('furigana', '食', 'た'))
+        self.assertEqual(chunks[1], 'べる')
+
+        # Test case 2: Prefix okurigana (e.g., お茶 -> おちゃ)
+        chunks = generator.add_random_furigana("お茶", word_prob=1.0)
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(chunks[0], 'お')
+        self.assertEqual(chunks[1], ('furigana', '茶', 'ちゃ'))
 
     def test_furigana_rendering(self):
         """Test furigana rendering by forcing it with a mock."""
