@@ -43,8 +43,10 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
                 dimension of the composed image.
         """
         super().__init__()
+        # Set the font size range for text rendering
         self.min_font_size = min_font_size
         self.max_font_size = max_font_size
+        # Initialize the composer for blending text with background images
         self.composer = Composer(background_dir, target_size=target_size, min_output_size=min_output_size)
 
     def get_random_render_params(self):
@@ -61,22 +63,28 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
             parameters.
         """
         params = {}
+        # Randomly choose between vertical and horizontal text layout
         params['vertical'] = np.random.choice([True, False], p=[0.8, 0.2])
+        # Randomly select a font size within the specified range
         params['font_size'] = np.random.randint(self.min_font_size, self.max_font_size)
 
+        # Randomly choose a text color, either dark or light gray
         if np.random.rand() > 0.25:
             gray_value = np.random.randint(0, 30)
         else:
             gray_value = np.random.randint(225, 256)
         params['color'] = f'#{gray_value:02x}{gray_value:02x}{gray_value:02x}'
 
+        # Randomly select a text effect (stroke, glow, or none)
         effect = np.random.choice(["stroke", "glow", "none"], p=[0.35, 0.15, 0.5])
         params['effect'] = effect
 
+        # Helper function to generate a random grayscale hex color
         def get_random_hex_color():
             gray_value = np.random.randint(0, 256)
             return f'#{gray_value:02x}{gray_value:02x}{gray_value:02x}'
 
+        # Set parameters for the chosen effect
         if effect == "stroke":
             params["stroke_width"] = np.random.choice([1, 2, 3])
             params["stroke_color"] = get_random_hex_color()
@@ -108,10 +116,12 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
                 - str: The ground truth text.
                 - dict: The parameters used for rendering.
         """
+        # Get random rendering parameters and apply any overrides
         params = self.get_random_render_params()
         if override_params:
             params.update(override_params)
 
+        # If no text is provided, generate random words using a random font
         if text is None:
             if "font_path" not in params:
                 font_path = self.get_random_font()
@@ -121,16 +131,20 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
                 font_path = params["font_path"]
                 vocab = self.font_map.get(font_path, set())
             words = self.get_random_words(vocab)
+        # If text is provided, clean it and split it into words
         else:
             text = text.replace("　", " ").replace("…", "...")
             words = self.split_into_words(text)
 
+        # Arrange words into lines to form the ground truth text
         lines = self.words_to_lines(words)
         text_gt = "\n".join(lines)
 
+        # If a font is not already specified, select one that supports the text
         if "font_path" not in params:
             params["font_path"] = self.get_random_font(text_gt)
 
+        # Verify that the selected font supports all characters in the text
         font_path = params.get("font_path")
         if font_path:
             vocab = self.font_map.get(font_path)
@@ -144,10 +158,12 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         else:
             vocab = None
 
+        # If there is no text to render, return an empty image
         if not text_gt.strip():
             img = self.render([], params)
             return img, "", params
 
+        # Randomly decide whether to add furigana markup to the text
         lines_with_markup = []
         if np.random.random() < 0.5:
             word_prob = np.random.choice([0.33, 1.0], p=[0.3, 0.7])
@@ -156,16 +172,20 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         else:
             lines_with_markup = [[line] for line in lines]
 
+        # Convert the relative font path to an absolute path for rendering
         relative_font_path = None
         if "font_path" in params and params["font_path"]:
             relative_font_path = params["font_path"]
             params["font_path"] = str(Path(FONTS_ROOT) / params["font_path"])
 
+        # Render the text with markup to an image
         img = self.render(lines_with_markup, params)
 
+        # Restore the relative font path in the returned parameters
         if relative_font_path:
             params["font_path"] = relative_font_path
 
+        # If a composer is available, blend the rendered text with a background image
         if self.composer:
             img = self.composer(img, params)
 
@@ -190,17 +210,21 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
             np.ndarray: The rendered image as a NumPy array. Returns an empty
             array if rendering fails or if there is no text to render.
         """
+        # Extract rendering parameters from the params dictionary
         font_path = params.get("font_path", "NotoSansJP-Regular.otf")
         font_size = params.get("font_size", 32)
         color = params.get("color", "black")
         vertical = params.get("vertical", False)
         effect = params.get("effect", "none")
 
+        # Initialize the pictex canvas with base font and color settings
         canvas = Canvas().font_family(str(font_path)).font_size(font_size).color(color)
 
+        # If there's no text to render, return an empty image
         if not lines_with_markup:
             return np.array(canvas.render(""))
 
+        # Helper function to create a pictex Text component with optional effects
         def create_text_component(text, size_multiplier=1.0):
             component = Text(text).font_size(font_size * size_multiplier)
             if effect == "stroke":
@@ -217,27 +241,34 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
                 component = component.text_shadows(shadow)
             return component
 
+        # Helper function to create a pictex component from a marked-up chunk
         def create_component(chunk):
             if isinstance(chunk, str):
                 return create_text_component(chunk)
             type, *args = chunk
             if type == 'furigana':
                 base, ruby = args
+                # Create a column for furigana (ruby text above base text)
                 return Column(create_text_component(ruby, 0.5), create_text_component(base)).gap(0).horizontal_align("center")
             if type == 'tcy':
                 text, = args
+                # Create a row for tate-chu-yoko (horizontal text in vertical layout)
                 return Row(*[create_text_component(c) for c in text]).gap(0).vertical_align("center") if vertical else create_text_component(text)
             return Text("")
 
+        # Construct the layout based on whether the text is vertical or horizontal
         if vertical:
             line_columns = []
             for line_chunks in lines_with_markup:
                 components = [comp for chunk in line_chunks for comp in ([create_text_component(c) for c in chunk] if isinstance(chunk, str) else [create_component(chunk)])]
                 line_columns.append(Column(*components).gap(0).horizontal_align("center"))
+            # Arrange lines as columns in a row, reversing for right-to-left layout
             composed_element = Row(*line_columns[::-1]).gap(font_size // 2).vertical_align("top")
         else:
             line_rows = [Row(*[create_component(chunk) for chunk in line_chunks]).gap(0).vertical_align("bottom") for line_chunks in lines_with_markup]
+            # Arrange lines as rows in a column for horizontal layout
             composed_element = Column(*line_rows).gap(font_size // 4).horizontal_align("left")
 
+        # Render the composed element to an image and convert to a NumPy array
         image = canvas.render(composed_element)
         return image.to_numpy() if image else np.array([])

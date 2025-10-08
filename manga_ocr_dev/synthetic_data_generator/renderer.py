@@ -125,8 +125,10 @@ class Renderer:
             debug (bool, optional): If True, enables additional debugging features.
         """
         self.debug = debug
+        # Create a temporary directory for browser user data and other temporary files
         self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
 
+        # Define custom flags for the Chrome browser to optimize for automation
         flags = [
             "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
             "--no-zygote", "--ozone-platform=headless", "--disable-sync",
@@ -142,6 +144,7 @@ class Renderer:
         if not self.debug:
             flags.append("--disable-logging")
 
+        # Initialize the Html2Image renderer with the specified configuration
         self.hti = Html2Image(
             browser="chrome-cdp",
             browser_cdp_port=cdp_port,
@@ -149,7 +152,9 @@ class Renderer:
             temp_path=self.temp_dir.name,
             custom_flags=flags,
         )
+        # Use a lock to ensure thread-safe access to the renderer
         self.lock = threading.Lock()
+        # Use a single-threaded executor to manage rendering tasks sequentially
         self.executor = ThreadPoolExecutor(max_workers=1)
 
     def __enter__(self):
@@ -164,6 +169,11 @@ class Renderer:
     def render(self, lines, override_css_params=None):
         """Renders the given lines of text into a styled image.
 
+        This method acts as a thread-safe wrapper around the internal rendering
+        logic. It uses a lock to ensure that only one rendering operation is
+        active at a time, which is necessary because the underlying `html2image`
+        library is not thread-safe.
+
         Args:
             lines (list[str]): A list of strings, where each string is a line of text.
             override_css_params (dict, optional): A dictionary of CSS parameters.
@@ -173,21 +183,26 @@ class Renderer:
                 - np.ndarray: The rendered text image as a BGRA NumPy array.
                 - dict: The dictionary of the CSS parameters used for rendering.
         """
+        # Acquire a lock to ensure thread-safe access to the renderer
         with self.lock:
             img, params = self._render_text(lines, override_css_params)
         return img, params
 
     def _render_text(self, lines, override_css_params=None):
         """Renders text with CSS styling on a transparent background."""
+        # Get random CSS parameters and apply any overrides
         params = self.get_random_css_params()
         if override_css_params:
             params.update(override_css_params)
 
+        # Generate the CSS for styling the text
         css = get_css(**params)
 
+        # If there are no lines or the lines are empty, return early
         if not lines or not "".join(lines):
             return None, params
 
+        # Estimate the required image size based on text length and font size
         size = (
             int(max(len(line) for line in lines) * params["font_size"] * 1.5),
             int(len(lines) * params["font_size"] * (3 + params["line_height"])),
@@ -195,6 +210,7 @@ class Renderer:
         if params["vertical"]:
             size = size[::-1]
 
+        # Construct the HTML content with the text and CSS
         lines_str = "\n".join([f"<p>{line}</p>" for line in lines])
         html = f'<html><head><meta charset="UTF-8"><style>{css}</style></head><body>{lines_str}</body></html>'
         html = dedent(html)
@@ -202,10 +218,13 @@ class Renderer:
         if self.debug:
             params["html"] = html
 
+        # Use a unique filename for the temporary HTML file
         html_filename = str(uuid.uuid4()) + ".html"
         img_bytes = None
         try:
+            # Load the HTML string into the renderer
             self.hti.load_str(html, as_filename=html_filename)
+            # Submit the screenshot task to the executor with a timeout
             future = self.executor.submit(self.hti.screenshot_as_bytes, file=html_filename, size=size)
             try:
                 img_bytes = future.result(timeout=30)
@@ -217,6 +236,7 @@ class Renderer:
                 print(f"Screenshot failed with an exception: {e}")
                 return None, params
         finally:
+            # Ensure the temporary HTML file is removed
             temp_file_path = os.path.join(self.hti.temp_path, html_filename)
             if os.path.exists(temp_file_path):
                 try:
@@ -227,12 +247,14 @@ class Renderer:
         if img_bytes is None:
             return None, params
 
+        # Decode the image from bytes and ensure it has an alpha channel
         img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_UNCHANGED)
         if img is None:
             return None, params
         if img.shape[2] == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
 
+        # Crop the image to remove excess transparent padding
         return crop_by_alpha(img), params
 
     @staticmethod

@@ -45,34 +45,42 @@ class Metrics:
             A dictionary containing the computed 'cer' and 'accuracy' scores,
             which will be reported to `wandb` and other logging integrations.
         """
+        # Extract labels, predictions, and inputs from the prediction object
         label_ids = pred.label_ids
         pred_ids = pred.predictions
         pixel_values = pred.inputs
 
+        # Decode the predicted token IDs into strings
         pred_str = self.processor.tokenizer.batch_decode(
             pred_ids, skip_special_tokens=True
         )
+        # Replace -100 (ignore index) with the pad token ID to allow decoding of labels
         label_ids[label_ids == -100] = self.processor.tokenizer.pad_token_id
+        # Decode the label token IDs into strings
         label_str = self.processor.tokenizer.batch_decode(
             label_ids, skip_special_tokens=True
         )
 
+        # Normalize the strings by removing all whitespace for a fair comparison
         pred_str_norm = np.array(["".join(text.split()) for text in pred_str])
         label_str_norm = np.array(["".join(text.split()) for text in label_str])
 
         results = {}
         try:
+            # Compute the Character Error Rate (CER)
             results["cer"] = self.cer_metric.compute(
                 predictions=pred_str_norm, references=label_str_norm
             )
         except Exception as e:
+            # Handle cases where CER computation might fail
             print(e)
             print(pred_str_norm)
             print(label_str_norm)
             results["cer"] = 0
+        # Compute the exact match accuracy
         results["accuracy"] = (pred_str_norm == label_str_norm).mean()
 
-        # Log images to wandb
+        # Log a batch of images with their predicted and ground truth captions to wandb
         if pixel_values is not None:
             images = [
                 tensor_to_image(pixel_values[i]) for i in range(len(pixel_values))

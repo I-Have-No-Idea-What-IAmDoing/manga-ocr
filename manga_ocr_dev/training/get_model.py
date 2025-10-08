@@ -64,25 +64,27 @@ def get_model(model_config: ModelConfig):
         ValueError: If `num_decoder_layers` is specified but the decoder's
             model type is not supported for layer truncation.
     """
-    # Create processor
+    # Create the processor by combining a feature extractor and a tokenizer
     feature_extractor = AutoImageProcessor.from_pretrained(
         model_config.encoder_name, use_fast=True
     )
     tokenizer = AutoTokenizer.from_pretrained(model_config.decoder_name)
     processor = TrOCRProcessorCustom(feature_extractor, tokenizer)
 
-    # Create model
+    # Configure and create the encoder from the specified pre-trained model
     encoder_config = AutoConfig.from_pretrained(model_config.encoder_name)
     encoder_config.is_decoder = False
     encoder_config.add_cross_attention = False
     encoder = AutoModel.from_config(encoder_config)
 
+    # Configure and create the decoder from the specified pre-trained model
     decoder_config = AutoConfig.from_pretrained(model_config.decoder_name)
     decoder_config.max_length = model_config.max_len
     decoder_config.is_decoder = True
     decoder_config.add_cross_attention = True
     decoder = AutoModelForCausalLM.from_config(decoder_config)
 
+    # If specified, truncate the decoder to a smaller number of layers
     if model_config.num_decoder_layers is not None:
         if decoder_config.model_type == "bert":
             decoder.bert.encoder.layer = decoder.bert.encoder.layer[
@@ -97,23 +99,24 @@ def get_model(model_config: ModelConfig):
                 -model_config.num_decoder_layers :
             ]
         else:
-            raise ValueError(f"Unsupported model_type: {decoder_config.model_type}")
+            raise ValueError(f"Unsupported model_type for layer truncation: {decoder_config.model_type}")
 
         decoder_config.num_hidden_layers = model_config.num_decoder_layers
 
+    # Combine the encoder and decoder configurations into a single VisionEncoderDecoderConfig
     config = VisionEncoderDecoderConfig.from_encoder_decoder_configs(
         encoder_config, decoder_config
     )
     config.tie_word_embeddings = False
+    # Create the VisionEncoderDecoderModel with the configured encoder and decoder
     model = VisionEncoderDecoderModel(encoder=encoder, decoder=decoder, config=config)
 
-    # Set special tokens used for creating the decoder_input_ids from the labels
+    # Set special tokens required for training and generation
     model.config.decoder_start_token_id = processor.tokenizer.cls_token_id
     model.config.pad_token_id = processor.tokenizer.pad_token_id
-    # make sure vocab size is set correctly
     model.config.vocab_size = model.config.decoder.vocab_size
 
-    # set beam search parameters
+    # Configure beam search parameters for more effective inference
     model.config.eos_token_id = processor.tokenizer.sep_token_id
     model.config.max_length = model_config.max_len
     model.config.early_stopping = True

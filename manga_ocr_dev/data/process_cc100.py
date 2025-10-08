@@ -34,34 +34,48 @@ def export_lines(num_lines_in_each_package=12500, num_packages=160):
     """
     cc100_text_file = Path(DATA_SYNTHETIC_ROOT) / "ja.txt"
 
+    # Initialize a counter for generating unique IDs for each line
     id_count = 0
+
+    # Open the raw CC-100 text file for reading
     with open(cc100_text_file, "r", encoding="utf-8") as file:
+        # Loop to create the specified number of packages
         for package_count in range(num_packages):
             line_count = 0
             data = []
+
+            # Iterate through lines in the file to build a package
             for line in tqdm(
                 file, desc=f"creating package {package_count:04} of {num_packages}"
             ):
                 id_count += 1
                 stripped_line = line.strip()
-                # skip too short line
+
+                # Skip lines that are too short to be useful for training
                 if len(stripped_line) <= 2:
                     continue
 
-                row = {}
-                row["source"] = "cc-100"
-                row["id"] = f"cc-100_{id_count}"
-                row["line"] = stripped_line
-
+                # Create a dictionary for the line with its metadata
+                row = {
+                    "source": "cc-100",
+                    "id": f"cc-100_{id_count}",
+                    "line": stripped_line,
+                }
                 data.append(row)
 
+                # Stop when the package reaches the desired size
                 line_count += 1
                 if line_count >= num_lines_in_each_package:
                     break
 
+            # Convert the list of dictionaries to a DataFrame
             data = pd.DataFrame(data)
+
+            # Save the package as a CSV file
+            output_path = Path(ASSETS_PATH) / "lines" / f"{package_count:04}.csv"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             data.to_csv(
-                Path(ASSETS_PATH) / "lines" / f"{package_count:04}.csv",
+                output_path,
                 index=False,
                 escapechar="\\",
             )

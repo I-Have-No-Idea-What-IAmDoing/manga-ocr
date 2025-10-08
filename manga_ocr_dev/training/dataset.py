@@ -53,6 +53,7 @@ class MangaDataset(Dataset):
         self.max_target_length = max_target_length
         self.config = dataset_config
 
+        # Load data from the sources specified in the configuration
         data = []
         for source in self.config.train.sources:
             if source.type == "synthetic":
@@ -60,13 +61,16 @@ class MangaDataset(Dataset):
             elif source.type == "manga109":
                 data.append(self.load_manga109_data(**source.params))
 
+        # Concatenate data from all sources into a single DataFrame
         self.data = pd.concat(data, ignore_index=True)
 
+        # Limit the dataset size if specified, for quick testing
         if limit_size:
             self.data = self.data.iloc[:limit_size]
 
         print(f"Initialized dataset with {len(self.data)} samples.")
 
+        # Build the augmentation pipelines for medium and heavy transformations
         self.transform_medium = build_augmentations(self.config.augmentations.medium)
         self.transform_heavy = build_augmentations(self.config.augmentations.heavy)
         self.aug_probs = self.config.augmentations.probabilities
@@ -91,13 +95,16 @@ class MangaDataset(Dataset):
         """
 
         data = []
+        # Determine which data packages to load based on the provided parameters
         if packages is not None:
+            # If specific packages are listed, load only those
             package_ids = {f"{x:04d}" for x in packages}
             glob_pattern = [
                 Path(DATA_SYNTHETIC_ROOT) / "meta" / f"{pid}.csv"
                 for pid in package_ids
             ]
         else:
+            # Otherwise, load all available packages, excluding any specified to be skipped
             glob_pattern = sorted((Path(DATA_SYNTHETIC_ROOT) / "meta").glob("*.csv"))
             if skip_packages is not None:
                 skip_package_ids = {f"{x:04d}" for x in skip_packages}
@@ -105,10 +112,13 @@ class MangaDataset(Dataset):
                     p for p in glob_pattern if p.stem not in skip_package_ids
                 ]
 
+        # Iterate through the selected package metadata files
         for path in glob_pattern:
+            # Check if the corresponding image directory exists, and skip if it doesn't
             if not (Path(DATA_SYNTHETIC_ROOT) / "img" / path.stem).is_dir():
                 print(f"Missing image data for package {path}, skipping")
                 continue
+            # Load the metadata, drop any rows with missing values, and construct full image paths
             df = pd.read_csv(path)
             df = df.dropna()
             df["path"] = df.id.apply(
@@ -120,9 +130,11 @@ class MangaDataset(Dataset):
             df["synthetic"] = True
             data.append(df)
 
+        # If no data was loaded, return an empty DataFrame
         if not data:
             return pd.DataFrame(columns=["path", "text", "synthetic"])
 
+        # Concatenate the data from all loaded packages into a single DataFrame
         return pd.concat(data, ignore_index=True)
 
     def load_manga109_data(self, split):
@@ -140,9 +152,13 @@ class MangaDataset(Dataset):
             'synthetic' flag for the loaded data.
         """
 
+        # Load the main metadata file for the Manga109 dataset
         df = pd.read_csv(Path(MANGA109_ROOT) / "data.csv")
+        # Filter the DataFrame to include only the specified data split
         df = df[df.split == split].reset_index(drop=True)
+        # Construct the full paths to the cropped image files
         df["path"] = df.crop_path.apply(lambda x: str(Path(MANGA109_ROOT) / x))
+        # Select the relevant columns and add a flag indicating the data is not synthetic
         df = df[["path", "text"]]
         df["synthetic"] = False
         return df
@@ -170,9 +186,11 @@ class MangaDataset(Dataset):
             dict: A dictionary containing the preprocessed 'pixel_values' of
             the image and the 'labels' (tokenized text), ready for training.
         """
+        # Retrieve the sample's metadata from the DataFrame
         sample = self.data.loc[idx]
         text = sample.text
 
+        # Randomly select an augmentation pipeline based on the configured probabilities
         transform = None
         if self.config.augment:
             p_medium = self.aug_probs.medium
@@ -186,7 +204,9 @@ class MangaDataset(Dataset):
             elif transform_variant == "heavy":
                 transform = self.transform_heavy
 
+        # Read and preprocess the image, applying the selected augmentation
         pixel_values = self.read_image(self.processor, sample.path, transform)
+        # Tokenize the text, padding and truncating to the maximum length
         labels = self.processor.tokenizer(
             text,
             padding="max_length",
@@ -194,9 +214,10 @@ class MangaDataset(Dataset):
             truncation=True,
         ).input_ids
         labels = np.array(labels)
-        # important: make sure that PAD tokens are ignored by the loss function
+        # Set the label for padding tokens to -100, so they are ignored by the loss function
         labels[labels == self.processor.tokenizer.pad_token_id] = -100
 
+        # Return the processed image and text as a dictionary
         encoding = {
             "pixel_values": pixel_values,
             "labels": torch.tensor(labels),

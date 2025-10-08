@@ -27,7 +27,9 @@ def encoder_summary(model, batch_size=4):
     Returns:
         A string containing the summary of the encoder's architecture.
     """
+    # Get the expected image size from the model's encoder configuration
     img_size = model.config.encoder.image_size
+    # Use torchinfo.summary to generate a summary of the encoder
     return summary(
         model.encoder,
         input_size=(batch_size, 3, img_size, img_size),
@@ -54,18 +56,21 @@ def decoder_summary(model, batch_size=4):
     Returns:
         A string containing the summary of the decoder's architecture.
     """
+    # Determine the shape of the encoder's output, which is the input to the decoder's cross-attention
     img_size = model.config.encoder.image_size
     encoder_hidden_shape = (
         batch_size,
         (img_size // 16) ** 2 + 1,
         model.config.decoder.hidden_size,
     )
+    # Create a dictionary of dummy inputs that match the expected shapes of the decoder
     decoder_inputs = {
         "input_ids": torch.zeros(batch_size, 1, dtype=torch.int64),
         "attention_mask": torch.ones(batch_size, 1, dtype=torch.int64),
         "encoder_hidden_states": torch.rand(encoder_hidden_shape, dtype=torch.float32),
         "return_dict": False,
     }
+    # Use torchinfo.summary to generate a summary of the decoder with the dummy inputs
     return summary(
         model.decoder,
         input_data=decoder_inputs,
@@ -90,6 +95,8 @@ def tensor_to_image(img):
         An image as a NumPy array, suitable for display with libraries like
         Matplotlib or OpenCV.
     """
+    # Denormalize the image from [-1, 1] to [0, 255], convert to uint8,
+    # and then transpose the dimensions from (C, H, W) to (H, W, C) for display.
     return (
         ((img.cpu().numpy() + 1) / 2 * 255)
         .clip(0, 255)

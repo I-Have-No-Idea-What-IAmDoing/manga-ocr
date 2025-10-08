@@ -33,20 +33,24 @@ def get_background_df(background_dir):
         containing the path, height, width, and aspect ratio of each
         background image.
     """
+    # Return an empty DataFrame if no background directory is provided
     if background_dir is None:
         return pd.DataFrame(columns=['path', 'h', 'w', 'ratio'])
 
     background_df = []
+    # Iterate over all files in the specified background directory
     for path in Path(background_dir).iterdir():
         if not path.is_file():
             continue
         try:
+            # Parse the image dimensions from the last four parts of the filename
             ymin, ymax, xmin, xmax = [int(v) for v in path.stem.split("_")[-4:]]
             h = ymax - ymin
             w = xmax - xmin
             ratio = w / h if h > 0 else 0
             background_df.append({"path": str(path), "h": h, "w": w, "ratio": ratio})
         except (ValueError, IndexError):
+            # Handle cases where the filename is not in the expected format
             print(f"Could not parse dimensions from filename: {path.name}")
             continue
 
@@ -67,10 +71,13 @@ def is_kanji(ch):
         True if the character is a kanji, False otherwise.
     """
     try:
+        # Ensure the input is a single character
         if len(str(ch)) > 1:
             return False
+        # Check if the character's Unicode name contains the identifier for kanji
         return "CJK UNIFIED IDEOGRAPH" in unicodedata.name(ch)
     except (TypeError, ValueError):
+        # Handle non-character inputs gracefully
         return False
 
 
@@ -87,10 +94,13 @@ def is_hiragana(ch):
         True if the character is a hiragana, False otherwise.
     """
     try:
+        # Ensure the input is a single character
         if len(str(ch)) > 1:
             return False
+        # Check if the character's Unicode name contains the identifier for hiragana
         return "HIRAGANA" in unicodedata.name(ch)
     except (TypeError, ValueError):
+        # Handle non-character inputs gracefully
         return False
 
 
@@ -107,10 +117,13 @@ def is_katakana(ch):
         True if the character is a katakana, False otherwise.
     """
     try:
+        # Ensure the input is a single character
         if len(str(ch)) > 1:
             return False
+        # Check if the character's Unicode name contains the identifier for katakana
         return "KATAKANA" in unicodedata.name(ch)
     except (TypeError, ValueError):
+        # Handle non-character inputs gracefully
         return False
 
 
@@ -128,10 +141,13 @@ def is_ascii(ch):
         True if the character is an ASCII character, False otherwise.
     """
     try:
+        # Ensure the input is a single character
         if len(str(ch)) > 1:
             return False
+        # Check if the character's ordinal value is within the ASCII range (0-127)
         return ord(ch) < 128
     except (TypeError, ValueError):
+        # Handle non-character inputs gracefully
         return False
 
 
@@ -153,9 +169,12 @@ def get_charsets(vocab_path=None):
             - The subset of hiragana characters.
             - The subset of katakana characters.
     """
+    # Use the default vocabulary path if none is provided
     if vocab_path is None:
         vocab_path = ASSETS_PATH / "vocab.csv"
+    # Load the vocabulary from the CSV file
     vocab = pd.read_csv(vocab_path).char.values
+    # Filter the vocabulary to create separate arrays for hiragana and katakana
     hiragana = vocab[[is_hiragana(c) for c in vocab]]
     katakana = vocab[[is_katakana(c) for c in vocab]]
     return vocab, hiragana, katakana
@@ -175,10 +194,12 @@ def get_font_meta():
             - A dictionary mapping each relative font path to a set of
               characters supported by that font.
     """
+    # Load the font metadata from the CSV file
     df = pd.read_csv(ASSETS_PATH / "fonts.csv")
     df = df.dropna()
 
-    # The font paths in the CSV are relative. The generators are responsible
+    # Create a dictionary mapping each font path to a set of its supported characters
+    # The font paths in the CSV are relative, and the generators are responsible
     # for resolving them to absolute paths when needed.
     font_map = {row.font_path: set(row.supported_chars) for row in df.itertuples()}
 

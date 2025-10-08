@@ -49,7 +49,9 @@ class SyntheticDataGenerator(BaseDataGenerator):
             renderer (Renderer, optional): An instance of the `Renderer` class.
         """
         super().__init__()
+        # Initialize the renderer, creating a new instance if one is not provided
         self.renderer = renderer if renderer else Renderer()
+        # Initialize the composer for background images if a directory is provided
         if background_dir:
             self.composer = Composer(background_dir, target_size=target_size, min_output_size=min_output_size)
         else:
@@ -75,6 +77,7 @@ class SyntheticDataGenerator(BaseDataGenerator):
         if override_css_params is None:
             override_css_params = {}
 
+        # If no text is provided, generate random words using a random font
         if text is None:
             if "font_path" not in override_css_params:
                 font_path = self.get_random_font()
@@ -84,16 +87,20 @@ class SyntheticDataGenerator(BaseDataGenerator):
                 font_path = override_css_params["font_path"]
                 vocab = self.font_map[font_path]
             words = self.get_random_words(vocab)
+        # If text is provided, clean and split it into words
         else:
             text = text.replace("　", " ").replace("…", "...")
             words = self.split_into_words(text)
 
+        # Arrange words into lines and create the ground truth text
         lines = self.words_to_lines(words)
         text_gt = "\n".join(lines)
 
+        # Select a font that supports the characters in the text, if not already specified
         if "font_path" not in override_css_params:
             override_css_params["font_path"] = self.get_random_font(text_gt)
 
+        # Verify that the selected font supports all characters in the text
         font_path = override_css_params.get("font_path")
         if font_path:
             vocab = self.font_map.get(font_path)
@@ -107,25 +114,31 @@ class SyntheticDataGenerator(BaseDataGenerator):
         else:
             vocab = None
 
+        # If there is no text to render, return an empty image and text
         if not text_gt.strip():
             img, params = self.renderer.render([], override_css_params)
             return img, "", params
 
+        # Randomly decide whether to add furigana to the text
         if np.random.random() < 0.5:
             word_prob = np.random.choice([0.33, 1.0], p=[0.3, 0.7])
             if lines:
                 lines = [self.add_random_furigana(line, word_prob, vocab) for line in lines]
 
+        # Convert the relative font path to an absolute path for the renderer
         relative_font_path = None
         if "font_path" in override_css_params:
             relative_font_path = override_css_params["font_path"]
             override_css_params["font_path"] = str(Path(FONTS_ROOT) / override_css_params["font_path"])
 
+        # Render the text to an image
         img, params = self.renderer.render(lines, override_css_params)
 
+        # Restore the relative font path in the returned parameters
         if relative_font_path:
             params["font_path"] = relative_font_path
 
+        # If a composer is available, compose the rendered text onto a background
         if self.composer:
             if 'text_color' in params:
                 params['color'] = params['text_color']
@@ -158,37 +171,47 @@ class SyntheticDataGenerator(BaseDataGenerator):
             vocab = self.vocab
 
         def flush_kanji_group(group):
+            """Processes a group of consecutive kanji characters, adding furigana."""
             if not group:
                 return ""
+            # Randomly decide whether to add furigana
             if np.random.uniform() < word_prob:
+                # Determine the length and character set for the furigana
                 furigana_len = int(np.clip(np.random.normal(1.5, 0.5), 1, 4) * len(group))
                 char_source_map = {"hiragana": self.hiragana, "katakana": self.katakana, "all": vocab}
                 char_source_key = np.random.choice(["hiragana", "katakana", "all"], p=[0.8, 0.15, 0.05])
                 char_source = char_source_map[char_source_key]
+                # Generate the furigana and wrap it in ruby tags
                 furigana = "".join(np.random.choice(list(char_source), furigana_len))
                 return f"<ruby>{group}<rt>{furigana}</rt></ruby>"
             return group
 
         def flush_ascii_group(group):
+            """Processes a group of consecutive ASCII characters, adding styling."""
             if not group:
                 return ""
+            # For short ASCII sequences, randomly apply tate-chu-yoko styling
             if len(group) <= 3 and np.random.uniform() < 0.7:
                 return f'<span style="text-combine-upright: all">{group}</span>'
             return group
 
         processed, kanji_group, ascii_group = "", "", ""
+        # Iterate through the line character by character to identify and group character types
         for c in line:
             if is_kanji(c):
+                # If an ASCII group is active, process it before starting a new kanji group
                 if ascii_group:
                     processed += flush_ascii_group(ascii_group)
                     ascii_group = ""
                 kanji_group += c
             elif is_ascii(c):
+                # If a kanji group is active, process it before starting a new ASCII group
                 if kanji_group:
                     processed += flush_kanji_group(kanji_group)
                     kanji_group = ""
                 ascii_group += c
             else:
+                # If the character is neither kanji nor ASCII, process any active groups
                 if kanji_group:
                     processed += flush_kanji_group(kanji_group)
                     kanji_group = ""
@@ -197,6 +220,7 @@ class SyntheticDataGenerator(BaseDataGenerator):
                     ascii_group = ""
                 processed += c
 
+        # Process any remaining character groups at the end of the line
         if kanji_group:
             processed += flush_kanji_group(kanji_group)
         if ascii_group:

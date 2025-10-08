@@ -61,6 +61,7 @@ class MangaOcr:
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path)
         self.model = MangaOcrModel.from_pretrained(pretrained_model_name_or_path)
 
+        # Set device to CUDA, MPS, or CPU
         if not force_cpu and torch.cuda.is_available():
             logger.info("Using CUDA")
             self.model.cuda()
@@ -70,7 +71,7 @@ class MangaOcr:
         else:
             logger.info("Using CPU")
 
-        # warm up
+        # Perform a warm-up run to initialize the model and avoid delays on the first call
         logger.info("Warming up MangaOcr model...")
         self(Image.new("RGB", (100, 100), "white"))
         logger.info("MangaOcr model warmed up")
