@@ -219,7 +219,10 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
 
         # If a composer is available, blend the rendered text with a background image
         if self.composer:
-            img = self.composer(img, params)
+            composed_img = self.composer(img, params)
+            if composed_img is None:
+                return None, text_gt, params
+            img = composed_img
 
         return img, text_gt, params
 
@@ -257,7 +260,7 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
 
         # If there's no text to render, return an empty image
         if not lines_with_markup:
-            return np.array(canvas.render(""))
+            return np.array([])
 
         # Helper function to create a pictex Text component with optional effects
         def create_text_component(text, size_multiplier=1.0):
