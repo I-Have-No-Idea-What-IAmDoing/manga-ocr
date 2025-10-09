@@ -62,19 +62,25 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
 
     @classmethod
     def create_dummy_files(cls):
-        vocab_df = pd.DataFrame({'char': ['あ', 'い', 'う', 'え', 'お', 'カ', 'キ', 'ク', 'A', 'B', 'C', '1', '2', '3', '漢', '字', 't', 'e', 's', 'v', 'i', 'b', 'l']})
+        # Extended vocabulary to support furigana and okurigana tests
+        vocab_chars = list('あいうえおカキクABC123漢字tesvibl日本語にほんごかんじ食べるお茶たべちゃ')
+        vocab_df = pd.DataFrame({'char': vocab_chars})
         vocab_df.to_csv(cls.assets_dir / "vocab.csv", index=False)
+
         len_to_p_df = pd.DataFrame({'len': [1, 2, 3], 'p': [0.3, 0.4, 0.3]})
         len_to_p_df.to_csv(cls.assets_dir / "len_to_p.csv", index=False)
+
         real_font_path = PROJECT_FONTS_ROOT / "NotoSansJP-Regular.ttf"
         temp_font_path = cls.fonts_dir / "NotoSansJP-Regular.ttf"
         shutil.copy(real_font_path, temp_font_path)
+
         fonts_df = pd.DataFrame({
             'font_path': [temp_font_path.name],
-            'supported_chars': ['あいうえおABC123漢字tesvibl'],
+            'supported_chars': [''.join(vocab_chars)],
             'label': ['common']
         })
         fonts_df.to_csv(cls.assets_dir / "fonts.csv", index=False)
+
         dummy_bg = np.full((200, 200, 3), 255, dtype=np.uint8)
         from PIL import Image
         Image.fromarray(dummy_bg).save(cls.backgrounds_dir / "dummy_bg_0_100_0_100.png")
@@ -118,6 +124,42 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         img, _, _ = generator.process("あいう", override_params={'vertical': False})
         self.assertIsInstance(img, np.ndarray)
         self.assertGreater(img.shape[1], img.shape[0])
+
+    def test_furigana_generation_logic(self):
+        """Test the furigana generation logic to ensure it's phonetically correct."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        # Process a known kanji word and check the generated furigana.
+        chunks = generator.add_random_furigana("日本語", word_prob=1.0)
+
+        # We expect a single chunk with furigana markup.
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+
+        # Check if the chunk is a tuple and has the correct markup type.
+        self.assertIsInstance(chunk, tuple)
+        self.assertEqual(chunk[0], 'furigana')
+
+        # Verify that the base text is correct.
+        self.assertEqual(chunk[1], "日本語")
+
+        # Verify that the ruby text (furigana) is the correct phonetic reading.
+        self.assertEqual(chunk[2], "にほんご")
+
+    def test_furigana_with_okurigana(self):
+        """Test furigana generation for words containing both kanji and okurigana."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+
+        # Test case 1: Suffix okurigana (e.g., 食べる -> たべる)
+        chunks = generator.add_random_furigana("食べる", word_prob=1.0)
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(chunks[0], ('furigana', '食', 'た'))
+        self.assertEqual(chunks[1], 'べる')
+
+        # Test case 2: Prefix okurigana (e.g., お茶 -> おちゃ)
+        chunks = generator.add_random_furigana("お茶", word_prob=1.0)
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(chunks[0], 'お')
+        self.assertEqual(chunks[1], ('furigana', '茶', 'ちゃ'))
 
     def test_furigana_rendering(self):
         """Test furigana rendering by forcing it with a mock."""

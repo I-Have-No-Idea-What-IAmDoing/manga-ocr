@@ -192,7 +192,7 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         if np.random.random() < 0.5:
             word_prob = np.random.choice([0.33, 1.0], p=[0.3, 0.7])
             if lines:
-                lines_with_markup = [self.add_random_furigana(line, word_prob, vocab) for line in lines]
+                lines_with_markup = [self.add_random_furigana(line, word_prob) for line in lines]
         else:
             lines_with_markup = [[line] for line in lines]
 
