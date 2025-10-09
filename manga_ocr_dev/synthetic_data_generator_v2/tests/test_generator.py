@@ -318,5 +318,39 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         self.assertFalse(np.array_equal(img_no_rot, img_rot))
         self.assertNotEqual(img_no_rot.shape, img_rot.shape)
 
+    def test_unsupported_character_handling(self):
+        """Test that an error is raised for unsupported characters."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        unsupported_text = "UnsupportedChar"
+        with self.assertRaises(ValueError) as context:
+            generator.process(unsupported_text, override_params={'font_path': 'NotoSansJP-Regular.ttf'})
+
+        exception_message = str(context.exception)
+        self.assertIn("Text contains unsupported characters", exception_message)
+
+        # The set of characters from "UnsupportedChar" that are not in the dummy vocab
+        expected_unsupported = {'U', 'n', 'u', 'p', 'o', 'r', 'd', 'h', 'a'}
+
+        # Extract the reported unsupported characters from the message
+        match = re.search(r':\s*(.*)$', exception_message)
+        self.assertIsNotNone(match)
+        reported_chars = set(match.group(1))
+
+        self.assertEqual(expected_unsupported, reported_chars)
+
+    def test_process_empty_text(self):
+        """Test processing an empty string."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        img, text_gt, params = generator.process("")
+        self.assertEqual(img.size, 0)
+        self.assertEqual(text_gt, "")
+
+    def test_process_whitespace_text(self):
+        """Test processing a string with only whitespace."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        img, text_gt, params = generator.process("   \n\t   ")
+        self.assertEqual(img.size, 0)
+        self.assertEqual(text_gt, "")
+
 if __name__ == '__main__':
     unittest.main()
