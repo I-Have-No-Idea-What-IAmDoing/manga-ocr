@@ -198,10 +198,10 @@ class BaseDataGenerator:
     def add_random_furigana(self, line, word_prob=1.0, vocab=None):
         """Adds furigana and other markup to a line of text.
 
-        This method uses `pykakasi` to tokenize the line and get phonetic
-        readings. It then applies a heuristic to decide between mono-ruby for
-        simple okurigana and group-ruby for more complex words, improving the
-        quality and accuracy of the generated furigana.
+        This method uses `budoux` for word segmentation and `pykakasi` for
+        phonetic readings. It applies group-ruby to all kanji-containing
+        words, which is a robust and consistent approach for generating
+        furigana.
 
         Args:
             line (str): The line of text to process.
@@ -212,40 +212,40 @@ class BaseDataGenerator:
         Returns:
             list: A list of processed chunks representing the line with markup.
         """
-        result = self.kks.convert(line)
+        words = self.parser.parse(line)
         processed_chunks = []
 
-        for item in result:
-            orig = item['orig']
-            hira = item['hira']
-
+        for word in words:
             # Handle short ASCII sequences with Tate-Chu-Yoko (TCY)
-            if all(is_ascii(c) for c in orig) and len(orig) <= 3 and np.random.uniform() < 0.7:
-                processed_chunks.append(('tcy', orig))
+            if all(is_ascii(c) for c in word) and len(word) <= 3 and np.random.uniform() < 0.7:
+                processed_chunks.append(('tcy', word))
                 continue
 
             # Skip if no kanji or if randomly decided
-            if not any(is_kanji(c) for c in orig) or np.random.uniform() >= word_prob:
-                processed_chunks.append(orig)
+            if not any(is_kanji(c) for c in word) or np.random.uniform() >= word_prob:
+                processed_chunks.append(word)
                 continue
 
             # Heuristic for simple okurigana: word starts with a kanji block and ends with kana.
             kanji_block = ""
-            for char in orig:
+            for char in word:
                 if is_kanji(char):
                     kanji_block += char
                 else:
                     break
 
             is_simple_okurigana = False
-            if kanji_block and len(kanji_block) < len(orig):
-                okurigana_part = orig[len(kanji_block):]
+            if kanji_block and len(kanji_block) < len(word):
+                okurigana_part = word[len(kanji_block):]
                 if not any(is_kanji(c) for c in okurigana_part):
                     is_simple_okurigana = True
 
+            result = self.kks.convert(word)
+            hira = "".join([item['hira'] for item in result])
+
             if is_simple_okurigana:
                 # Mono-ruby for simple okurigana
-                okurigana_part = orig[len(kanji_block):]
+                okurigana_part = word[len(kanji_block):]
                 furigana_reading = hira
                 if hira.endswith(okurigana_part):
                     furigana_reading = hira[:-len(okurigana_part)]
@@ -254,7 +254,7 @@ class BaseDataGenerator:
                 processed_chunks.append(okurigana_part)
             else:
                 # Group-ruby for other cases (e.g., "ご飯", "日本語")
-                processed_chunks.append(('furigana', orig, hira))
+                processed_chunks.append(('furigana', word, hira))
 
         # Merge consecutive string chunks for a cleaner output
         final_chunks = []
