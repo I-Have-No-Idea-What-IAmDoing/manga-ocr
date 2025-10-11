@@ -11,6 +11,7 @@ from PIL import Image
 import io
 from scipy.ndimage import gaussian_filter
 import cv2
+import albumentations as A
 
 def apply_blur(image, sigma):
     """Applies Gaussian blur to an image.
@@ -85,25 +86,14 @@ def apply_perspective_transform(image, magnitude):
     return transformed_image
 
 def apply_salt_and_pepper_noise(image, amount):
-    """Applies salt and pepper noise to an image.
+    """Applies salt and pepper noise to an image using albumentations.
 
     Args:
         image (np.ndarray): The input image as a NumPy array.
-        amount (float): The proportion of pixels to be affected by noise.
+        amount (float): The probability of applying the noise.
 
     Returns:
         np.ndarray: The image with salt and pepper noise.
     """
-    out = np.copy(image)
-    s_vs_p = 0.5
-
-    # Salt mode
-    num_salt = np.ceil(amount * image.size * s_vs_p)
-    coords = [np.random.randint(0, i - 1, int(num_salt)) for i in image.shape]
-    out[coords[0], coords[1], :] = 255
-
-    # Pepper mode
-    num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
-    coords = [np.random.randint(0, i - 1, int(num_pepper)) for i in image.shape]
-    out[coords[0], coords[1], :] = 0
-    return out
+    transform = A.SaltAndPepper(p=amount)
+    return transform(image=image)['image']
