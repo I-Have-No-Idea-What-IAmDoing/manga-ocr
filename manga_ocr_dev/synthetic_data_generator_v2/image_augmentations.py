@@ -83,3 +83,27 @@ def apply_perspective_transform(image, magnitude):
     transformed_image = cv2.warpPerspective(image, M, (width, height), borderMode=cv2.BORDER_CONSTANT, borderValue=0)
 
     return transformed_image
+
+def apply_salt_and_pepper_noise(image, amount):
+    """Applies salt and pepper noise to an image.
+
+    Args:
+        image (np.ndarray): The input image as a NumPy array.
+        amount (float): The proportion of pixels to be affected by noise.
+
+    Returns:
+        np.ndarray: The image with salt and pepper noise.
+    """
+    out = np.copy(image)
+    s_vs_p = 0.5
+
+    # Salt mode
+    num_salt = np.ceil(amount * image.size * s_vs_p)
+    coords = [np.random.randint(0, i - 1, int(num_salt)) for i in image.shape]
+    out[coords[0], coords[1], :] = 255
+
+    # Pepper mode
+    num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
+    coords = [np.random.randint(0, i - 1, int(num_pepper)) for i in image.shape]
+    out[coords[0], coords[1], :] = 0
+    return out

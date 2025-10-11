@@ -346,6 +346,14 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         self.assertIn('blur_sigma', params)
         self.assertIn('jpeg_quality', params)
         self.assertIn('perspective_magnitude', params)
+        self.assertIn('salt_and_pepper_amount', params)
+
+    def test_salt_and_pepper_augmentation(self):
+        """Test the salt and pepper augmentation."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        img_no_noise, _, _ = generator.process("test", override_params={'salt_and_pepper_amount': 0, 'color': '#FFFFFF'})
+        img_noise, _, _ = generator.process("test", override_params={'salt_and_pepper_amount': 0.1, 'color': '#FFFFFF'})
+        self.assertFalse(np.array_equal(img_no_noise, img_noise))
 
     def test_unsupported_character_handling(self):
         """Test that an error is raised for unsupported characters."""

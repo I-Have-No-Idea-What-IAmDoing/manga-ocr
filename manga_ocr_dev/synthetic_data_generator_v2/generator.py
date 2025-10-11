@@ -25,6 +25,7 @@ from .image_augmentations import (
     apply_blur,
     apply_jpeg_compression,
     apply_perspective_transform,
+    apply_salt_and_pepper_noise,
 )
 
 
@@ -84,9 +85,10 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         params['rotation'] = np.random.uniform(-5, 5)
 
         # Add randomized blur, JPEG quality, and perspective transform
-        params['blur_sigma'] = np.random.uniform(0, 1.0) if np.random.rand() < 0.2 else 0
-        params['jpeg_quality'] = np.random.randint(50, 101) if np.random.rand() < 0.2 else 100
+        params['blur_sigma'] = np.random.uniform(0, 1.0) if np.random.rand() < 0.0 else 0
+        params['jpeg_quality'] = np.random.randint(50, 101) if np.random.rand() < 0.0 else 100
         params['perspective_magnitude'] = np.random.uniform(0, 0.05) if np.random.rand() < 0.2 else 0
+        params['salt_and_pepper_amount'] = np.random.uniform(0, 0.01) if np.random.rand() < 0.2 else 0
 
         # Randomly choose a text color, either dark or light gray
         if np.random.rand() > 0.25:
@@ -234,6 +236,10 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         # Apply JPEG compression if specified
         if params.get("jpeg_quality", 100) < 100:
             img = apply_jpeg_compression(img, params["jpeg_quality"])
+
+        # Apply salt and pepper noise if specified
+        if params.get("salt_and_pepper_amount", 0) > 0:
+            img = apply_salt_and_pepper_noise(img, params["salt_and_pepper_amount"])
 
         # Restore the relative font path in the returned parameters
         if relative_font_path:
