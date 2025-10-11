@@ -314,9 +314,38 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         """Test text rotation."""
         generator = SyntheticDataGeneratorV2(background_dir=None)
         img_no_rot, _, _ = generator.process("test", override_params={'rotation': 0, 'color': '#FFFFFF'})
-        img_rot, _, _ = generator.process("test", override_params={'rotation': 10, 'color': '#FFFFFF'})
+        img_rot, _, _ = generator.process("test", override_params={'rotation': 4, 'color': '#FFFFFF'})
         self.assertFalse(np.array_equal(img_no_rot, img_rot))
         self.assertNotEqual(img_no_rot.shape, img_rot.shape)
+
+    def test_blur_augmentation(self):
+        """Test the blur augmentation."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        img_no_blur, _, _ = generator.process("test", override_params={'blur_sigma': 0, 'color': '#FFFFFF'})
+        img_blur, _, _ = generator.process("test", override_params={'blur_sigma': 1.0, 'color': '#FFFFFF'})
+        self.assertFalse(np.array_equal(img_no_blur, img_blur))
+
+    def test_jpeg_compression_augmentation(self):
+        """Test the JPEG compression augmentation."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        img_no_jpeg, _, _ = generator.process("test", override_params={'jpeg_quality': 100, 'color': '#FFFFFF'})
+        img_jpeg, _, _ = generator.process("test", override_params={'jpeg_quality': 50, 'color': '#FFFFFF'})
+        self.assertFalse(np.array_equal(img_no_jpeg, img_jpeg))
+
+    def test_perspective_transform_augmentation(self):
+        """Test the perspective transform augmentation."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        img_no_pers, _, _ = generator.process("test", override_params={'perspective_magnitude': 0, 'color': '#FFFFFF'})
+        img_pers, _, _ = generator.process("test", override_params={'perspective_magnitude': 0.05, 'color': '#FFFFFF'})
+        self.assertFalse(np.array_equal(img_no_pers, img_pers))
+
+    def test_augmentation_params(self):
+        """Test that augmentation parameters are generated correctly."""
+        generator = SyntheticDataGeneratorV2(background_dir=None)
+        params = generator.get_random_render_params()
+        self.assertIn('blur_sigma', params)
+        self.assertIn('jpeg_quality', params)
+        self.assertIn('perspective_magnitude', params)
 
     def test_unsupported_character_handling(self):
         """Test that an error is raised for unsupported characters."""
