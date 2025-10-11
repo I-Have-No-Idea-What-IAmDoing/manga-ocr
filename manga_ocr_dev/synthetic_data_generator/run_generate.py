@@ -216,7 +216,7 @@ def run(
     # Set up output directories for images and metadata
     global OUT_DIR, DEBUG_DIR
     version_str = 'v2' if renderer == 'pictex' else 'v1'
-    OUT_DIR = Path(DATA_SYNTHETIC_ROOT) / f"img_{version_str}" / package_id
+    OUT_DIR = Path(DATA_SYNTHETIC_ROOT) / f"img" / package_id
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     if debug:
         DEBUG_DIR = Path(DATA_SYNTHETIC_ROOT) / "debug" / package_id
@@ -260,7 +260,7 @@ def run(
 
     # Save the metadata for the generated samples to a CSV file
     data = pd.DataFrame(data, columns=["source", "id", "text", "vertical", "font_path"])
-    meta_path = Path(DATA_SYNTHETIC_ROOT) / f"meta_{version_str}" / f"{package_id}.csv"
+    meta_path = Path(DATA_SYNTHETIC_ROOT) / f"meta" / f"{package_id}.csv"
     meta_path.parent.mkdir(parents=True, exist_ok=True)
     data.to_csv(meta_path, index=False)
 
