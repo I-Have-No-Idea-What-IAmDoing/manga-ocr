@@ -21,6 +21,12 @@ from manga_ocr_dev.synthetic_data_generator.common.utils import (
     is_kanji,
     is_ascii,
 )
+from .image_augmentations import (
+    apply_blur,
+    apply_jpeg_compression,
+    apply_perspective_transform,
+    apply_salt_and_pepper_noise,
+)
 
 
 class SyntheticDataGeneratorV2(BaseDataGenerator):
@@ -76,7 +82,13 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         params['line_height'] = np.random.uniform(0.9, 1.6)
 
         # Add randomized text rotation
-        params['rotation'] = np.random.uniform(-2, 2)
+        params['rotation'] = np.random.uniform(-5, 5)
+
+        # Add randomized blur, JPEG quality, and perspective transform
+        params['blur_sigma'] = np.random.uniform(0, 1.0) if np.random.rand() < 0.0 else 0
+        params['jpeg_quality'] = np.random.randint(50, 101) if np.random.rand() < 0.0 else 100
+        params['perspective_magnitude'] = np.random.uniform(0, 0.05) if np.random.rand() < 0.2 else 0
+        params['salt_and_pepper_amount'] = np.random.uniform(0, 0.01) if np.random.rand() < 0.2 else 0
 
         # Randomly choose a text color, either dark or light gray
         if np.random.rand() > 0.25:
@@ -212,6 +224,22 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
             # Using order=0 (nearest-neighbor) to prevent interpolation artifacts
             # from interfering with the legibility check.
             img = rotate(img, params["rotation"], reshape=True, cval=0, order=0)
+
+        # Apply perspective transform if specified
+        if params.get("perspective_magnitude", 0) > 0:
+            img = apply_perspective_transform(img, params["perspective_magnitude"])
+
+        # Apply blur if specified
+        if params.get("blur_sigma", 0) > 0:
+            img = apply_blur(img, params["blur_sigma"])
+
+        # Apply JPEG compression if specified
+        if params.get("jpeg_quality", 100) < 100:
+            img = apply_jpeg_compression(img, params["jpeg_quality"])
+
+        # Apply salt and pepper noise if specified
+        if params.get("salt_and_pepper_amount", 0) > 0:
+            img = apply_salt_and_pepper_noise(img, params["salt_and_pepper_amount"])
 
         # Restore the relative font path in the returned parameters
         if relative_font_path:
