@@ -7,6 +7,7 @@ supported by each font, and saves this information to `fonts.csv` in the
 `ASSETS_PATH` directory. This metadata is crucial for the data generator to
 select appropriate fonts for rendering text.
 """
+from pathlib import Path
 
 import PIL
 import numpy as np
@@ -114,7 +115,7 @@ def main():
     which can be manually updated later for weighted font sampling.
     """
     # Define the input directory for fonts and the output path for the CSV
-    path_in = FONTS_ROOT
+    path_in = Path(FONTS_ROOT)
     out_path = ASSETS_PATH / "fonts.csv"
 
     # Define the set of supported font file extensions

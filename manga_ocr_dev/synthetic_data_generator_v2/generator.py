@@ -88,8 +88,8 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         # Add randomized blur, JPEG quality, and perspective transform
         params['blur_sigma'] = np.random.uniform(0, 1.0) if np.random.rand() < 0.0 else 0
         params['jpeg_quality'] = np.random.randint(50, 101) if np.random.rand() < 0.0 else 100
-        params['perspective_magnitude'] = np.random.uniform(0, 0.05) if np.random.rand() < 0.2 else 0
-        params['salt_and_pepper_amount'] = np.random.uniform(0, 0.01) if np.random.rand() < 0.2 else 0
+        params['perspective_magnitude'] = np.random.uniform(0, 0.06) if np.random.rand() < 0.3 else 0
+        params['salt_and_pepper_amount'] = np.random.uniform(0, 0.02) if np.random.rand() < 0.1 else 0
 
         # Randomly choose a text color, either dark or light gray
         if np.random.rand() > 0.25:
