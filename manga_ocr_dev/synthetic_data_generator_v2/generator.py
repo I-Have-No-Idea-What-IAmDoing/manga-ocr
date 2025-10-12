@@ -92,7 +92,7 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         params['salt_and_pepper_amount'] = np.random.uniform(0, 0.02) if np.random.rand() < 0.1 else 0
 
         # Randomly choose a text color, either dark or light gray
-        if np.random.rand() > 0.25:
+        if np.random.rand() > 0.30:
             gray_value = np.random.randint(0, 30)
         else:
             gray_value = np.random.randint(225, 256)
