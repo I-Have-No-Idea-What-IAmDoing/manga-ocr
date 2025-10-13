@@ -83,7 +83,12 @@ def worker_fn(args, generator, renderer_type, debug=False):
 
         # Generate the synthetic image and get ground truth text and parameters
         filename = f"{id_}.jpg"
-        img, text_gt, params = generator.process(text)
+        result = generator.process(text)
+        if len(result) == 2:
+            img, params = result
+            text_gt = text
+        else:
+            img, text_gt, params = result
 
         # If image generation fails, skip this sample
         if img is None:

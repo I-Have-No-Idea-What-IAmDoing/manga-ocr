@@ -58,6 +58,18 @@ class SyntheticDataGenerator(BaseDataGenerator):
             self.composer = None
 
     def process(self, text=None, override_css_params=None):
+        """
+        Generates a single synthetic image-text pair with a retry mechanism.
+        If a sample generation fails, it will be retried up to 3 times before being skipped.
+        """
+        for i in range(4):
+            try:
+                return self._process(text, override_css_params)
+            except Exception as e:
+                if i == 3:
+                    raise e
+
+    def _process(self, text=None, override_css_params=None):
         """Generates a single synthetic image-text pair.
 
         This method generates random text (if not provided), renders it to an

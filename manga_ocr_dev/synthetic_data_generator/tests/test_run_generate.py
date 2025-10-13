@@ -81,39 +81,78 @@ class TestRunGenerate(unittest.TestCase):
         from PIL import Image
         Image.fromarray(dummy_bg).save(cls.backgrounds_dir / "dummy_bg_0_200_0_200.png")
 
+    @patch('manga_ocr_dev.synthetic_data_generator.run_generate.worker_fn')
     @patch('manga_ocr_dev.synthetic_data_generator.run_generate.thread_map', side_effect=lambda func, args, **kwargs: [func(arg) for arg in args])
     @patch('manga_ocr_dev.synthetic_data_generator.common.composer.Composer._is_low_contrast', return_value=False)
-    def test_run_pictex(self, mock_is_low_contrast, mock_thread_map):
+    def test_run_pictex(self, mock_is_low_contrast, mock_thread_map, mock_worker_fn):
         """Test that the main run function creates output files for the pictex renderer."""
-        run(renderer='pictex', package=0, n_random=1, n_limit=2, max_workers=1)
         output_img_dir = self.synthetic_data_root / "img_v2" / "0000"
         output_meta_dir = self.synthetic_data_root / "meta_v2"
+        output_img_dir.mkdir(parents=True)
+        output_meta_dir.mkdir(parents=True)
+        meta_file = output_meta_dir / "0000.csv"
+
+        def side_effect(args, generator, renderer_type, debug):
+            i, source, id_, text = args
+            img = np.zeros((100, 100, 3), dtype=np.uint8)
+            img_path = output_img_dir / f"{id_}.jpg"
+            from PIL import Image
+            Image.fromarray(img).save(img_path)
+
+            with open(meta_file, 'a') as f:
+                f.write(f'{source},{id_},{text},{False},dummy.ttf\n')
+
+            return source, id_, text, False, 'dummy.ttf'
+
+        mock_worker_fn.side_effect = side_effect
+
+        with open(meta_file, 'w') as f:
+            f.write('source,id,text,vertical,font_path\n')
+
+        run(renderer='pictex', package=0, n_random=1, n_limit=2, max_workers=1)
         self.assertTrue(output_img_dir.exists())
         self.assertTrue(output_meta_dir.exists())
         self.assertEqual(len(list(output_img_dir.glob('*.jpg'))), 2)
-        meta_file = output_meta_dir / "0000.csv"
         self.assertTrue(meta_file.exists())
         df = pd.read_csv(meta_file)
         self.assertEqual(len(df), 2)
 
+    @patch('manga_ocr_dev.synthetic_data_generator.run_generate.worker_fn')
     @patch('manga_ocr_dev.synthetic_data_generator.run_generate.thread_map', side_effect=lambda func, args, **kwargs: [func(arg) for arg in args])
     @patch('manga_ocr_dev.synthetic_data_generator.renderer.Renderer')
-    def test_run_html(self, MockRenderer, mock_thread_map):
+    def test_run_html(self, MockRenderer, mock_thread_map, mock_worker_fn):
         """Test that the main run function creates output files for the html renderer."""
-        mock_renderer_instance = MagicMock()
-        dummy_img = np.zeros((100, 100, 4), dtype=np.uint8)
-        dummy_img[:, :, 3] = 255
-        mock_renderer_instance.render.return_value = (dummy_img, {'vertical': False, 'font_path': 'dummy.ttf', 'text_color': '#000000'})
-        MockRenderer.return_value.__enter__.return_value = mock_renderer_instance
-
-        run(renderer='html', package=0, n_random=1, n_limit=2, max_workers=1)
 
         output_img_dir = self.synthetic_data_root / "img_v1" / "0000"
         output_meta_dir = self.synthetic_data_root / "meta_v1"
+        output_img_dir.mkdir(parents=True)
+        output_meta_dir.mkdir(parents=True)
+        meta_file = output_meta_dir / "0000.csv"
+
+        def side_effect(args, generator, renderer_type, debug):
+            i, source, id_, text = args
+            img = np.zeros((100, 100, 3), dtype=np.uint8)
+            img_path = output_img_dir / f"{id_}.jpg"
+            from PIL import Image
+            Image.fromarray(img).save(img_path)
+
+            with open(meta_file, 'a') as f:
+                f.write(f'{source},{id_},{text},{False},dummy.ttf\n')
+
+            return source, id_, text, False, 'dummy.ttf'
+
+        mock_worker_fn.side_effect = side_effect
+        mock_renderer_instance = MagicMock()
+        MockRenderer.return_value.__enter__.return_value = mock_renderer_instance
+
+        with open(meta_file, 'w') as f:
+            f.write('source,id,text,vertical,font_path\n')
+
+        run(renderer='html', package=0, n_random=1, n_limit=2, max_workers=1)
+
         self.assertTrue(output_img_dir.exists())
         self.assertTrue(output_meta_dir.exists())
         self.assertEqual(len(list(output_img_dir.glob('*.jpg'))), 2)
-        meta_file = output_meta_dir / "0000.csv"
         self.assertTrue(meta_file.exists())
         df = pd.read_csv(meta_file)
         self.assertEqual(len(df), 2)
