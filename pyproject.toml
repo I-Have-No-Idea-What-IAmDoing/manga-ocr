@@ -42,6 +42,9 @@ dev = [
     "pictex",
     "scipy",
     "pykakasi",
+    "evaluate",
+    "matplotlib",
+    "torchinfo",
 ]
 
 [project.urls]
