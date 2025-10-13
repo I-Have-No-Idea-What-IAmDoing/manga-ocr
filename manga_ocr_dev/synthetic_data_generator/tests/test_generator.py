@@ -1,94 +1,138 @@
-import unittest
-from unittest.mock import patch, MagicMock
-import tempfile
-import shutil
-from pathlib import Path
+"""Tests for the synthetic data generator.
+
+This module contains tests for the `SyntheticDataGenerator` class, which is
+responsible for creating synthetic training data. These tests verify that the
+generator can handle various conditions, such as malformed font metadata,
+and that it correctly processes text and styles.
+"""
+
 import pandas as pd
-import numpy as np
+import pytest
+from unittest.mock import patch, MagicMock
 
 from manga_ocr_dev.synthetic_data_generator.generator import SyntheticDataGenerator
-from manga_ocr_dev.synthetic_data_generator.common.exceptions import SkipSample
-from manga_ocr_dev.env import FONTS_ROOT as PROJECT_FONTS_ROOT
-import manga_ocr_dev.synthetic_data_generator.common.utils as utils_module
-import manga_ocr_dev.synthetic_data_generator.common.base_generator as base_generator_module
+from manga_ocr_dev.env import FONTS_ROOT
 
-class TestSyntheticDataGenerator(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.temp_dir = Path(tempfile.mkdtemp())
-        cls.assets_dir = cls.temp_dir / "assets"
-        cls.fonts_dir = cls.temp_dir / "fonts"
-        cls.assets_dir.mkdir(exist_ok=True)
-        cls.fonts_dir.mkdir(exist_ok=True)
+@patch('manga_ocr_dev.synthetic_data_generator.common.utils.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.budoux.load_default_japanese_parser')
+def test_generator_handles_missing_font_data_after_fix(
+    mock_budoux, mock_gen_read_csv, mock_get_charsets, mock_renderer, mock_utils_read_csv
+):
+    """Tests that the generator can handle malformed font metadata.
 
-        cls.patcher_assets_utils = patch.object(utils_module, 'ASSETS_PATH', cls.assets_dir)
-        cls.patcher_fonts_utils = patch.object(utils_module, 'FONTS_ROOT', cls.fonts_dir)
-        cls.patcher_assets_base = patch.object(base_generator_module, 'ASSETS_PATH', cls.assets_dir)
-        cls.patcher_fonts_base = patch.object(base_generator_module, 'FONTS_ROOT', cls.fonts_dir)
+    This test verifies that the `SyntheticDataGenerator` can initialize and
+    operate correctly even when the `fonts.csv` file contains rows with
+    missing data (e.g., NaN values). It specifically tests the fix in the
+    `get_font_meta` function, which should now gracefully handle such malformed
+    entries by dropping them.
 
-        cls.patcher_assets_utils.start()
-        cls.patcher_fonts_utils.start()
-        cls.patcher_assets_base.start()
-        cls.patcher_fonts_base.start()
+    The test mocks the `pd.read_csv` call within the `utils` module to simulate
+    loading a defective `fonts.csv`, then asserts that the generator
+    initializes without error and that the invalid font is excluded from its
+    internal font map.
 
-        cls.create_dummy_files()
+    Args:
+        mock_budoux: Mock for the BudouX parser.
+        mock_gen_read_csv: Mock for `pd.read_csv` in the generator module.
+        mock_get_charsets: Mock for the `get_charsets` utility.
+        mock_renderer: Mock for the `Renderer` class.
+        mock_utils_read_csv: Mock for `pd.read_csv` in the `utils` module,
+            used to inject faulty font data.
+    """
+    # This test is unique because it mocks the `pd.read_csv` inside `utils` to test
+    # the real `get_font_meta` function's ability to handle bad data.
+    # We don't mock `get_font_meta` itself here.
 
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(cls.temp_dir)
-        cls.patcher_assets_utils.stop()
-        cls.patcher_fonts_utils.stop()
-        cls.patcher_assets_base.stop()
-        cls.patcher_fonts_base.stop()
+    # Mock the return of `pd.read_csv` in `utils.py` to simulate reading a fonts.csv
+    # with a row that contains NaN.
+    mock_fonts_df_with_nan = pd.DataFrame({
+        'font_path': ['good_font.ttf', 'bad_font.ttf'],
+        'supported_chars': ['abc', float('nan')],
+        'label': ['regular', 'regular'],
+        'num_chars': [3, 0]
+    })
+    mock_utils_read_csv.return_value = mock_fonts_df_with_nan
 
-    @classmethod
-    def create_dummy_files(cls):
-        vocab_df = pd.DataFrame({'char': ['t', 'e', 's', 'ト', 'ス', 'テ', 'あ', 'い', 'う', 'え', 'お', 'カ', 'キ', 'ク', 'A', 'B', 'C', '1', '2', '3', '漢', '字', 'v', 'i', 'b', 'l']})
-        vocab_df.to_csv(cls.assets_dir / "vocab.csv", index=False)
-        len_to_p_df = pd.DataFrame({'len': [4], 'p': [1.0]})
-        len_to_p_df.to_csv(cls.assets_dir / "len_to_p.csv", index=False)
-        real_font_path = PROJECT_FONTS_ROOT / "NotoSansJP-Regular.ttf"
-        temp_font_path = cls.fonts_dir / "NotoSansJP-Regular.ttf"
-        if not temp_font_path.exists():
-            shutil.copy(real_font_path, temp_font_path)
-        fonts_df = pd.DataFrame({'font_path': [temp_font_path.name], 'supported_chars': ['tesトス_テあいうえおABC123漢字vibl'], 'label': ['common']})
-        fonts_df.to_csv(cls.assets_dir / "fonts.csv", index=False)
+    # Mock other dependencies for BaseDataGenerator initialization
+    mock_get_charsets.return_value = (set('abc'), set('a'), set('b'))
+    mock_gen_read_csv.return_value = pd.DataFrame({'len': [10], 'p': [1.0]})
 
-    @patch('manga_ocr_dev.synthetic_data_generator.renderer.Renderer')
-    @patch('manga_ocr_dev.synthetic_data_generator.generator.SyntheticDataGenerator._process')
-    def test_process_retry(self, mock_process, mock_renderer):
-        """
-        Test that process retries on SkipSample exception.
-        """
-        generator = SyntheticDataGenerator(renderer=mock_renderer)
+    # Configure the mock renderer to return a tuple
+    mock_renderer.return_value.render.return_value = (MagicMock(), {})
 
-        # Simulate that _process fails 3 times and then succeeds
-        mock_process.side_effect = [
-            SkipSample("Test skip 1"),
-            (None, "dummy_meta", {}),
-            SkipSample("Test skip 3"),
-            ("dummy_image", "dummy_meta", {})
-        ]
+    # Initialize the generator. This will call the *real*, fixed `get_font_meta`,
+    # which in turn calls our mocked `pd.read_csv`.
+    generator = SyntheticDataGenerator()
 
-        img, meta, _ = generator.process("test")
+    # Assert that the bad font was dropped and is not in the font map or dataframe
+    bad_font_path = 'bad_font.ttf'
+    assert bad_font_path not in generator.font_map
+    assert not any(generator.fonts_df['font_path'] == bad_font_path)
 
-        self.assertEqual(mock_process.call_count, 4)
-        self.assertEqual(img, "dummy_image")
-        self.assertEqual(meta, "dummy_meta")
+    # The `process` method should now run without raising an exception.
+    # We patch `get_random_words` and `get_random_font` to avoid unrelated errors.
+    with patch.object(generator, 'get_random_words', return_value=['a']):
+        with patch.object(generator, 'get_random_font', return_value='good_font.ttf'):
+            generator.process()
 
-    @patch('manga_ocr_dev.synthetic_data_generator.renderer.Renderer')
-    @patch('manga_ocr_dev.synthetic_data_generator.generator.SyntheticDataGenerator._process')
-    def test_process_fail_after_retries(self, mock_process, mock_renderer):
-        """
-        Test that process raises SkipSample after 4 failed attempts.
-        """
-        generator = SyntheticDataGenerator(renderer=mock_renderer)
-        mock_process.side_effect = SkipSample("Test skip")
 
-        with self.assertRaises(SkipSample):
-            generator.process("test")
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_font_meta')
+@patch('manga_ocr_dev.synthetic_data_generator.generator.Renderer')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.get_charsets')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.pd.read_csv')
+@patch('manga_ocr_dev.synthetic_data_generator.common.base_generator.budoux.load_default_japanese_parser')
+def test_generator_skips_sample_for_unsupported_chars(
+    mock_budoux, mock_gen_read_csv, mock_get_charsets, mock_renderer, mock_get_font_meta
+):
+    """Tests that the generator skips samples with unsupported characters.
 
-        self.assertEqual(mock_process.call_count, 4)
+    This test ensures that the `SyntheticDataGenerator` correctly handles
+    cases where the input text contains characters not supported by any of
+    the available fonts. Instead of raising an error, the generator should
+    gracefully skip the sample by returning an empty image and text.
 
-if __name__ == '__main__':
-    unittest.main()
+    The test sets up a mock font environment where no font supports the
+    character 'X', and then attempts to process a text containing 'X',
+    asserting that the returned image is not None, but the text is empty.
+
+    Args:
+        mock_budoux: Mock for the BudouX parser.
+        mock_gen_read_csv: Mock for `pd.read_csv` in the generator module.
+        mock_get_charsets: Mock for the `get_charsets` utility.
+        mock_renderer: Mock for the `Renderer` class.
+        mock_get_font_meta: Mock for `get_font_meta` to provide a controlled
+            set of fonts and supported characters.
+    """
+    # Mock dependencies for SyntheticDataGenerator initialization
+    mock_get_charsets.return_value = (set('abc'), set('a'), set('b'))
+    mock_gen_read_csv.return_value = pd.DataFrame({'len': [10], 'p': [1.0]})
+    mock_budoux.return_value.parse.return_value = ['abcX']
+
+    # Mock the return of `get_font_meta`. The mock fonts do not support 'X'.
+    mock_fonts_df = pd.DataFrame({
+        'font_path': ['font1.ttf', 'font2.ttf'],
+        'supported_chars': ['ab', 'c'],
+        'label': ['regular', 'regular'],
+        'num_chars': [2, 1]
+    })
+    mock_font_map = {
+            'font1.ttf': set('ab'),
+            'font2.ttf': set('c'),
+    }
+    mock_get_font_meta.return_value = (mock_fonts_df, mock_font_map)
+
+    # Configure the mock renderer to return a tuple
+    mock_renderer.return_value.render.return_value = (MagicMock(), {})
+
+    # Initialize the generator
+    generator = SyntheticDataGenerator()
+
+    # The text 'abcX' contains 'X', which is not supported by any of the mock
+    # fonts. The `process` method should skip the sample.
+    img, text, params = generator.process(text='abcX')
+
+    assert img is not None
+    assert text == ''

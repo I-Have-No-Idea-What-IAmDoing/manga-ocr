@@ -117,22 +117,34 @@ class SyntheticDataGenerator(BaseDataGenerator):
         lines = self.words_to_lines(words)
         text_gt = "\n".join(lines)
 
-        # Select a font that supports the characters in the text, if not already specified
+        # If a font is not specified, select one that supports the characters in the text
         if "font_path" not in override_css_params:
-            override_css_params["font_path"] = self.get_random_font(text_gt)
+            try:
+                # Attempt to find a random font that supports all characters in the text
+                override_css_params["font_path"] = self.get_random_font(text_gt)
+            except ValueError:
+                # If no suitable font is found, return an empty image and text to skip the sample
+                img, params = self.renderer.render([], override_css_params)
+                return img, "", params
 
-        # Verify that the selected font supports all characters in the text
+        # Verify that the selected font supports all characters in the text.
+        # This is a fallback mechanism in case the provided font is not suitable.
         font_path = override_css_params.get("font_path")
-        if font_path:
-            vocab = self.font_map.get(font_path)
-            if vocab:
-                unsupported_chars = {c for c in text_gt if c not in vocab and not c.isspace()}
-                if unsupported_chars:
-                    raise ValueError(
-                        f"Text contains unsupported characters for font "
-                        f"{Path(font_path).name}: {''.join(unsupported_chars)}"
-                    )
+        vocab = self.font_map.get(font_path)
+        if vocab:
+            unsupported_chars = {c for c in text_gt if c not in vocab and not c.isspace()}
+            if unsupported_chars:
+                try:
+                    # If the current font is missing characters, try to find a fallback font
+                    font_path = self.get_random_font(text_gt)
+                    override_css_params["font_path"] = font_path
+                    vocab = self.font_map.get(font_path)
+                except ValueError:
+                    # If no fallback font is found, skip the sample by returning an empty image and text
+                    img, params = self.renderer.render([], override_css_params)
+                    return img, "", params
         else:
+            # If the font has no associated vocabulary, assume it supports all characters
             vocab = None
 
         # If there is no text to render, return an empty image and text
@@ -191,6 +203,10 @@ class SyntheticDataGenerator(BaseDataGenerator):
         if vocab is None:
             vocab = self.vocab
 
+        # Ensure that the character sources for furigana are subsets of the font's vocabulary
+        hiragana_in_vocab = set(self.hiragana).intersection(vocab)
+        katakana_in_vocab = set(self.katakana).intersection(vocab)
+
         def flush_kanji_group(group):
             """Processes a group of consecutive kanji characters, adding furigana."""
             if not group:
@@ -199,9 +215,20 @@ class SyntheticDataGenerator(BaseDataGenerator):
             if np.random.uniform() < word_prob:
                 # Determine the length and character set for the furigana
                 furigana_len = int(np.clip(np.random.normal(1.5, 0.5), 1, 4) * len(group))
-                char_source_map = {"hiragana": self.hiragana, "katakana": self.katakana, "all": vocab}
+
+                # Use only characters available in the current font for furigana
+                char_source_map = {
+                    "hiragana": hiragana_in_vocab if hiragana_in_vocab else vocab,
+                    "katakana": katakana_in_vocab if katakana_in_vocab else vocab,
+                    "all": vocab
+                }
                 char_source_key = np.random.choice(["hiragana", "katakana", "all"], p=[0.8, 0.15, 0.05])
                 char_source = char_source_map[char_source_key]
+
+                # If the character source is empty, do not add furigana
+                if not char_source:
+                    return group
+
                 # Generate the furigana and wrap it in ruby tags
                 furigana = "".join(np.random.choice(list(char_source), furigana_len))
                 return f"<ruby>{group}<rt>{furigana}</rt></ruby>"

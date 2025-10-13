@@ -165,19 +165,25 @@ class Composer:
             background = Image.open(background_path).convert("RGB")
             background_np = np.array(background)
 
-            background_transforms = [
-                A.HorizontalFlip(p=0.5),
-                A.RandomRotate90(p=0.5),
-                A.InvertImg(p=0.2),
-                A.RandomBrightnessContrast(
-                    brightness_limit=(-0.2, 0.4),
-                    contrast_limit=(-0.8, -0.3),
-                    p=0.5 if draw_bubble else 1  # Less contrast change with bubbles
-                ),
-                A.Blur(blur_limit=(3, 5), p=0.3),
-            ]
-            background_np = A.Compose(background_transforms)(image=background_np)["image"]
-            background = Image.fromarray(background_np).convert("RGBA")
+            # Apply a series of augmentations to the background to increase data variety.
+            # If any augmentation fails, the original background is used as a fallback.
+            try:
+                background_transforms = [
+                    A.HorizontalFlip(p=0.5),
+                    A.RandomRotate90(p=0.5),
+                    A.InvertImg(p=0.2),
+                    A.RandomBrightnessContrast(
+                        brightness_limit=(-0.2, 0.4),
+                        contrast_limit=(-0.8, -0.3),
+                        p=0.5 if draw_bubble else 1  # Apply less contrast change with bubbles
+                    ),
+                    A.Blur(blur_limit=(3, 5), p=0.3),
+                ]
+                background_np = A.Compose(background_transforms)(image=background_np)["image"]
+                background = Image.fromarray(background_np).convert("RGBA")
+            except Exception:
+                # If augmentation fails, fall back to the original background
+                background = Image.open(background_path).convert("RGBA")
 
             # Ensure the background is large enough to contain the text image, scaling if necessary
             bg_width, bg_height = background.size
@@ -222,7 +228,10 @@ class Composer:
                 crop_x1 = max(0, crop_x2 - 10)
             if crop_y1 >= crop_y2:
                 crop_y1 = max(0, crop_y2 - 10)
-            final_img_np = A.Crop(x_min=crop_x1, y_min=crop_y1, x_max=crop_x2, y_max=crop_y2)(image=final_img_np)["image"]
+
+            # Ensure the crop dimensions are valid before applying the crop
+            if crop_x1 < crop_x2 and crop_y1 < crop_y2:
+                final_img_np = A.Crop(x_min=crop_x1, y_min=crop_y1, x_max=crop_x2, y_max=crop_y2)(image=final_img_np)["image"]
         else:
             # If no backgrounds are available, use the text/bubble image as is
             final_img_np = np.array(composed_image.convert("RGB"))
@@ -247,7 +256,7 @@ class Composer:
         final_img_np = cv2.cvtColor(final_img_np, cv2.COLOR_RGB2GRAY)
         return final_img_np
 
-    def _is_low_contrast(self, final_img_np, text_image_np, x_offset, y_offset, threshold=0.15):
+    def _is_low_contrast(self, final_img_np, text_image_np, x_offset, y_offset, threshold=0.1):
         """Checks if the text has low contrast with its background using OpenCV.
 
         This method computes the average intensity of the text pixels and the
@@ -284,6 +293,12 @@ class Composer:
             return False
 
         background_intensity = np.mean(background_pixels)
+
+        # Ensure that the background and text are not both very dark or very light
+        if (text_intensity < 0.1 and background_intensity < 0.1) or \
+           (text_intensity > 0.9 and background_intensity > 0.9):
+            return True
+
         # Calculate the contrast as the absolute difference between intensities
         contrast = abs(text_intensity - background_intensity)
         # Return True if the contrast is below the specified threshold

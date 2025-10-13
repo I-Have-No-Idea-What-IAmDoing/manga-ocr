@@ -84,6 +84,8 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         # Add randomized text rotation
         if np.random.rand() > 0.5:
             params['rotation'] = np.random.uniform(-15, 15)
+        else:
+            params['rotation'] = 0
 
         # Add randomized blur, JPEG quality, and perspective transform
         params['blur_sigma'] = np.random.uniform(0, 1.0) if np.random.rand() < 0.0 else 0
