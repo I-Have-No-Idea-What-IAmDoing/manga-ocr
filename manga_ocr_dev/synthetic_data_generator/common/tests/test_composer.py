@@ -89,10 +89,15 @@ class TestComposer(unittest.TestCase):
         self.assertGreater(final_image.shape[0], large_text_image.shape[0])
         self.assertGreater(final_image.shape[1], large_text_image.shape[1])
 
-    @patch('numpy.random.rand', return_value=0.8)  # Ensure no bubble
+    @patch('numpy.random.rand', return_value=0.8)  # Ensure no bubble initially
     @patch('albumentations.Compose', lambda transforms: lambda image: {'image': image})
-    def test_low_contrast_rejection(self, mock_rand):
-        """Test that low-contrast images are rejected."""
+    @patch('manga_ocr_dev.synthetic_data_generator.common.composer.Composer.draw_bubble')
+    def test_low_contrast_fallback_to_bubble(self, mock_draw_bubble, mock_rand):
+        """Test that low-contrast images trigger the bubble fallback."""
+        # Configure the mock to return a valid Image object
+        mock_bubble = Image.new('RGBA', (120, 70), (0, 0, 0, 0))
+        mock_draw_bubble.return_value = mock_bubble
+
         # Create a dedicated directory with only a low-contrast background
         low_contrast_dir = self.temp_dir / "low_contrast_bg"
         low_contrast_dir.mkdir()
@@ -105,8 +110,16 @@ class TestComposer(unittest.TestCase):
 
         # Initialize the composer with only the low-contrast background
         composer = Composer(low_contrast_dir)
-        result = composer(black_text, {})
-        self.assertIsNone(result, "Low-contrast image (black on black) should be rejected")
+
+        # Mock _is_low_contrast to always return True to force the fallback
+        with patch.object(composer, '_is_low_contrast', return_value=True):
+            result = composer(black_text, {'color': '#000000'})
+
+        # Check that the result is not None (it should be a valid image)
+        self.assertIsNotNone(result, "Image should not be rejected, but fallback to bubble.")
+
+        # Check that draw_bubble was called as a fallback
+        mock_draw_bubble.assert_called()
 
     @patch('numpy.random.rand', return_value=0.8)  # Ensure no bubble
     @patch('albumentations.Compose', lambda transforms: lambda image: {'image': image})
