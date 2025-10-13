@@ -61,11 +61,20 @@ class SyntheticDataGenerator(BaseDataGenerator):
         """
         Generates a single synthetic image-text pair with a retry mechanism.
         If a sample generation fails, it will be retried up to 3 times before being skipped.
+        A failure is defined as either an exception being raised or the returned image being None.
         """
         for i in range(4):
             try:
-                return self._process(text, override_css_params)
+                # Attempt to generate the sample
+                result = self._process(text, override_css_params)
+                # Check if the image was successfully generated (not None)
+                if result[0] is not None:
+                    return result
+                # If the image is None on the last retry, return the failed result
+                if i == 3:
+                    return result
             except Exception as e:
+                # If an exception occurs on the last retry, re-raise it
                 if i == 3:
                     raise e
 

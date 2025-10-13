@@ -65,7 +65,7 @@ class TestSyntheticDataGenerator(unittest.TestCase):
         # Simulate that _process fails 3 times and then succeeds
         mock_process.side_effect = [
             SkipSample("Test skip 1"),
-            SkipSample("Test skip 2"),
+            (None, "dummy_meta", {}),
             SkipSample("Test skip 3"),
             ("dummy_image", "dummy_meta", {})
         ]
