@@ -352,5 +352,26 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         self.assertEqual(img.size, 0)
         self.assertEqual(text_gt, "")
 
+    def test_empty_vocab_font_handling(self):
+        """Test that the generator can handle a font with an empty vocabulary by skipping it."""
+        generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir)
+
+        # Add a dummy font with an empty vocabulary to the font_map
+        empty_vocab_font_path = "empty_vocab_font.ttf"
+        generator.font_map[empty_vocab_font_path] = set()
+
+        # Mock get_random_font to first return the empty-vocab font, then a valid one
+        with patch.object(generator, 'get_random_font', side_effect=[empty_vocab_font_path, 'NotoSansJP-Regular.ttf']) as mock_get_font:
+            img, text_gt, params = generator.process(None)
+
+            # Check that get_random_font was called twice
+            self.assertEqual(mock_get_font.call_count, 2)
+
+            # Check that a valid image and text were generated
+            self.assertIsInstance(img, np.ndarray)
+            self.assertGreater(img.size, 0)
+            self.assertIsInstance(text_gt, str)
+            self.assertGreater(len(text_gt), 0)
+
 if __name__ == '__main__':
     unittest.main()

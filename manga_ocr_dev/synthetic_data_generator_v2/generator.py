@@ -163,12 +163,20 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         # If no text is provided, generate random words using a random font
         if text is None:
             if "font_path" not in params:
-                font_path = self.get_random_font()
-                vocab = self.font_map.get(font_path, set())
+                # Loop to ensure a font with a non-empty vocabulary is selected for random text generation.
+                # This prevents the creation of samples with no text, which would otherwise be skipped.
+                vocab = set()
+                while not vocab:
+                    font_path = self.get_random_font()
+                    vocab = self.font_map.get(font_path, set())
                 params["font_path"] = font_path
             else:
+                # If a font is provided via override_params, use it.
                 font_path = params["font_path"]
                 vocab = self.font_map.get(font_path, set())
+
+            # If the vocabulary is empty (e.g., from a bad override font), this will produce empty words.
+            # The process will then correctly generate an empty image and skip the sample.
             words = self.get_random_words(vocab)
         # If text is provided, clean it and split it into words
         else:
@@ -197,18 +205,24 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         else:
             vocab = None
 
-        # If there is no text to render, return an empty image
+        # If there is no text to render, return an empty image and parameters.
+        # This can happen if the input text is empty or contains only whitespace.
         if not text_gt.strip():
             img = self.render([], params)
             return img, "", params
 
-        # Randomly decide whether to add furigana markup to the text
+        # Randomly decide whether to add furigana markup to the text.
+        # Furigana is a reading aid for Japanese text, consisting of smaller
+        # characters printed next to a kanji character to indicate its pronunciation.
+        # This helps create more realistic training data for manga.
         lines_with_markup = []
         if np.random.random() < 0.5:
+            # The probability of adding furigana to a word is chosen randomly.
             word_prob = np.random.choice([0.33, 1.0], p=[0.3, 0.7])
             if lines:
                 lines_with_markup = [self.add_random_furigana(line, word_prob) for line in lines]
         else:
+            # If not adding furigana, the lines are kept as they are.
             lines_with_markup = [[line] for line in lines]
 
         # Convert the relative font path to an absolute path for rendering
@@ -220,27 +234,27 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         # Render the text with markup to an image
         img = self.render(lines_with_markup, params)
 
-        # Apply rotation if specified
+        # Apply rotation if specified. This simulates variations in document scanning and alignment.
         if params.get("rotation", 0) != 0:
-            # Rotate the image (in degrees), expanding the canvas to fit.
+            # Rotate the image in degrees, expanding the canvas to fit the new dimensions.
             # The background is filled with a transparent color (0).
-            # Using order=0 (nearest-neighbor) to prevent interpolation artifacts
-            # from interfering with the legibility check.
+            # Using order=0 (nearest-neighbor) prevents interpolation artifacts that could
+            # interfere with legibility checks or model training.
             img = rotate(img, params["rotation"], reshape=True, cval=0, order=0)
 
-        # Apply perspective transform if specified
+        # Apply perspective transform if specified. This mimics the appearance of text on a curved or angled page.
         if params.get("perspective_magnitude", 0) > 0:
             img = apply_perspective_transform(img, params["perspective_magnitude"])
 
-        # Apply blur if specified
+        # Apply Gaussian blur if specified. This simulates out-of-focus text or low-resolution scanning.
         if params.get("blur_sigma", 0) > 0:
             img = apply_blur(img, params["blur_sigma"])
 
-        # Apply JPEG compression if specified
+        # Apply JPEG compression if specified. This introduces compression artifacts common in web images.
         if params.get("jpeg_quality", 100) < 100:
             img = apply_jpeg_compression(img, params["jpeg_quality"])
 
-        # Apply salt and pepper noise if specified
+        # Apply salt and pepper noise if specified. This simulates sensor noise or dust on a scanned page.
         if params.get("salt_and_pepper_amount", 0) > 0:
             img = apply_salt_and_pepper_noise(img, params["salt_and_pepper_amount"])
 
