@@ -172,14 +172,14 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
                 font_path = params["font_path"]
                 vocab = self.font_map.get(font_path, set())
             words = self.get_random_words(vocab)
+        # If text is provided, clean it and split it into words
         else:
-            # Clean the text by replacing special whitespace and ellipsis characters
             text = text.replace("　", " ").replace("…", "...")
             words = self.split_into_words(text)
 
         # Arrange words into lines to form the ground truth text
         lines = self.words_to_lines(words)
-        text_gt = "\n".join(lines) if lines else ""
+        text_gt = "\n".join(lines)
 
         # If a font is not already specified, select one that supports the text
         if "font_path" not in params:
