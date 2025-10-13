@@ -252,7 +252,7 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         if self.composer:
             composed_img = self.composer(img, params)
             if composed_img is None:
-                return None, text_gt, params
+                return None, None, None
             img = composed_img
 
         return img, text_gt, params
