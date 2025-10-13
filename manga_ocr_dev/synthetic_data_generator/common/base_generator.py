@@ -195,6 +195,23 @@ class BaseDataGenerator:
 
         return lines
 
+        lines = []
+        current_line = ""
+        # Iterate through the words and arrange them into lines
+        for word in words:
+            # If adding the next word exceeds the max line length, start a new line
+            if len(current_line) + len(word) > max_line_len:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+            else:
+                current_line += word
+        # Add the last line to the list
+        if current_line:
+            lines.append(current_line)
+
+        return lines
+
     def add_random_furigana(self, line, word_prob=1.0):
         """Adds furigana and other markup to a line of text using pykakasi.
 

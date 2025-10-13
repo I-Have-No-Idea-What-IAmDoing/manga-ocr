@@ -9,6 +9,7 @@ mimics the appearance of text in manga.
 
 from pathlib import Path
 import numpy as np
+import pandas as pd
 from pictex import Canvas, Row, Column, Text, Shadow
 from PIL import Image
 import io
@@ -160,8 +161,9 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         if override_params:
             params.update(override_params)
 
-        # If no text is provided, generate random words using a random font
-        if text is None:
+        # If text is not provided (e.g., is None or NaN), generate random words.
+        # Otherwise, clean and split the provided text.
+        if pd.isna(text):
             if "font_path" not in params:
                 font_path = self.get_random_font()
                 vocab = self.font_map.get(font_path, set())
@@ -170,14 +172,14 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
                 font_path = params["font_path"]
                 vocab = self.font_map.get(font_path, set())
             words = self.get_random_words(vocab)
-        # If text is provided, clean it and split it into words
         else:
+            # Clean the text by replacing special whitespace and ellipsis characters
             text = text.replace("　", " ").replace("…", "...")
             words = self.split_into_words(text)
 
         # Arrange words into lines to form the ground truth text
         lines = self.words_to_lines(words)
-        text_gt = "\n".join(lines)
+        text_gt = "\n".join(lines) if lines else ""
 
         # If a font is not already specified, select one that supports the text
         if "font_path" not in params:

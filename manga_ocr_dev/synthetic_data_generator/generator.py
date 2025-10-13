@@ -9,6 +9,7 @@ mimics the appearance of text in manga.
 
 from pathlib import Path
 import numpy as np
+import pandas as pd
 
 from manga_ocr_dev.env import FONTS_ROOT
 from manga_ocr_dev.synthetic_data_generator.common.base_generator import BaseDataGenerator
@@ -98,8 +99,9 @@ class SyntheticDataGenerator(BaseDataGenerator):
         if override_css_params is None:
             override_css_params = {}
 
-        # If no text is provided, generate random words using a random font
-        if text is None:
+        # If text is not provided (e.g., is None or NaN), generate random words.
+        # Otherwise, clean and split the provided text.
+        if pd.isna(text):
             if "font_path" not in override_css_params:
                 font_path = self.get_random_font()
                 vocab = self.font_map[font_path]
@@ -108,8 +110,8 @@ class SyntheticDataGenerator(BaseDataGenerator):
                 font_path = override_css_params["font_path"]
                 vocab = self.font_map[font_path]
             words = self.get_random_words(vocab)
-        # If text is provided, clean and split it into words
         else:
+            # Clean the text by replacing special whitespace and ellipsis characters
             text = text.replace("　", " ").replace("…", "...")
             words = self.split_into_words(text)
 
