@@ -114,6 +114,8 @@ class Composer:
         a speech bubble, and then overlays it onto a randomly selected and
         augmented background image. It performs scaling and positioning to
         ensure the text is legible and well-placed, then applies a final crop.
+        If the text has low contrast with the background, it retries with a new
+        background and, if still failing, falls back to using a speech bubble.
 
         Args:
             text_image_np (np.ndarray): The input text image as a NumPy array.
@@ -125,115 +127,113 @@ class Composer:
             RGB format, or None if the input image is invalid or the resulting
             image is not legible.
         """
-        # Return None if the input text image is invalid
         if text_image_np is None or text_image_np.size == 0:
             return None
 
-        # Ensure the text image has an alpha channel for transparency
         if text_image_np.shape[2] == 3:
             text_image_np = cv2.cvtColor(text_image_np, cv2.COLOR_BGR2BGRA)
 
         text_image = Image.fromarray(text_image_np).convert("RGBA")
 
-        # Randomly decide whether to draw a speech bubble around the text
-        draw_bubble = np.random.rand() < 0.45
+        # Initially, decide whether to use a speech bubble. This can be overridden
+        # later if the text has low contrast with the background.
+        use_bubble = np.random.rand() < 0.45
+        composed_image = text_image
 
-        if draw_bubble:
-            # Create a speech bubble and paste the text image onto it
+        if use_bubble:
             bubble_padding = np.random.randint(15, 30)
             bubble_radius = np.random.randint(10, 30)
             bubble_image = self.draw_bubble(
                 text_image.width, text_image.height,
                 text_color=params.get('color', '#000000'),
-                padding=bubble_padding,
-                radius=bubble_radius
+                padding=bubble_padding, radius=bubble_radius
             )
             bubble_image.paste(text_image, (bubble_padding, bubble_padding), text_image)
             composed_image = bubble_image
-        else:
-            composed_image = text_image
 
-        # Discard the sample if the rendered text is too small to be legible
-        min_text_height = 10
-        if composed_image.height < min_text_height:
+        if composed_image.height < 10:
             return None
 
-        # If backgrounds are available, compose the image with one
+        final_img_np = None
         if not self.background_df.empty:
-            # Randomly select a background and apply augmentations to it
-            background_path = self.background_df.sample(1).iloc[0].path
-            background = Image.open(background_path).convert("RGB")
-            background_np = np.array(background)
+            max_retries = 5
+            for i in range(max_retries):
+                background_path = self.background_df.sample(1).iloc[0].path
+                background = Image.open(background_path).convert("RGB")
+                background_np = np.array(background)
 
-            # Apply a series of augmentations to the background to increase data variety.
-            # If any augmentation fails, the original background is used as a fallback.
-            try:
-                background_transforms = [
-                    A.HorizontalFlip(p=0.5),
-                    A.RandomRotate90(p=0.5),
-                    A.InvertImg(p=0.2),
-                    A.RandomBrightnessContrast(
-                        brightness_limit=(-0.2, 0.4),
-                        contrast_limit=(-0.8, -0.3),
-                        p=0.5 if draw_bubble else 1  # Apply less contrast change with bubbles
-                    ),
-                    A.Blur(blur_limit=(3, 5), p=0.3),
-                ]
-                background_np = A.Compose(background_transforms)(image=background_np)["image"]
-                background = Image.fromarray(background_np).convert("RGBA")
-            except Exception:
-                # If augmentation fails, fall back to the original background
-                background = Image.open(background_path).convert("RGBA")
+                try:
+                    p = 0.5 if use_bubble else 1
+                    background_transforms = A.Compose([
+                        A.HorizontalFlip(p=0.5), A.RandomRotate90(p=0.5), A.InvertImg(p=0.2),
+                        A.RandomBrightnessContrast(brightness_limit=(-0.2, 0.4), contrast_limit=(-0.8, -0.3), p=p),
+                        A.Blur(blur_limit=(3, 5), p=0.3),
+                    ])
+                    background_np = background_transforms(image=background_np)["image"]
+                    background = Image.fromarray(background_np).convert("RGBA")
+                except Exception:
+                    background = Image.open(background_path).convert("RGBA")
 
-            # Ensure the background is large enough to contain the text image, scaling if necessary
-            bg_width, bg_height = background.size
-            comp_width, comp_height = composed_image.size
-            if bg_width <= comp_width or bg_height <= comp_height:
-                width_scale = comp_width / bg_width if bg_width > 0 else float('inf')
-                height_scale = comp_height / bg_height if bg_height > 0 else float('inf')
-                required_scale = max(width_scale, height_scale)
-                random_margin_scale = np.random.uniform(1.1, 1.9)
-                final_scale_factor = required_scale * random_margin_scale
-                if final_scale_factor > 0:
-                    background = ImageOps.scale(background, final_scale_factor, Image.Resampling.LANCZOS)
+                bg_width, bg_height = background.size
+                comp_width, comp_height = composed_image.size
+                if bg_width <= comp_width or bg_height <= comp_height:
+                    scale = max(comp_width / bg_width, comp_height / bg_height) * np.random.uniform(1.1, 1.9)
+                    background = ImageOps.scale(background, scale, Image.Resampling.LANCZOS)
 
-            # Paste the text image onto the background at a random position
-            x_offset = np.random.randint(0, background.width - composed_image.width + 1)
-            y_offset = np.random.randint(0, background.height - composed_image.height + 1)
-            background.paste(composed_image, (x_offset, y_offset), composed_image)
+                x_offset = np.random.randint(0, background.width - composed_image.width + 1)
+                y_offset = np.random.randint(0, background.height - composed_image.height + 1)
 
-            # If no bubble is used, check for low contrast and discard the sample if necessary
-            if not draw_bubble and self._is_low_contrast(
-                np.array(background.convert("RGB")), np.array(composed_image), x_offset, y_offset
-            ):
-                return None
+                final_image_pil = background.copy()
+                final_image_pil.paste(composed_image, (x_offset, y_offset), composed_image)
 
-            final_img_np = np.array(background.convert("RGB"))
+                # If not using a bubble, check for low contrast.
+                # If contrast is low, either retry or force a bubble as a fallback.
+                is_bad_contrast = not use_bubble and self._is_low_contrast(
+                    np.array(final_image_pil.convert("RGB")), np.array(composed_image), x_offset, y_offset
+                )
 
-            # Perform a smart crop that includes the text and some surrounding context
-            h, w, _ = final_img_np.shape
-            text_x1, text_y1 = x_offset, y_offset
-            text_x2, text_y2 = x_offset + composed_image.width, y_offset + composed_image.height
-            must_include_x1 = max(0, text_x1 - np.random.randint(10, 50))
-            must_include_y1 = max(0, text_y1 - np.random.randint(10, 50))
-            must_include_x2 = min(w, text_x2 + np.random.randint(10, 50))
-            must_include_y2 = min(h, text_y2 + np.random.randint(10, 50))
+                if is_bad_contrast:
+                    if i < max_retries - 1:
+                        continue
+                    else:
+                        use_bubble = True
+                        bubble_padding = np.random.randint(15, 30)
+                        bubble_radius = np.random.randint(10, 30)
+                        composed_image = self.draw_bubble(
+                            text_image.width, text_image.height,
+                            text_color=params.get('color', '#000000'),
+                            padding=bubble_padding, radius=bubble_radius
+                        )
+                        composed_image.paste(text_image, (bubble_padding, bubble_padding), text_image)
 
-            crop_x1 = np.random.randint(0, must_include_x1 + 1)
-            crop_y1 = np.random.randint(0, must_include_y1 + 1)
-            crop_x2 = np.random.randint(must_include_x2, w + 1)
-            crop_y2 = np.random.randint(must_include_y2, h + 1)
+                        bg_width, bg_height = background.size
+                        comp_width, comp_height = composed_image.size
+                        if bg_width <= comp_width or bg_height <= comp_height:
+                            scale = max(comp_width / bg_width, comp_height / bg_height) * np.random.uniform(1.1, 1.9)
+                            background = ImageOps.scale(background, scale, Image.Resampling.LANCZOS)
 
-            if crop_x1 >= crop_x2:
-                crop_x1 = max(0, crop_x2 - 10)
-            if crop_y1 >= crop_y2:
-                crop_y1 = max(0, crop_y2 - 10)
+                        x_offset = np.random.randint(0, background.width - composed_image.width + 1)
+                        y_offset = np.random.randint(0, background.height - composed_image.height + 1)
+                        final_image_pil = background.copy()
+                        final_image_pil.paste(composed_image, (x_offset, y_offset), composed_image)
 
-            # Ensure the crop dimensions are valid before applying the crop
-            if crop_x1 < crop_x2 and crop_y1 < crop_y2:
-                final_img_np = A.Crop(x_min=crop_x1, y_min=crop_y1, x_max=crop_x2, y_max=crop_y2)(image=final_img_np)["image"]
+                final_img_np = np.array(final_image_pil.convert("RGB"))
+                h, w, _ = final_img_np.shape
+                text_x1, text_y1 = x_offset, y_offset
+                text_x2, text_y2 = x_offset + composed_image.width, y_offset + composed_image.height
+                must_include_x1 = max(0, text_x1 - np.random.randint(10, 50))
+                must_include_y1 = max(0, text_y1 - np.random.randint(10, 50))
+                must_include_x2 = min(w, text_x2 + np.random.randint(10, 50))
+                must_include_y2 = min(h, text_y2 + np.random.randint(10, 50))
+                crop_x1 = np.random.randint(0, must_include_x1 + 1)
+                crop_y1 = np.random.randint(0, must_include_y1 + 1)
+                crop_x2 = np.random.randint(must_include_x2, w + 1)
+                crop_y2 = np.random.randint(must_include_y2, h + 1)
+
+                if crop_x1 < crop_x2 and crop_y1 < crop_y2:
+                    final_img_np = A.Crop(x_min=crop_x1, y_min=crop_y1, x_max=crop_x2, y_max=crop_y2)(image=final_img_np)["image"]
+                break  # Successfully composed, exit retry loop
         else:
-            # If no backgrounds are available, use the text/bubble image as is
             final_img_np = np.array(composed_image.convert("RGB"))
 
         # Resize the image if it's smaller than the minimum allowed size

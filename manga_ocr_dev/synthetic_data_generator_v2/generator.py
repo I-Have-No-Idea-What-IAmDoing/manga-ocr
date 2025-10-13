@@ -264,10 +264,9 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
 
         # If a composer is available, blend the rendered text with a background image
         if self.composer:
-            composed_img = self.composer(img, params)
-            if composed_img is None:
+            img = self.composer(img, params)
+            if img is None:
                 return None, None, None
-            img = composed_img
 
         return img, text_gt, params
 

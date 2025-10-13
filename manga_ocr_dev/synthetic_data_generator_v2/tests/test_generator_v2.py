@@ -228,12 +228,14 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         img, _, _ = generator.process("test", override_params={'color': '#000000'})
         self.assertGreaterEqual(min(img.shape[:2]), min_size)
 
-    @patch('numpy.random.rand', return_value=0.8) # Mock to prevent drawing a bubble
+    @patch('numpy.random.rand', return_value=0.8)
     def test_legibility_check_discards_small_text(self, mock_rand):
         """Test that samples with too small text are discarded."""
         generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir, min_font_size=1, max_font_size=2)
-        result = generator.process("t", override_params={'color': '#FFFFFF'})
-        self.assertEqual(result, (None, None, None), "Sample with very small text was not discarded")
+        img, text_gt, params = generator.process("t", override_params={'color': '#FFFFFF'})
+        self.assertIsNone(img, "Image should be None for discarded samples")
+        self.assertIsNone(text_gt, "Ground truth should be None for discarded samples")
+        self.assertIsNone(params, "Params should be None for discarded samples")
 
     def test_stroke_effect(self):
         """Test that the stroke effect is applied correctly."""
@@ -372,6 +374,43 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
             self.assertGreater(img.size, 0)
             self.assertIsInstance(text_gt, str)
             self.assertGreater(len(text_gt), 0)
+
+    def test_low_contrast_handling(self):
+        """Test the low-contrast retry and fallback logic."""
+        generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir)
+
+        # Scenario 1: Retry succeeds after a few attempts
+        self.mock_low_contrast.side_effect = [True, True, False]
+        with patch('numpy.random.rand', return_value=0.8):  # Ensure no bubble is drawn initially
+            img, _, _ = generator.process("test", override_params={'color': '#000000'})
+        self.assertIsNotNone(img)
+        self.assertEqual(self.mock_low_contrast.call_count, 3)
+        self.mock_low_contrast.reset_mock()
+
+        # Scenario 2: All retries fail, fallback to bubble
+        self.mock_low_contrast.side_effect = [True] * 5
+        with patch('numpy.random.rand', return_value=0.8):  # Ensure no bubble is drawn initially
+            with patch('manga_ocr_dev.synthetic_data_generator.common.composer.Composer.draw_bubble') as mock_draw_bubble:
+                from PIL import Image
+                # When draw_bubble is mocked, it must return an object that behaves like a PIL Image.
+                # A real PIL Image is the easiest way to provide this, ensuring it has .size,
+                # .width, .height attributes and a .paste() method.
+                dummy_bubble = Image.new('RGBA', (120, 60), (255, 255, 255, 255))
+                mock_draw_bubble.return_value = dummy_bubble
+
+                img, _, _ = generator.process("test", override_params={'color': '#000000'})
+
+        self.assertIsNotNone(img)
+        self.assertEqual(self.mock_low_contrast.call_count, 5)
+        mock_draw_bubble.assert_called_once()  # Check that the fallback bubble was drawn
+        self.mock_low_contrast.reset_mock()
+
+    def test_composer_initialization_with_retry(self):
+        """Test that the Composer is initialized correctly and can handle retries."""
+        from manga_ocr_dev.synthetic_data_generator.common.composer import Composer
+        composer = Composer(background_dir=self.backgrounds_dir)
+        self.assertIsNotNone(composer.background_df)
+
 
 if __name__ == '__main__':
     unittest.main()
