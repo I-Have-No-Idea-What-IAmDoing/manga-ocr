@@ -134,15 +134,17 @@ class SyntheticDataGenerator(BaseDataGenerator):
         if vocab:
             unsupported_chars = {c for c in text_gt if c not in vocab and not c.isspace()}
             if unsupported_chars:
+                original_vocab = vocab
                 try:
                     # If the current font is missing characters, try to find a fallback font
                     font_path = self.get_random_font(text_gt)
                     override_css_params["font_path"] = font_path
                     vocab = self.font_map.get(font_path)
                 except ValueError:
-                    # If no fallback font is found, skip the sample by returning an empty image and text
-                    img, params = self.renderer.render([], override_css_params)
-                    return img, "", params
+                    # If no fallback font is found, strip the unsupported characters from the text
+                    vocab = original_vocab
+                    text_gt = "".join([c for c in text_gt if c in vocab or c.isspace()])
+                    lines = self.words_to_lines(self.split_into_words(text_gt))
         else:
             # If the font has no associated vocabulary, assume it supports all characters
             vocab = None

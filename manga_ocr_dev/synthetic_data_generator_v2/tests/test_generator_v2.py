@@ -319,24 +319,12 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
         self.assertNotEqual(img_no_rot.shape, img_rot.shape)
 
     def test_unsupported_character_handling(self):
-        """Test that an error is raised for unsupported characters."""
+        """Test that unsupported characters are stripped."""
         generator = SyntheticDataGeneratorV2(background_dir=None)
         unsupported_text = "UnsupportedChar"
-        with self.assertRaises(ValueError) as context:
-            generator.process(unsupported_text, override_params={'font_path': 'NotoSansJP-Regular.ttf'})
-
-        exception_message = str(context.exception)
-        self.assertIn("Text contains unsupported characters", exception_message)
-
-        # The set of characters from "UnsupportedChar" that are not in the dummy vocab
-        expected_unsupported = {'U', 'n', 'u', 'p', 'o', 'r', 'd', 'h', 'a'}
-
-        # Extract the reported unsupported characters from the message
-        match = re.search(r':\s*(.*)$', exception_message)
-        self.assertIsNotNone(match)
-        reported_chars = set(match.group(1))
-
-        self.assertEqual(expected_unsupported, reported_chars)
+        with patch.object(generator, 'get_random_font', side_effect=ValueError):
+            img, text_gt, params = generator.process(unsupported_text, override_params={'font_path': 'NotoSansJP-Regular.ttf'})
+        self.assertEqual(text_gt, "steC")
 
     def test_process_empty_text(self):
         """Test processing an empty string."""

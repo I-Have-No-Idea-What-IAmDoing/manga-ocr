@@ -198,10 +198,13 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
             if vocab:
                 unsupported_chars = {c for c in text_gt if c not in vocab and not c.isspace()}
                 if unsupported_chars:
-                    raise ValueError(
-                        f"Text contains unsupported characters for font "
-                        f"{Path(font_path).name}: {''.join(unsupported_chars)}"
-                    )
+                    try:
+                        # Attempt to find a fallback font that supports all characters
+                        params["font_path"] = self.get_random_font(text_gt)
+                    except ValueError:
+                        # If no fallback is found, strip unsupported characters and proceed
+                        text_gt = "".join([c for c in text_gt if c in vocab or c.isspace()])
+                        lines = self.words_to_lines(self.split_into_words(text_gt))
         else:
             vocab = None
 
