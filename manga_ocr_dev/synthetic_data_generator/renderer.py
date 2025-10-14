@@ -99,6 +99,8 @@ def get_css(
     if glow_size > 0:
         styles.append(f"text-shadow: 0 0 {glow_size}px {glow_color};")
     if stroke_size > 0:
+        # Create a stroke effect by layering multiple text shadows with no blur.
+        # This creates a hard outline around the text.
         shadows = [f"{x}px {y}px 0 {stroke_color}" for x in range(-stroke_size, stroke_size + 1) for y in range(-stroke_size, stroke_size + 1) if x != 0 or y != 0]
         styles.extend([f"text-shadow: {','.join(shadows)};", "-webkit-font-smoothing: antialiased;"])
     if letter_spacing:
@@ -128,7 +130,9 @@ class Renderer:
         # Create a temporary directory for browser user data and other temporary files
         self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
 
-        # Define custom flags for the Chrome browser to optimize for automation
+        # Define custom flags for the Chrome browser to optimize for automation and performance.
+        # These flags disable unnecessary features like GPU acceleration, sync, and notifications,
+        # which are not needed for rendering images and can improve stability in a containerized environment.
         flags = [
             "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
             "--no-zygote", "--ozone-platform=headless", "--disable-sync",
@@ -202,7 +206,9 @@ class Renderer:
         if not lines or not "".join(lines):
             return None, params
 
-        # Estimate the required image size based on text length and font size
+        # Estimate the required image size based on text length and font size.
+        # This provides a generous canvas to prevent text from being cut off,
+        # and the final image is cropped to the content later.
         size = (
             int(max(len(line) for line in lines) * params["font_size"] * 1.5),
             int(len(lines) * params["font_size"] * (3 + params["line_height"])),

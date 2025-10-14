@@ -1,3 +1,11 @@
+"""Tests for bug fixes in the vendored html2image library.
+
+This module contains unit tests that specifically target and verify fixes for
+bugs that were identified in the original `html2image` library. These tests
+are crucial for ensuring that the vendored version of the library remains
+stable and that the bug fixes are not inadvertently reverted.
+"""
+
 import unittest
 from unittest.mock import patch, MagicMock
 import os
@@ -11,8 +19,15 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from manga_ocr_dev.vendored.html2image.html2image import Html2Image
 
 class TestHtml2ImageBugs(unittest.TestCase):
+    """A test suite for verifying bug fixes in the vendored html2image library."""
 
     def setUp(self):
+        """Sets up a mocked environment for testing the html2image library.
+
+        This method is called before each test. It mocks the browser dependency
+        to isolate the tests and creates a temporary directory for any required
+        test files.
+        """
         # Mock the browser dependency to isolate the test.
         self.mock_browser_class = MagicMock()
         self.browser_map_patcher = patch.dict(
@@ -24,15 +39,22 @@ class TestHtml2ImageBugs(unittest.TestCase):
         self.input_dir = tempfile.mkdtemp()
 
     def tearDown(self):
+        """Cleans up the mocked environment after each test.
+
+        This method stops the patcher for the browser map and removes the
+        temporary directory created during setup.
+        """
         self.browser_map_patcher.stop()
         # Clean up the temporary directory
         shutil.rmtree(self.input_dir)
 
     def test_screenshot_with_defaults_processes_no_files(self):
-        """
-        Verifies that calling screenshot() with default arguments does not
-        attempt to process any files. This confirms the mutable default
-        argument bug is fixed.
+        """Verifies that `screenshot()` with default args processes no files.
+
+        This test confirms that a bug related to mutable default arguments in
+        the `screenshot` method has been fixed. Calling the method with no
+        arguments should not result in any file processing, which was the
+        erroneous behavior in the original library.
         """
         # 1. Create an instance of Html2Image.
         hti = Html2Image()
@@ -54,8 +76,12 @@ class TestHtml2ImageBugs(unittest.TestCase):
         self.assertEqual(paths, [])
 
     def test_css_is_applied_to_html_file(self):
-        """
-        Verifies that CSS from css_str is applied to html_file.
+        """Verifies that `css_str` is correctly applied to an `html_file`.
+
+        This test addresses a bug where CSS provided via the `css_str` argument
+        was not being applied when rendering an HTML file specified with the
+        `html_file` argument. The test ensures that the fix, which involves
+        combining the HTML and CSS before rendering, is working correctly.
         """
         hti = Html2Image()
 

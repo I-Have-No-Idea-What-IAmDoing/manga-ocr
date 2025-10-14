@@ -106,9 +106,11 @@ class MangaOcr:
         else:
             raise ValueError(f"img_or_path must be a path or PIL.Image, instead got: {img_or_path}")
 
+        # convert to grayscale then to RGB to handle alpha channels
         img = img.convert("L").convert("RGB")
 
         x = self._preprocess(img)
+        # add batch dimension and move to device
         x = self.model.generate(x[None].to(self.model.device), max_length=300)[0].cpu()
         x = self.tokenizer.decode(x, skip_special_tokens=True)
         x = post_process(x)

@@ -42,20 +42,22 @@ The `manga_ocr_dev` directory contains all scripts and resources for developing 
 
 ```
 manga_ocr_dev/
-├── env.py                     # Defines global paths and constants for the dev environment.
-├── data/                      # Scripts for processing raw datasets.
-│   ├── generate_backgrounds.py  # Extracts background images from Manga109.
-│   ├── process_cc100.py       # Processes and packages text from the CC-100 corpus.
-│   └── process_manga109s.py   # Extracts text crops and metadata from Manga109.
-├── synthetic_data_generator/  # The pipeline for generating synthetic training data.
-│   ├── generator.py           # Orchestrates the generation of synthetic image-text pairs.
-│   ├── renderer.py            # Renders text into styled images with backgrounds.
-│   ├── run_generate.py        # A runnable script to generate a package of synthetic data.
-│   ├── scan_fonts.py          # Scans font files to determine their character support.
-│   └── utils.py               # Utility functions for data generation.
-├── training/                  # Scripts for training the OCR model.
-│   ├── config.yaml            # The main configuration file for training runs.
-│   ├── train.py               # The main script to launch a training session.
+├── env.py                         # Defines global paths and constants for the dev environment.
+├── data/                          # Scripts for processing raw datasets.
+│   ├── generate_backgrounds.py      # Extracts background images from Manga109.
+│   ├── process_cc100.py           # Processes and packages text from the CC-100 corpus.
+│   └── process_manga109s.py       # Extracts text crops and metadata from Manga109.
+├── synthetic_data_generator/      # The original pipeline for generating synthetic data using HTML/CSS.
+│   ├── generator.py               # Orchestrates the generation of synthetic image-text pairs.
+│   ├── renderer.py                # Renders text into styled images using a browser engine.
+│   └── ...
+├── synthetic_data_generator_v2/   # The new pipeline for generating synthetic data using PicTex.
+│   ├── generator.py               # Orchestrates the generation using the PicTex library.
+│   ├── image_augmentations.py     # Contains functions for advanced image augmentations.
+│   └── ...
+├── training/                      # Scripts for training the OCR model.
+│   ├── config.yaml                # The main configuration file for training runs.
+│   ├── train.py                   # The main script to launch a training session.
 │   ├── dataset.py             # The PyTorch Dataset class for loading data.
 │   ├── get_model.py           # The script for constructing the VisionEncoderDecoderModel.
 │   ├── metrics.py             # The class for computing evaluation metrics (CER, accuracy).
