@@ -1,3 +1,11 @@
+"""Tests for the synthetic data generation runner script.
+
+This module contains tests for the `run_generate.py` script, which
+orchestrates the generation of synthetic data packages. The tests cover the
+parallel worker function and the main `run` function's logic for coordinating
+the data generation process.
+"""
+
 import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock

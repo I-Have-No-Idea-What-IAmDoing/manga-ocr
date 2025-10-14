@@ -45,6 +45,7 @@ def find_rectangle(mask, y, x, aspect_ratio_range=(0.33, 3.0)):
 
     # Iteratively expand the rectangle until it hits a masked area or the image boundary
     while True:
+        # Store the previous dimensions to check if expansion has stopped
         last_ymin, last_ymax, last_xmin, last_xmax = ymin, ymax, xmin, xmax
 
         # Try to expand vertically (up and down)

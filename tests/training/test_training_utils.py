@@ -1,3 +1,10 @@
+"""Tests for the training utility functions.
+
+This module contains unit tests for the helper functions in `training/utils.py`,
+which are used for various tasks in the training pipeline, such as converting
+tensors to images for visualization.
+"""
+
 import torch
 import numpy as np
 
@@ -5,6 +12,12 @@ from manga_ocr_dev.training.utils import tensor_to_image
 
 
 def test_tensor_to_image():
+    """Tests the `tensor_to_image` function for correct tensor conversion.
+
+    This test verifies that the `tensor_to_image` function correctly converts a
+    PyTorch image tensor (typically in C, H, W format with values in [-1, 1])
+    back into a standard NumPy image format (H, W, C with values in [0, 255]).
+    """
     # Create a sample tensor in the expected format (C, H, W) and range [-1, 1]
     tensor = torch.tensor(
         [
@@ -41,6 +54,13 @@ def test_tensor_to_image():
 
 
 def test_tensor_to_image_clipping():
+    """Tests that `tensor_to_image` correctly clips values outside the [-1, 1] range.
+
+    This test ensures that if the input tensor contains values outside the
+    expected [-1, 1] range, they are correctly clipped to the boundaries
+    before denormalization. This prevents underflow or overflow issues and
+    ensures the output is a valid image.
+    """
     # Create a tensor with values outside the [-1, 1] range to test clipping
     tensor = torch.tensor(
         [

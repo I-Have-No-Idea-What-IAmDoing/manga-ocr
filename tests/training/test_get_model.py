@@ -1,3 +1,11 @@
+"""Tests for the model construction script.
+
+This module contains unit tests for the `get_model.py` script, which is
+responsible for constructing the `VisionEncoderDecoderModel` and its
+corresponding processor. The tests cover the model's initialization,
+configuration, and layer truncation logic.
+"""
+
 import unittest
 from unittest.mock import patch, MagicMock
 from pydantic_settings import SettingsConfigDict
@@ -13,8 +21,26 @@ class _TestAppConfig(AppConfig):
     )
 
 class TestGetModel(unittest.TestCase):
+    """A test suite for the `get_model` function."""
+
     def _setup_mocks(self, MockAutoImageProcessor, MockAutoTokenizer, MockAutoConfig, MockAutoModel, MockAutoModelForCausalLM):
-        """Helper function to set up common mocks for tests."""
+        """Helper function to set up common mocks for the tests in this suite.
+
+        This function configures a standard set of mocks for the Hugging Face
+        classes that are used by `get_model`. This helps to reduce code
+        duplication across the test methods.
+
+        Args:
+            MockAutoImageProcessor: Mock for `AutoImageProcessor`.
+            MockAutoTokenizer: Mock for `AutoTokenizer`.
+            MockAutoConfig: Mock for `AutoConfig`.
+            MockAutoModel: Mock for `AutoModel`.
+            MockAutoModelForCausalLM: Mock for `AutoModelForCausalLM`.
+
+        Returns:
+            A tuple containing the mocked encoder config, decoder config, and
+            decoder model, which can be used for further assertions.
+        """
         MockAutoImageProcessor.from_pretrained.return_value = MagicMock()
 
         mock_tok = MagicMock()
@@ -47,7 +73,7 @@ class TestGetModel(unittest.TestCase):
     @patch('manga_ocr_dev.training.get_model.AutoTokenizer')
     @patch('manga_ocr_dev.training.get_model.AutoImageProcessor')
     def test_get_model(self, MockAutoImageProcessor, MockAutoTokenizer, MockAutoConfig, MockAutoModel, MockAutoModelForCausalLM, MockVLM):
-        """Test that get_model correctly constructs a model and processor."""
+        """Tests that `get_model` correctly constructs a model and processor."""
         encoder_config, _, _ = self._setup_mocks(MockAutoImageProcessor, MockAutoTokenizer, MockAutoConfig, MockAutoModel, MockAutoModelForCausalLM)
 
         config = _TestAppConfig()
@@ -67,7 +93,7 @@ class TestGetModel(unittest.TestCase):
     @patch('manga_ocr_dev.training.get_model.AutoTokenizer')
     @patch('manga_ocr_dev.training.get_model.AutoImageProcessor')
     def test_get_model_with_layer_truncation(self, MockAutoImageProcessor, MockAutoTokenizer, MockAutoConfig, MockAutoModel, MockAutoModelForCausalLM, mock_ved_model):
-        """Test that get_model correctly truncates decoder layers."""
+        """Tests that `get_model` correctly truncates the decoder's layers when configured."""
         _, decoder_config, mock_decoder = self._setup_mocks(MockAutoImageProcessor, MockAutoTokenizer, MockAutoConfig, MockAutoModel, MockAutoModelForCausalLM)
 
         config = _TestAppConfig()
@@ -87,7 +113,7 @@ class TestGetModel(unittest.TestCase):
     @patch('manga_ocr_dev.training.get_model.AutoTokenizer')
     @patch('manga_ocr_dev.training.get_model.AutoImageProcessor')
     def test_get_model_with_unsupported_truncation(self, MockAutoImageProcessor, MockAutoTokenizer, MockAutoConfig, MockAutoModel, MockAutoModelForCausalLM, mock_ved_model):
-        """Test that get_model raises ValueError for unsupported model type for truncation."""
+        """Tests that `get_model` raises a `ValueError` for an unsupported model type during truncation."""
         _, decoder_config, _ = self._setup_mocks(MockAutoImageProcessor, MockAutoTokenizer, MockAutoConfig, MockAutoModel, MockAutoModelForCausalLM)
         decoder_config.model_type = 'unsupported'
 

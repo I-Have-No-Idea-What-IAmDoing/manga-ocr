@@ -154,7 +154,9 @@ This section provides a guide for developers who want to contribute to Manga OCR
 
 ## Documentation
 
-The source code is documented using Google Style Python Docstrings. This provides detailed information on the purpose, arguments, and return values of functions, methods, and classes. Developers are encouraged to read the docstrings for a deeper understanding of the codebase.
+The source code is documented using [Google Style Python Docstrings](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings). This provides detailed information on the purpose, arguments, and return values of functions, methods, and classes.
+
+We encourage developers to read the docstrings for a deeper understanding of the codebase. When contributing, please ensure that any new code is accompanied by corresponding documentation.
 
 ## Running Tests
 
@@ -187,7 +189,33 @@ For a more detailed overview of the development environment, please refer to the
 
 ## Contributing
 
-Contributions are welcome! If you have a suggestion or a bug fix, please open an issue or a pull request.
+Contributions are welcome! We appreciate your help in making Manga OCR better. To ensure a smooth process, please review this guide.
+
+### Reporting Bugs
+
+If you encounter a bug, please [open an issue](https://github.com/kha-white/manga-ocr/issues) and provide the following information:
+-   Your operating system and Python version.
+-   The version of `manga-ocr` you are using (`manga-ocr --version`).
+-   A clear and concise description of the bug.
+-   Steps to reproduce the issue.
+-   The expected behavior and the actual behavior.
+-   Any relevant error messages or screenshots.
+
+### Suggesting Enhancements
+
+We are open to suggestions for new features or improvements. Please [open an issue](https://github.com/kha-white/manga-ocr/issues) to discuss your ideas. Provide a clear description of the proposed enhancement and its potential benefits.
+
+### Pull Request Process
+
+1.  **Fork the repository** and clone it to your local machine.
+2.  **Create a new branch** for your changes: `git checkout -b feature/your-feature-name` or `git checkout -b fix/your-bug-fix`.
+3.  **Make your changes** to the codebase.
+4.  **Follow the coding style**: This project uses [Google Style Python Docstrings](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings) for documentation. Please ensure your code is well-commented and includes docstrings for new functions, classes, or methods.
+5.  **Run tests** to ensure your changes do not break existing functionality: `pytest`.
+6.  **Update documentation** (`README.md` or docstrings) if your changes affect usage or add new features.
+7.  **Commit your changes** with a clear and descriptive commit message.
+8.  **Push your branch** to your fork: `git push origin feature/your-feature-name`.
+9.  **Open a pull request** to the `main` branch of the original repository. Provide a detailed description of your changes and why they are needed.
 
 # Acknowledgments
 

@@ -1,3 +1,10 @@
+"""Tests for the background image generation script.
+
+This module contains unit tests for the `generate_backgrounds.py` script, which
+is responsible for extracting background images from the Manga109 dataset. The
+tests cover the rectangle-finding algorithm and the main generation function.
+"""
+
 import cv2
 import numpy as np
 import pandas as pd
@@ -9,12 +16,23 @@ from manga_ocr_dev.env import MANGA109_ROOT, BACKGROUND_DIR
 
 
 def test_find_rectangle_no_mask():
+    """Tests `find_rectangle` on a completely unmasked area.
+
+    This test verifies that when there are no masked areas, the `find_rectangle`
+    function correctly expands to the full dimensions of the input mask.
+    """
     mask = np.zeros((100, 100), dtype=bool)
     ymin, ymax, xmin, xmax = find_rectangle(mask, 50, 50)
     assert (ymin, ymax, xmin, xmax) == (0, 100, 0, 100)
 
 
 def test_find_rectangle_with_mask():
+    """Tests `find_rectangle` in the presence of a simple mask.
+
+    This test ensures that the `find_rectangle` function correctly stops its
+    expansion when it encounters a masked area, returning the largest possible
+    rectangle within the unmasked region.
+    """
     mask = np.zeros((100, 100), dtype=bool)
     mask[50:, :] = True
     mask[:, 50:] = True
@@ -23,6 +41,13 @@ def test_find_rectangle_with_mask():
 
 
 def test_find_rectangle_aspect_ratio():
+    """Tests that `find_rectangle` respects the aspect ratio constraint.
+
+    This test verifies that the rectangle expansion process stops if the
+    aspect ratio of the growing rectangle goes outside the specified valid
+    range. This is important for generating background crops with reasonable
+    proportions.
+    """
     mask = np.zeros((100, 100), dtype=bool)
     # This should stop early due to aspect ratio
     ymin, ymax, xmin, xmax = find_rectangle(mask, 50, 50, aspect_ratio_range=(0.1, 0.2))
@@ -35,6 +60,19 @@ def test_find_rectangle_aspect_ratio():
 @patch('pandas.read_csv')
 @patch('pathlib.Path.mkdir')
 def test_generate_backgrounds(mock_mkdir, mock_read_csv, mock_imread, mock_imwrite):
+    """Tests the main `generate_backgrounds` function's orchestration.
+
+    This test verifies that the `generate_backgrounds` function correctly
+    loads data, creates masks, and generates valid background crops. It uses
+    mocks to avoid file system and I/O operations, focusing on the logic of
+    the function itself.
+
+    Args:
+        mock_mkdir: Mock for `pathlib.Path.mkdir`.
+        mock_read_csv: Mock for `pandas.read_csv`.
+        mock_imread: Mock for `cv2.imread`.
+        mock_imwrite: Mock for `cv2.imwrite`.
+    """
     # Mocking the file system and data loading
     mock_mkdir.return_value = None
 
@@ -76,6 +114,18 @@ def test_generate_backgrounds(mock_mkdir, mock_read_csv, mock_imread, mock_imwri
 @patch('pandas.read_csv')
 @patch('pathlib.Path.mkdir')
 def test_generate_backgrounds_fully_masked(mock_mkdir, mock_read_csv, mock_imread, mock_imwrite):
+    """Tests that no backgrounds are generated from a fully masked page.
+
+    This test ensures that if a page is completely covered by text boxes or
+    is outside of any comic frames, the `generate_backgrounds` function
+    correctly skips it and does not attempt to generate any crops.
+
+    Args:
+        mock_mkdir: Mock for `pathlib.Path.mkdir`.
+        mock_read_csv: Mock for `pandas.read_csv`.
+        mock_imread: Mock for `cv2.imread`.
+        mock_imwrite: Mock for `cv2.imwrite`.
+    """
     mock_mkdir.return_value = None
     mock_data_df = pd.DataFrame({
         'page_path': ['manga1/001.jpg'],

@@ -157,8 +157,6 @@ class Composer:
         # Post-processing steps for the final image
         if final_img_np is not None:
             final_img_np = self._resize_and_crop(final_img_np)
-            # Convert the final image to grayscale before returning
-            final_img_np = cv2.cvtColor(final_img_np, cv2.COLOR_RGB2GRAY)
 
         return final_img_np
 
@@ -285,24 +283,6 @@ class Composer:
         if self.target_size:
             final_img_np = A.Resize(height=self.target_size[1], width=self.target_size[0], interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
 
-        return final_img_np
-
-        # Resize the image if it's smaller than the minimum allowed size
-        if self.min_output_size:
-            h, w, _ = final_img_np.shape
-            if h < self.min_output_size or w < self.min_output_size:
-                final_img_np = A.SmallestMaxSize(max_size=self.min_output_size, interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
-
-        # Resize the image if it's larger than the maximum allowed size
-        if self.max_output_size:
-            h, w, _ = final_img_np.shape
-            if h > self.max_output_size or w > self.max_output_size:
-                final_img_np = A.LongestMaxSize(max_size=self.max_output_size, interpolation=cv2.INTER_AREA)(image=final_img_np)["image"]
-
-        # Resize the image to the final target size if specified
-        if self.target_size:
-            final_img_np = A.Resize(height=self.target_size[1], width=self.target_size[0], interpolation=cv2.INTER_LANCZOS4)(image=final_img_np)["image"]
-
         # Convert the final image to grayscale before returning
         final_img_np = cv2.cvtColor(final_img_np, cv2.COLOR_RGB2GRAY)
         return final_img_np
@@ -333,7 +313,9 @@ class Composer:
         # Calculate the average intensity of the text pixels
         text_intensity = np.mean(text_roi[text_mask.astype(bool)])
 
-        # Dilate the text mask to find the surrounding background area
+        # Dilate the text mask to find the surrounding background area.
+        # This creates a border around the text, which is then used to sample
+        # the background color immediately adjacent to the text.
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
         dilated_mask = cv2.dilate(text_mask, kernel, iterations=1)
         background_mask = (dilated_mask - text_mask).astype(bool)
@@ -345,7 +327,8 @@ class Composer:
 
         background_intensity = np.mean(background_pixels)
 
-        # Ensure that the background and text are not both very dark or very light
+        # Check for cases where both text and background are very dark or very light,
+        # which indicates low contrast regardless of the absolute difference.
         if (text_intensity < 0.1 and background_intensity < 0.1) or \
            (text_intensity > 0.9 and background_intensity > 0.9):
             return True

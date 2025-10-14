@@ -1,3 +1,11 @@
+"""Tests for the MangaDataset class.
+
+This module contains unit tests for the `MangaDataset` class, which is
+responsible for loading, augmenting, and preparing data for training the OCR
+model. The tests cover the dataset's initialization, data loading from
+different sources, and the `__getitem__` method's functionality.
+"""
+
 import unittest
 from unittest.mock import MagicMock, patch, mock_open
 import pandas as pd
@@ -7,7 +15,16 @@ from manga_ocr_dev.training.dataset import MangaDataset
 from manga_ocr_dev.training.config.schemas import DatasetConfig, DatasetSourceConfig, DatasetTrainConfig, DatasetEvalConfig, AugmentationConfig, AugmentationProbabilities
 
 class TestMangaDataset(unittest.TestCase):
+    """A test suite for the MangaDataset class."""
+
     def setUp(self):
+        """Sets up a mocked environment for testing the MangaDataset.
+
+        This method is called before each test. It initializes a `MangaDataset`
+        instance with all its external dependencies mocked. This provides a
+        clean, isolated environment for each test case, with a mock processor
+        and a sample dataset configuration.
+        """
         self.processor = MagicMock()
         self.processor.tokenizer = MagicMock()
         self.processor.tokenizer.pad_token_id = 0
@@ -33,6 +50,7 @@ class TestMangaDataset(unittest.TestCase):
     @patch('manga_ocr_dev.training.dataset.pd.read_csv')
     @patch('manga_ocr_dev.training.dataset.Path.is_dir', return_value=True)
     def test_initialization(self, mock_is_dir, mock_read_csv):
+        """Tests that the dataset initializes correctly and loads data from all sources."""
         mock_read_csv.return_value = pd.DataFrame({'id': ['1'], 'text': ['test'], 'crop_path': ['path/to/crop'], 'split': ['train']})
         dataset = MangaDataset(self.processor, self.dataset_config, self.max_target_length)
         self.assertIsInstance(dataset, MangaDataset)
@@ -41,6 +59,7 @@ class TestMangaDataset(unittest.TestCase):
     @patch('manga_ocr_dev.training.dataset.pd.read_csv')
     @patch('manga_ocr_dev.training.dataset.Path.is_dir', return_value=True)
     def test_load_synthetic_data(self, mock_is_dir, mock_read_csv):
+        """Tests the loading of synthetic data from specified packages."""
         mock_read_csv.return_value = pd.DataFrame({'id': ['1'], 'text': ['test'], 'crop_path': ['path/to/crop'], 'split': ['train']})
         dataset = MangaDataset(self.processor, self.dataset_config, self.max_target_length)
         synthetic_data = dataset.load_synthetic_data(packages=[1])
@@ -49,6 +68,7 @@ class TestMangaDataset(unittest.TestCase):
 
     @patch('manga_ocr_dev.training.dataset.pd.read_csv')
     def test_load_manga109_data(self, mock_read_csv):
+        """Tests the loading of data from the Manga109 dataset for a specific split."""
         mock_read_csv.return_value = pd.DataFrame({'text': ['test'], 'crop_path': ['path/to/crop'], 'split': ['train']})
         dataset = MangaDataset(self.processor, self.dataset_config, self.max_target_length)
         manga109_data = dataset.load_manga109_data(split='train')
@@ -59,6 +79,7 @@ class TestMangaDataset(unittest.TestCase):
     @patch('manga_ocr_dev.training.dataset.pd.read_csv')
     @patch('manga_ocr_dev.training.dataset.Path.is_dir', return_value=True)
     def test_getitem(self, mock_is_dir, mock_read_csv, mock_imread):
+        """Tests the __getitem__ method for correct data preprocessing and augmentation."""
         mock_read_csv.return_value = pd.DataFrame({'id': ['1'], 'text': ['test'], 'crop_path': ['path/to/crop'], 'split': ['train']})
         dataset = MangaDataset(self.processor, self.dataset_config, self.max_target_length)
         item = dataset[0]
@@ -70,6 +91,7 @@ class TestMangaDataset(unittest.TestCase):
     @patch('manga_ocr_dev.training.dataset.pd.read_csv')
     @patch('manga_ocr_dev.training.dataset.Path.is_dir', return_value=True)
     def test_disable_augmentations(self, mock_is_dir, mock_read_csv):
+        """Tests that the `disable_augmentations` method correctly turns off augmentation."""
         mock_read_csv.return_value = pd.DataFrame({'id': ['1'], 'text': ['test'], 'crop_path': ['path/to/crop'], 'split': ['train']})
         dataset = MangaDataset(self.processor, self.dataset_config, self.max_target_length)
         dataset.disable_augmentations()

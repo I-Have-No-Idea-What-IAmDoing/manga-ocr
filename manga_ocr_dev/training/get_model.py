@@ -84,7 +84,9 @@ def get_model(model_config: ModelConfig):
     decoder_config.add_cross_attention = True
     decoder = AutoModelForCausalLM.from_config(decoder_config)
 
-    # If specified, truncate the decoder to a smaller number of layers
+    # If specified, truncate the decoder to a smaller number of layers.
+    # This is a form of model surgery that allows for creating a smaller,
+    # faster decoder by using only the top N layers of a pretrained model.
     if model_config.num_decoder_layers is not None:
         if decoder_config.model_type == "bert":
             decoder.bert.encoder.layer = decoder.bert.encoder.layer[
