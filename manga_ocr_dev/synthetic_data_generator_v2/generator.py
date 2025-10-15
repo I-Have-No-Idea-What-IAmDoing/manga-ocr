@@ -358,12 +358,27 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         if vertical:
             line_columns = []
             for line_chunks in lines_with_markup:
+                # Create a list of components for each chunk in the line
                 components = [comp for chunk in line_chunks for comp in ([create_text_component(c) for c in chunk] if isinstance(chunk, str) else [create_component(chunk)])]
-                line_columns.append(Column(*components).gap(letter_spacing).horizontal_align("center"))
+                # Only create a column if there are components to render
+                if components:
+                    line_columns.append(Column(*components).gap(letter_spacing).horizontal_align("center"))
+            # If there are no valid lines to render, return an empty image
+            if not line_columns:
+                return np.array([])
             # Arrange lines as columns in a row, reversing for right-to-left layout
             composed_element = Row(*line_columns[::-1]).gap(int(font_size * (line_height - 1.0))).vertical_align("top")
         else:
-            line_rows = [Row(*[create_component(chunk) for chunk in line_chunks]).gap(letter_spacing).vertical_align("bottom") for line_chunks in lines_with_markup]
+            line_rows = []
+            for line_chunks in lines_with_markup:
+                # Create a list of components for each chunk in the line
+                components = [create_component(chunk) for chunk in line_chunks]
+                # Only create a row if there are components to render
+                if components:
+                    line_rows.append(Row(*components).gap(letter_spacing).vertical_align("bottom"))
+            # If there are no valid lines to render, return an empty image
+            if not line_rows:
+                return np.array([])
             # Arrange lines as rows in a column for horizontal layout
             composed_element = Column(*line_rows).gap(int(font_size * (line_height - 1.0))).horizontal_align("left")
 
