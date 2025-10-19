@@ -38,7 +38,7 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
     to mimic the appearance of text in manga.
     """
 
-    def __init__(self, background_dir=None, min_font_size=30, max_font_size=60, target_size=None, min_output_size=None):
+    def __init__(self, background_dir=None, min_font_size=30, max_font_size=60, target_size=None, min_output_size=None, default_fallback_font_path=None):
         """Initializes the SyntheticDataGenerator.
 
         Args:
@@ -50,6 +50,8 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
                 (width, height) for the composed image.
             min_output_size (int, optional): The minimum size for the smallest
                 dimension of the composed image.
+            default_fallback_font_path (str, optional): Path to a default
+                fallback font to use when the primary font is missing glyphs.
         """
         super().__init__()
         # Set the font size range for text rendering
@@ -57,6 +59,8 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         self.max_font_size = max_font_size
         # Initialize the composer for blending text with background images
         self.composer = Composer(background_dir, target_size=target_size, min_output_size=min_output_size)
+        # Set the default fallback font
+        self.default_fallback_font_path = default_fallback_font_path
 
     def get_random_render_params(self):
         """Generates a dictionary of random parameters for text rendering.
@@ -200,13 +204,19 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
 
             unsupported_chars = {c for c in text_gt if c not in vocab and not c.isspace()}
             if unsupported_chars:
-                try:
-                    # Attempt to find a fallback font that supports all characters
-                    params["font_path"] = self.get_random_font(text_gt)
-                except ValueError:
-                    # If no fallback is found, strip unsupported characters and proceed
-                    text_gt = "".join([c for c in text_gt if c in vocab or c.isspace()])
-                    lines = self.words_to_lines(self.split_into_words(text_gt))
+                fallback_found = False
+                if self.default_fallback_font_path and self.is_font_supporting_text(self.default_fallback_font_path, text_gt):
+                    params["font_path"] = self.default_fallback_font_path
+                    fallback_found = True
+
+                if not fallback_found:
+                    try:
+                        # Attempt to find a fallback font that supports all characters
+                        params["font_path"] = self.get_random_font(text_gt)
+                    except ValueError:
+                        # If no fallback is found, strip unsupported characters and proceed
+                        text_gt = "".join([c for c in text_gt if c in vocab or c.isspace()])
+                        lines = self.words_to_lines(self.split_into_words(text_gt))
         else:
             vocab = None
 
