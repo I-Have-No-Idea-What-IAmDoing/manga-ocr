@@ -342,24 +342,33 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         # Helper function to create a pictex component from a marked-up chunk
         def create_component(chunk):
             if isinstance(chunk, str):
+                if not chunk.strip():
+                    return None
                 return create_text_component(chunk)
             type, *args = chunk
             if type == 'furigana':
                 base, ruby = args
+                ruby_component = create_text_component(ruby, 0.5) if ruby.strip() else None
+                base_component = create_text_component(base) if base.strip() else None
+                components = [comp for comp in [ruby_component, base_component] if comp]
+                if not components:
+                    return None
                 # Create a column for furigana (ruby text above base text)
-                return Column(create_text_component(ruby, 0.5), create_text_component(base)).gap(0).horizontal_align("center")
+                return Column(*components).gap(0).horizontal_align("center")
             if type == 'tcy':
                 text, = args
+                if not text.strip():
+                    return None
                 # Create a row for tate-chu-yoko (horizontal text in vertical layout)
                 return Row(*[create_text_component(c) for c in text]).gap(0).vertical_align("center") if vertical else create_text_component(text)
-            return Text("")
+            return None
 
         # Construct the layout based on whether the text is vertical or horizontal
         if vertical:
             line_columns = []
             for line_chunks in lines_with_markup:
-                # Create a list of components for each chunk in the line
-                components = [comp for chunk in line_chunks for comp in ([create_text_component(c) for c in chunk] if isinstance(chunk, str) else [create_component(chunk)])]
+                # Create a list of components for each chunk in the line, filtering out None values
+                components = [comp for chunk in line_chunks for comp in ([create_text_component(c) for c in chunk] if isinstance(chunk, str) else [create_component(chunk)]) if comp is not None]
                 # Only create a column if there are components to render
                 if components:
                     line_columns.append(Column(*components).gap(letter_spacing).horizontal_align("center"))
@@ -371,8 +380,8 @@ class SyntheticDataGeneratorV2(BaseDataGenerator):
         else:
             line_rows = []
             for line_chunks in lines_with_markup:
-                # Create a list of components for each chunk in the line
-                components = [create_component(chunk) for chunk in line_chunks]
+                # Create a list of components for each chunk in the line, filtering out None values
+                components = [comp for comp in [create_component(chunk) for chunk in line_chunks] if comp is not None]
                 # Only create a row if there are components to render
                 if components:
                     line_rows.append(Row(*components).gap(letter_spacing).vertical_align("bottom"))
