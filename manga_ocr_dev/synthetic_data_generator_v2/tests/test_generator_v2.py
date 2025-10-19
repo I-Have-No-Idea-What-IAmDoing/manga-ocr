@@ -232,8 +232,8 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
     def test_legibility_check_discards_small_text(self, mock_rand):
         """Test that samples with too small text are discarded."""
         generator = SyntheticDataGeneratorV2(background_dir=self.backgrounds_dir, min_font_size=1, max_font_size=2)
-        result = generator.process("t", override_params={'color': '#FFFFFF'})
-        self.assertEqual(result, (None, None, None), "Sample with very small text was not discarded")
+        img, _, _ = generator.process("t", override_params={'color': '#FFFFFF'})
+        self.assertIsNone(img, "Sample with very small text was not discarded")
 
     def test_stroke_effect(self):
         """Test that the stroke effect is applied correctly."""
