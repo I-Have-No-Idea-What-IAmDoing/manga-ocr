@@ -361,5 +361,20 @@ class TestSyntheticDataGeneratorV2(unittest.TestCase):
             self.assertIsInstance(text_gt, str)
             self.assertGreater(len(text_gt), 0)
 
+    def test_is_legible(self):
+        """Test the _is_legible method."""
+        from manga_ocr_dev.synthetic_data_generator.common.composer import Composer
+        composer = Composer(background_dir=self.backgrounds_dir)
+
+        # Test with a legible image
+        legible_image = np.zeros((100, 100, 4), dtype=np.uint8)
+        legible_image[45:65, 45:65, 3] = 255
+        self.assertTrue(composer._is_legible(legible_image))
+
+        # Test with an illegible image
+        illegible_image = np.zeros((100, 100, 4), dtype=np.uint8)
+        illegible_image[45:54, 45:54, 3] = 255
+        self.assertFalse(composer._is_legible(illegible_image))
+
 if __name__ == '__main__':
     unittest.main()

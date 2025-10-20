@@ -138,8 +138,7 @@ class Composer:
         # Randomly decide whether to draw a speech bubble around the text
         draw_bubble = np.random.rand() < 0.45
         # Discard the sample if the rendered text is too small to be legible
-        min_text_height = 10
-        if text_image.height < min_text_height and not draw_bubble:
+        if not self._is_legible(text_image_np) and not draw_bubble:
             return None
 
         # If backgrounds are not available, compose the image without one
@@ -286,6 +285,21 @@ class Composer:
         # Convert the final image to grayscale before returning
         final_img_np = cv2.cvtColor(final_img_np, cv2.COLOR_RGB2GRAY)
         return final_img_np
+
+    def _is_legible(self, text_image_np, min_height=10):
+        """Checks if the text is large enough to be legible."""
+        if text_image_np is None or text_image_np.size == 0:
+            return False
+
+        # Find the bounding box of the non-transparent parts of the text
+        alpha_channel = text_image_np[:, :, 3]
+        y_coords, x_coords = np.where(alpha_channel > 0)
+
+        if y_coords.size == 0 or x_coords.size == 0:
+            return False
+
+        text_height = np.max(y_coords) - np.min(y_coords) + 1
+        return text_height >= min_height
 
     def _is_low_contrast(self, final_img_np, text_image_np, x_offset, y_offset, threshold=0.1):
         """Checks if the text has low contrast with its background using OpenCV.
