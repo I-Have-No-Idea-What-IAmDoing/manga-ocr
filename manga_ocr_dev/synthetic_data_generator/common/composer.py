@@ -217,11 +217,15 @@ class Composer:
                 A.RandomBrightnessContrast(
                     brightness_limit=(-0.2, 0.4),
                     contrast_limit=(-0.8, -0.3),
-                    p=0.5 if draw_bubble else 1
+                    p=0.5 if draw_bubble else 1,
                 ),
                 A.Blur(blur_limit=(3, 5), p=0.3),
+                A.GaussianBlur(blur_limit=(3, 5), p=0.3),
+                A.ImageCompression(quality_lower=40, quality_upper=80, p=0.5),
             ]
-            background_np = A.Compose(background_transforms)(image=background_np)["image"]
+            background_np = A.Compose(background_transforms)(image=background_np)[
+                "image"
+            ]
             return Image.fromarray(background_np).convert("RGBA")
         except Exception:
             return Image.open(background_path).convert("RGBA")
