@@ -228,19 +228,19 @@ class Renderer:
         html_filename = str(uuid.uuid4()) + ".html"
         img_bytes = None
         try:
-            # Load the HTML string into the renderer
+            # Load the HTML string into the renderer and take a screenshot
             self.hti.load_str(html, as_filename=html_filename)
-            # Submit the screenshot task to the executor with a timeout
-            future = self.executor.submit(self.hti.screenshot_as_bytes, file=html_filename, size=size)
-            try:
-                img_bytes = future.result(timeout=30)
-            except TimeoutError:
-                print(f"Skipping render for '{''.join(lines)[:30]}...' due to timeout.")
-                future.cancel()
-                return None, params
-            except Exception as e:
-                print(f"Screenshot failed with an exception: {e}")
-                return None, params
+            future = self.executor.submit(
+                self.hti.screenshot_as_bytes, file=html_filename, size=size
+            )
+            img_bytes = future.result(timeout=30)
+        except TimeoutError:
+            # Handle cases where rendering takes too long
+            print(f"Skipping render for '{''.join(lines)[:30]}...' due to timeout.")
+            future.cancel()
+        except Exception as e:
+            # Catch other potential errors during rendering
+            print(f"Screenshot failed with an exception: {e}")
         finally:
             # Ensure the temporary HTML file is removed
             temp_file_path = os.path.join(self.hti.temp_path, html_filename)

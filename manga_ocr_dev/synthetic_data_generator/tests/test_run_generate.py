@@ -86,10 +86,10 @@ class TestRunGenerate(unittest.TestCase):
     @patch('manga_ocr_dev.synthetic_data_generator.common.composer.Composer._is_low_contrast', return_value=False)
     def test_run_pictex(self, mock_is_low_contrast, mock_thread_map, mock_worker_fn):
         """Test that the main run function creates output files for the pictex renderer."""
-        output_img_dir = self.synthetic_data_root / "img_v2" / "0000"
-        output_meta_dir = self.synthetic_data_root / "meta_v2"
-        output_img_dir.mkdir(parents=True)
-        output_meta_dir.mkdir(parents=True)
+        output_img_dir = self.synthetic_data_root / "img" / "0000"
+        output_meta_dir = self.synthetic_data_root / "meta"
+        output_img_dir.mkdir(parents=True, exist_ok=True)
+        output_meta_dir.mkdir(parents=True, exist_ok=True)
         meta_file = output_meta_dir / "0000.csv"
 
         def side_effect(args, generator, renderer_type, debug):
@@ -123,10 +123,10 @@ class TestRunGenerate(unittest.TestCase):
     def test_run_html(self, MockRenderer, mock_thread_map, mock_worker_fn):
         """Test that the main run function creates output files for the html renderer."""
 
-        output_img_dir = self.synthetic_data_root / "img_v1" / "0000"
-        output_meta_dir = self.synthetic_data_root / "meta_v1"
-        output_img_dir.mkdir(parents=True)
-        output_meta_dir.mkdir(parents=True)
+        output_img_dir = self.synthetic_data_root / "img" / "0000"
+        output_meta_dir = self.synthetic_data_root / "meta"
+        output_img_dir.mkdir(parents=True, exist_ok=True)
+        output_meta_dir.mkdir(parents=True, exist_ok=True)
         meta_file = output_meta_dir / "0000.csv"
 
         def side_effect(args, generator, renderer_type, debug):

@@ -222,9 +222,11 @@ class SyntheticDataGenerator(BaseDataGenerator):
                 char_source_map = {
                     "hiragana": hiragana_in_vocab if hiragana_in_vocab else vocab,
                     "katakana": katakana_in_vocab if katakana_in_vocab else vocab,
-                    "all": vocab
+                    "all": vocab,
                 }
-                char_source_key = np.random.choice(["hiragana", "katakana", "all"], p=[0.8, 0.15, 0.05])
+                char_source_key = np.random.choice(
+                    ["hiragana", "katakana", "all"], p=[0.8, 0.15, 0.05]
+                )
                 char_source = char_source_map[char_source_key]
 
                 # If the character source is empty, do not add furigana

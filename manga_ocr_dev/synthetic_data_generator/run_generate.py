@@ -24,26 +24,10 @@ DEBUG_DIR = None
 
 
 class NumpyEncoder(json.JSONEncoder):
-    """A custom JSON encoder for NumPy data types.
-
-    This class extends `json.JSONEncoder` to handle data types that are not
-    natively serializable by Python's `json` module. It provides a `default`
-    method to convert NumPy generic types (e.g., `np.int64`) to their
-    standard Python equivalents and to convert NumPy arrays into Python lists.
-    It also handles `pathlib.Path` objects by converting them to strings.
-
-    """
+    """A custom JSON encoder for NumPy data types."""
 
     def default(self, obj):
-        """Encodes NumPy and Path objects into JSON-serializable formats.
-
-        Args:
-            obj: The object to encode.
-
-        Returns:
-            A JSON-serializable representation of the object.
-
-        """
+        """Encodes NumPy and Path objects into JSON-serializable formats."""
         if isinstance(obj, np.generic):
             return obj.item()
         elif isinstance(obj, np.ndarray):
@@ -54,34 +38,12 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 def worker_fn(args, generator, renderer_type, debug=False):
-    """A worker function for processing a single data sample in parallel.
-
-    This function is designed to be executed by a thread pool. It takes a set
-    of arguments, including the text to render, and uses the provided data
-    generator to create a synthetic image. It then saves the image and, if in
-    debug mode, saves the rendering parameters and HTML for inspection.
-
-    Args:
-        args (tuple): A tuple containing the index, source, ID, and text for
-            the data sample.
-        generator (SyntheticDataGenerator or SyntheticDataGeneratorV2): An
-            instance of a data generator.
-        renderer_type (str): The type of renderer being used ('html' or
-            'pictex').
-        debug (bool, optional): If True, enables debug logging and saves
-            additional debugging artifacts. Defaults to False.
-
-    Returns:
-        tuple or None: A tuple containing metadata about the generated sample
-        (source, ID, text, vertical, font_path) if successful, otherwise None.
-    """
+    """A worker function for processing a single data sample in parallel."""
     try:
-        # Unpack the arguments for the current sample
         i, source, id_, text = args
         if debug:
             print(f"Processing sample {id_}: '{text}'")
 
-        # Generate the synthetic image and get ground truth text and parameters
         filename = f"{id_}.jpg"
         result = generator.process(text)
         if len(result) == 2:
@@ -90,51 +52,42 @@ def worker_fn(args, generator, renderer_type, debug=False):
         else:
             img, text_gt, params = result
 
-        # If image generation fails, skip this sample
         if img is None:
             print(f"Skipping render for text: {text}")
             return None
 
-        # Save the generated image
         img_path = Path(OUT_DIR) / filename
         cv2.imwrite(str(img_path), img)
         if debug:
             print(f"  - Saved image to {img_path}")
 
-        # In debug mode, save additional artifacts like HTML and JSON parameters
         if debug:
             debug_info = params.copy()
-            # If using the HTML renderer, save the generated HTML
             if renderer_type == 'html':
                 html = debug_info.pop("html", "")
                 html_path = Path(DEBUG_DIR) / f"{id_}.html"
                 html_path.write_text(html, encoding="utf-8")
                 print(f"  - Saved HTML to {html_path}")
 
-            # Convert Path objects to strings for JSON serialization
             for key, value in debug_info.items():
                 if isinstance(value, Path):
                     debug_info[key] = str(value)
 
-            # Save rendering parameters to a JSON file
             json_path = Path(DEBUG_DIR) / f"{id_}.json"
             json_path.write_text(
                 json.dumps(debug_info, indent=4, cls=NumpyEncoder), encoding="utf-8"
             )
             print(f"  - Saved params to {json_path}")
 
-        # Collect metadata for the final CSV record
         font_path = params.get("font_path")
         vertical = params.get("vertical", False)
         ret = source, id_, text_gt, vertical, str(font_path)
         return ret
 
     except ValueError as e:
-        # Handle cases where image generation is intentionally skipped
         print(f"Skipping due to error: {e}")
         return None
     except Exception:
-        # Log any other exceptions and re-raise to stop the process
         print(traceback.format_exc())
         raise
 
@@ -152,45 +105,15 @@ def run(
     min_output_size=None,
     cdp_port=9222,
 ):
-    """Generates a package of synthetic data, including images and metadata.
+    """
+    Generates a package of synthetic data, including images and metadata.
 
     This function orchestrates the entire synthetic data generation process.
     It reads a list of text lines from a CSV file, generates a specified number
     of random text samples, and then uses a thread pool to generate images for
     each line of text. The generated images and their corresponding metadata
     are saved to the appropriate directories.
-
-    Args:
-        renderer (str, optional): The rendering engine to use. Can be either
-            'pictex' or 'html'. Defaults to 'pictex'.
-        package (int, optional): The ID of the data package to generate. This
-            is used to locate the input CSV file and name the output
-            directories. Defaults to 0.
-        n_random (int, optional): The number of random text samples to
-            generate. Defaults to 10000.
-        n_limit (int, optional): The total number of samples to generate. If
-            None, all samples will be processed. Defaults to None.
-        max_workers (int, optional): The maximum number of worker threads to use
-            for parallel processing. Defaults to 14.
-        debug (bool, optional): If True, enables debug mode, which saves
-            additional artifacts for inspection. Defaults to False.
-        min_font_size (int, optional): The minimum font size for text
-            rendering. Defaults to 40.
-        max_font_size (int, optional): The maximum font size for text
-            rendering. Defaults to 60.
-        target_size (str, optional): The target size of the output images,
-            formatted as "width,height". Defaults to None.
-        min_output_size (int, optional): The minimum size of the smallest
-            dimension of the output images. Defaults to None.
-        cdp_port (int, optional): The port for the Chrome DevTools Protocol,
-            used when the renderer is 'html'. Defaults to 9222.
-
-    Raises:
-        FileNotFoundError: If the input CSV file for the specified package
-            does not exist.
-        ValueError: If the specified renderer is not 'pictex' or 'html'.
     """
-    # Parse and validate command-line arguments
     package = int(package)
     n_random = int(n_random)
     if n_limit is not None:
@@ -200,40 +123,33 @@ def run(
     if renderer not in ['pictex', 'html']:
         raise ValueError("`renderer` must be either 'pictex' or 'html'")
 
-    # Load the text lines from the specified package
     package_id = f"{package:04d}"
     lines_path = Path(DATA_SYNTHETIC_ROOT) / f"lines/{package_id}.csv"
     if not lines_path.exists():
         raise FileNotFoundError(f"Lines file not found: {lines_path}")
     lines = pd.read_csv(lines_path)
 
-    # Generate additional random samples if specified
     random_lines = pd.DataFrame(
         {"source": "random", "id": [f"random_{package_id}_{i}" for i in range(n_random)], "line": None}
     )
     lines = pd.concat([lines, random_lines], ignore_index=True)
 
-    # Limit the number of samples if n_limit is set
     if n_limit:
         lines = lines.sample(n_limit)
     args = [(i, *values) for i, values in enumerate(lines.values)]
 
-    # Set up output directories for images and metadata
     global OUT_DIR, DEBUG_DIR
-    version_str = 'v2' if renderer == 'pictex' else 'v1'
-    OUT_DIR = Path(DATA_SYNTHETIC_ROOT) / f"img" / package_id
+    OUT_DIR = Path(DATA_SYNTHETIC_ROOT) / "img" / package_id
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     if debug:
         DEBUG_DIR = Path(DATA_SYNTHETIC_ROOT) / "debug" / package_id
         DEBUG_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Parse image size parameters
     if isinstance(target_size, str):
         target_size = tuple(map(int, target_size.split(',')))
     if min_output_size is not None:
         min_output_size = int(min_output_size)
 
-    # Initialize the appropriate data generator based on the selected renderer
     if renderer == 'pictex':
         generator = SyntheticDataGeneratorV2(
             background_dir=Path(BACKGROUND_DIR),
@@ -257,15 +173,13 @@ def run(
             f_with_generator = partial(worker_fn, generator=generator, renderer_type=renderer, debug=debug)
             results = thread_map(f_with_generator, args, max_workers=max_workers, desc=f"Processing package {package_id} (html)")
 
-    # Filter out any samples that failed during generation
     data = [res for res in results if res is not None]
     if not data:
         print("No data generated.")
         return
 
-    # Save the metadata for the generated samples to a CSV file
     data = pd.DataFrame(data, columns=["source", "id", "text", "vertical", "font_path"])
-    meta_path = Path(DATA_SYNTHETIC_ROOT) / f"meta" / f"{package_id}.csv"
+    meta_path = Path(DATA_SYNTHETIC_ROOT) / "meta" / f"{package_id}.csv"
     meta_path.parent.mkdir(parents=True, exist_ok=True)
     data.to_csv(meta_path, index=False)
 
