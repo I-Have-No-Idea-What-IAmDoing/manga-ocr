@@ -54,14 +54,16 @@ def test_post_process():
     cleaned and normalized before being returned to the user.
     """
     assert post_process("…") == "．．．"
-    assert post_process("・・") == "．．"
+    assert post_process("・・") == "．．．"
     assert post_process("a b c") == "ａｂｃ"
     assert post_process("a　b　c") == "ａｂｃ"
     assert post_process("a.b") == "ａ．ｂ"
-    assert post_process("a..b") == "ａ．．ｂ"
+    assert post_process("a..b") == "ａ．．．ｂ"
     assert post_process("a・b") == "ａ・ｂ"
-    assert post_process("a・・b") == "ａ．．ｂ"
-    assert post_process("a.・b") == "ａ．．ｂ"
+    assert post_process("a・・b") == "ａ．．．ｂ"
+    assert post_process("a.・b") == "ａ．．．ｂ"
+    assert post_process("a...b") == "ａ．．．ｂ"
+    assert post_process("a....b") == "ａ．．．ｂ"
 
 
 @patch("torch.cuda.is_available", return_value=True)
