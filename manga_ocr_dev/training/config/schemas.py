@@ -118,7 +118,6 @@ class AppConfig(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
-        yaml_file="",  # Placeholder, will be overridden by constructor
     )
 
     model: ModelConfig = Field(..., description="The model configuration.")
@@ -146,9 +145,10 @@ class AppConfig(BaseSettings):
         4.  `dotenv_settings`: Variables loaded from a `.env` file.
         5.  `file_secret_settings`: Settings from Docker-style secrets files.
         """
+        yaml_file = init_settings.init_kwargs.get("yaml_file")
         return (
             init_settings,
-            YamlConfigSettingsSource(settings_cls),
+            YamlConfigSettingsSource(settings_cls, yaml_file=yaml_file),
             env_settings,
             dotenv_settings,
             file_secret_settings,
