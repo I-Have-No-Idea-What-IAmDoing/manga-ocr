@@ -150,7 +150,7 @@ def post_process(text):
         str: The cleaned and normalized text.
     """
     text = "".join(text.split())
-    text = re.sub("[・.]{2,}", lambda x: (x.end() - x.start()) * ".", text)
+    text = re.sub(r"[・.]{2,}", "...", text)
     text = text.replace("…", "...")
     text = jaconv.h2z(text, ascii=True, digit=True)
 
