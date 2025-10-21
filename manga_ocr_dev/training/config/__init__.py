@@ -49,6 +49,4 @@ def load_config(config_path: Optional[Path] = None) -> AppConfig:
 
     # Pass the path to the AppConfig constructor via the _settings_config argument.
     # This ensures that pydantic-settings knows where to load the YAML file from.
-    return AppConfig(
-        _settings_config=SettingsConfigDict(yaml_file=effective_config_path)
-    )
+    return AppConfig(yaml_file=effective_config_path)

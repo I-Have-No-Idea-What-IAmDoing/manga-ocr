@@ -118,6 +118,7 @@ class AppConfig(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        yaml_file="",  # Placeholder, will be overridden by constructor
     )
 
     model: ModelConfig = Field(..., description="The model configuration.")
