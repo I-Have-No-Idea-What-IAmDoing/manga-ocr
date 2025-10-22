@@ -111,6 +111,13 @@ class TrainingConfig(BaseSettings):
     torch_compile: bool = Field(False, description="Whether to use `torch.compile` to speed up training.")
 
 
+class App(BaseModel):
+    """A container for the main configuration sections."""
+    model: ModelConfig = Field(..., description="The model configuration.")
+    dataset: DatasetConfig = Field(..., description="The dataset configuration.")
+    training: TrainingConfig = Field(default_factory=TrainingConfig, description="The training arguments.")
+
+
 class AppConfig(BaseSettings):
     """The root configuration object for the entire training application."""
 
@@ -120,9 +127,7 @@ class AppConfig(BaseSettings):
         extra="ignore",
     )
 
-    model: ModelConfig = Field(..., description="The model configuration.")
-    dataset: DatasetConfig = Field(..., description="The dataset configuration.")
-    training: TrainingConfig = Field(default_factory=TrainingConfig, description="The training arguments.")
+    app: App = Field(..., description="The main application configuration.")
 
     @classmethod
     def settings_customise_sources(

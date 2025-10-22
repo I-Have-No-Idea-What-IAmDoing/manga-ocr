@@ -13,12 +13,9 @@ from manga_ocr_dev.training.get_model import get_model
 from manga_ocr_dev.training.config.schemas import AppConfig
 
 # Underscore prefix to prevent pytest from collecting it as a test class
-class _TestAppConfig(AppConfig):
-    model_config = SettingsConfigDict(
-        yaml_file='manga_ocr_dev/training/config.yaml',
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
+class _TestAppConfig:
+    def __init__(self):
+        self.app = MagicMock()
 
 class TestGetModel(unittest.TestCase):
     """A test suite for the `get_model` function."""
@@ -77,12 +74,14 @@ class TestGetModel(unittest.TestCase):
         encoder_config, _, _ = self._setup_mocks(MockAutoImageProcessor, MockAutoTokenizer, MockAutoConfig, MockAutoModel, MockAutoModelForCausalLM)
 
         config = _TestAppConfig()
-        model, processor = get_model(config.model)
+        config.app.model.encoder_name = "google/vit-base-patch16-224-in21k"
+        config.app.model.decoder_name = "bert-base-uncased"
+        model, processor = get_model(config.app.model)
 
         self.assertIsNotNone(model)
         self.assertIsNotNone(processor)
-        MockAutoImageProcessor.from_pretrained.assert_called_once_with(config.model.encoder_name, use_fast=True)
-        MockAutoTokenizer.from_pretrained.assert_called_once_with(config.model.decoder_name)
+        MockAutoImageProcessor.from_pretrained.assert_called_once_with(config.app.model.encoder_name, use_fast=True)
+        MockAutoTokenizer.from_pretrained.assert_called_once_with(config.app.model.decoder_name)
         self.assertEqual(MockAutoConfig.from_pretrained.call_count, 2)
         MockAutoModel.from_config.assert_called_once_with(encoder_config)
 
@@ -97,9 +96,9 @@ class TestGetModel(unittest.TestCase):
         _, decoder_config, mock_decoder = self._setup_mocks(MockAutoImageProcessor, MockAutoTokenizer, MockAutoConfig, MockAutoModel, MockAutoModelForCausalLM)
 
         config = _TestAppConfig()
-        config.model.num_decoder_layers = 2
+        config.app.model.num_decoder_layers = 2
 
-        model, processor = get_model(config.model)
+        model, processor = get_model(config.app.model)
 
         self.assertIsNotNone(model)
         self.assertIsNotNone(processor)
@@ -118,7 +117,7 @@ class TestGetModel(unittest.TestCase):
         decoder_config.model_type = 'unsupported'
 
         config = _TestAppConfig()
-        config.model.num_decoder_layers = 2
+        config.app.model.num_decoder_layers = 2
 
         with self.assertRaisesRegex(ValueError, "Unsupported model_type for layer truncation: unsupported"):
-            get_model(config.model)
+            get_model(config.app.model)
