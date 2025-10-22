@@ -33,9 +33,9 @@ class TestTrain(unittest.TestCase):
         # --- Setup Mocks ---
         # Mock config
         mock_config = MagicMock()
-        mock_config.training.torch_compile = False
-        mock_config.model.max_len = 300
-        mock_config.training.model_dump.return_value = {}
+        mock_config.app.training.torch_compile = False
+        mock_config.app.model.max_len = 300
+        mock_config.app.training.model_dump.return_value = {}
         mock_load_config.return_value = mock_config
 
         # Mock wandb
@@ -56,7 +56,7 @@ class TestTrain(unittest.TestCase):
         # --- Assertions ---
         mock_load_config.assert_called_once_with(None)
         mock_wandb.init.assert_called_once_with(project="manga-ocr", name=None, config=ANY)
-        MockGetModel.assert_called_once_with(mock_config.model)
+        MockGetModel.assert_called_once_with(mock_config.app.model)
         mock_torch_compile.assert_not_called()
         self.assertEqual(MockMangaDataset.call_count, 2)
         MockMetrics.assert_called_once_with(mock_processor)
@@ -82,9 +82,9 @@ class TestTrain(unittest.TestCase):
         # --- Setup Mocks ---
         # Mock config
         mock_config = MagicMock()
-        mock_config.training.torch_compile = True # Enable torch.compile
-        mock_config.model.max_len = 300
-        mock_config.training.model_dump.return_value = {'batch_size': 32}
+        mock_config.app.training.torch_compile = True # Enable torch.compile
+        mock_config.app.model.max_len = 300
+        mock_config.app.training.model_dump.return_value = {'batch_size': 32}
         mock_load_config.return_value = mock_config
 
         # Mock model and processor

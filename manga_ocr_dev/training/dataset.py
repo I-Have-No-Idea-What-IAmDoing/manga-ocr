@@ -262,10 +262,10 @@ if __name__ == "__main__":
     from manga_ocr_dev.training.config import load_config
 
     app_config = load_config()
-    model, processor = get_model(app_config.model)
+    model, processor = get_model(app_config.app.model)
 
     ds = MangaDataset(
-        processor, app_config.dataset, app_config.model.max_len, limit_size=100
+        processor, app_config.app.dataset, app_config.app.model.max_len, limit_size=100
     )
 
     for i in range(20):

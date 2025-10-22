@@ -15,7 +15,6 @@ from manga_ocr_dev.training.config import schemas
 
 # A complete and valid configuration for testing
 VALID_CONFIG = {
-    "run_name": "test_run",
     "model": {
         "encoder_name": "google/vit-base-patch16-224-in21k",
         "decoder_name": "bert-base-uncased",
@@ -57,7 +56,7 @@ class TestConfigSchemas(unittest.TestCase):
     def test_valid_config_parses_correctly(self):
         """Tests that a complete and valid configuration is parsed without errors."""
         try:
-            schemas.AppConfig(**copy.deepcopy(VALID_CONFIG))
+            schemas.AppConfig(app=copy.deepcopy(VALID_CONFIG))
         except ValidationError as e:
             self.fail(f"Valid configuration failed to parse: {e}")
 
@@ -66,14 +65,14 @@ class TestConfigSchemas(unittest.TestCase):
         invalid_config = copy.deepcopy(VALID_CONFIG)
         del invalid_config["model"]
         with self.assertRaises(ValidationError):
-            schemas.AppConfig(**invalid_config)
+            schemas.AppConfig(app=invalid_config)
 
     def test_incorrect_data_type_raises_error(self):
         """Tests that providing an incorrect data type for a field raises a `ValidationError`."""
         invalid_config = copy.deepcopy(VALID_CONFIG)
         invalid_config["training"]["num_train_epochs"] = "three"  # Should be an int
         with self.assertRaises(ValidationError):
-            schemas.AppConfig(**invalid_config)
+            schemas.AppConfig(app=invalid_config)
 
     def test_default_values_are_applied(self):
         """Tests that default values are correctly applied for optional fields."""
@@ -82,10 +81,10 @@ class TestConfigSchemas(unittest.TestCase):
         del config_dict["training"]["report_to"]
 
         # This should parse without error
-        config = schemas.AppConfig(**config_dict)
+        config = schemas.AppConfig(app=config_dict)
 
         # Check if the default value is set
-        self.assertEqual(config.training.report_to, "wandb")
+        self.assertEqual(config.app.training.report_to, "wandb")
 
     def test_field_aliases_work_correctly(self):
         """Tests that Pydantic field aliases are correctly handled during parsing."""
@@ -94,34 +93,34 @@ class TestConfigSchemas(unittest.TestCase):
         # Use the alias for a field
         config_dict["training"]["per_device_train_batch_size"] = 16
 
-        config = schemas.AppConfig(**config_dict)
+        config = schemas.AppConfig(app=config_dict)
 
         # The aliased field should be populated correctly
-        self.assertEqual(config.training.batch_size, 16)
+        self.assertEqual(config.app.training.batch_size, 16)
 
     def test_augmentation_probabilities_defaults(self):
         """Tests that augmentation probabilities use defaults if not specified."""
         config_dict = copy.deepcopy(VALID_CONFIG)
         del config_dict["dataset"]["augmentations"]["probabilities"]
 
-        config = schemas.AppConfig(**config_dict)
+        config = schemas.AppConfig(app=config_dict)
 
-        self.assertIsNotNone(config.dataset.augmentations.probabilities)
-        self.assertEqual(config.dataset.augmentations.probabilities.medium, 0.8)
-        self.assertEqual(config.dataset.augmentations.probabilities.heavy, 0.02)
+        self.assertIsNotNone(config.app.dataset.augmentations.probabilities)
+        self.assertEqual(config.app.dataset.augmentations.probabilities.medium, 0.8)
+        self.assertEqual(config.app.dataset.augmentations.probabilities.heavy, 0.02)
 
     def test_torch_compile_option(self):
         """Tests that the torch_compile option is handled correctly."""
         # Test default value
         config_dict_default = copy.deepcopy(VALID_CONFIG)
-        config_default = schemas.AppConfig(**config_dict_default)
-        self.assertFalse(config_default.training.torch_compile)
+        config_default = schemas.AppConfig(app=config_dict_default)
+        self.assertFalse(config_default.app.training.torch_compile)
 
         # Test setting to True
         config_dict_true = copy.deepcopy(VALID_CONFIG)
         config_dict_true["training"]["torch_compile"] = True
-        config_true = schemas.AppConfig(**config_dict_true)
-        self.assertTrue(config_true.training.torch_compile)
+        config_true = schemas.AppConfig(app=config_dict_true)
+        self.assertTrue(config_true.app.training.torch_compile)
 
 
 if __name__ == "__main__":
