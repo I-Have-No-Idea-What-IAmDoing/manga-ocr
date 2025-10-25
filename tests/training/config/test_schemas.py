@@ -7,6 +7,7 @@ apply default values, and process field aliases as expected.
 """
 
 import unittest
+from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 import copy
@@ -121,6 +122,38 @@ class TestConfigSchemas(unittest.TestCase):
         config_dict_true["training"]["torch_compile"] = True
         config_true = schemas.AppConfig(app=config_dict_true)
         self.assertTrue(config_true.app.training.torch_compile)
+
+    def test_model_name_validator(self):
+        """Tests the validator for encoder_name and decoder_name.
+
+        The test covers three scenarios:
+        1. A valid Hugging Face repository ID is accepted.
+        2. A local directory path is accepted.
+        3. An invalid repository ID raises a `ValidationError`.
+        """
+        # Scenario 1: Valid Hugging Face repo ID
+        config_dict_repo = copy.deepcopy(VALID_CONFIG)
+        config_dict_repo["model"]["encoder_name"] = "valid/repo-id"
+        try:
+            schemas.AppConfig(app=config_dict_repo)
+        except ValidationError as e:
+            self.fail(f"Validator failed for valid repo ID: {e}")
+
+        # Scenario 2: Local directory path
+        with patch("os.path.isdir", return_value=True):
+            config_dict_local = copy.deepcopy(VALID_CONFIG)
+            config_dict_local["model"]["encoder_name"] = "/path/to/local/model"
+            try:
+                schemas.AppConfig(app=config_dict_local)
+            except ValidationError as e:
+                self.fail(f"Validator failed for local path: {e}")
+
+        # Scenario 3: Invalid repo ID
+        with patch("os.path.isdir", return_value=False):
+            config_dict_invalid = copy.deepcopy(VALID_CONFIG)
+            config_dict_invalid["model"]["encoder_name"] = "invalid repo id"
+            with self.assertRaises(ValidationError):
+                schemas.AppConfig(app=config_dict_invalid)
 
 
 if __name__ == "__main__":

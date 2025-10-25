@@ -7,9 +7,11 @@ configuration easier to manage and understand. Each class corresponds to a
 specific section of the `config.yaml` file.
 """
 
+import os
 from typing import Any, Dict, List, Optional, Type
 
-from pydantic import BaseModel, Field
+from huggingface_hub.utils import validate_repo_id
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -25,6 +27,25 @@ class ModelConfig(BaseModel):
     decoder_name: str = Field(..., description="The name or path of the pre-trained language model to use as the decoder.")
     max_len: int = Field(..., description="The maximum sequence length for the decoder.")
     num_decoder_layers: Optional[int] = Field(None, description="If specified, truncates the decoder to this number of layers.")
+
+    @field_validator("encoder_name", "decoder_name")
+    def validate_model_name(cls, v: str) -> str:
+        """Validate the model name.
+
+        The model name can be either a local path to a directory or a valid
+        Hugging Face repository ID. This validator first checks if the provided
+        string is a local directory. If not, it validates it as a repository ID.
+
+        Args:
+            v: The model name to validate.
+
+        Returns:
+            The validated model name.
+        """
+        if os.path.isdir(v):
+            return v
+        validate_repo_id(v)
+        return v
 
 
 class DatasetSourceConfig(BaseModel):
