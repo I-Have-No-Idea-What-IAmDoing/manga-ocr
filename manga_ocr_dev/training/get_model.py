@@ -71,43 +71,39 @@ def get_model(model_config: ModelConfig):
     tokenizer = AutoTokenizer.from_pretrained(model_config.decoder_name)
     processor = TrOCRProcessorCustom(feature_extractor, tokenizer)
 
-    # Configure and create the encoder from the specified pre-trained model
-    encoder_config = AutoConfig.from_pretrained(model_config.encoder_name)
-    encoder_config.is_decoder = False
-    encoder_config.add_cross_attention = False
-    encoder = AutoModel.from_config(encoder_config)
+    # Load the pre-trained encoder model
+    encoder = AutoModel.from_pretrained(model_config.encoder_name)
 
-    # Configure and create the decoder from the specified pre-trained model
-    decoder_config = AutoConfig.from_pretrained(model_config.decoder_name)
-    decoder_config.max_length = model_config.max_len
-    decoder_config.is_decoder = True
-    decoder_config.add_cross_attention = True
-    decoder = AutoModelForCausalLM.from_config(decoder_config)
+    # Load the pre-trained decoder model and configure it
+    decoder = AutoModelForCausalLM.from_pretrained(model_config.decoder_name)
+    decoder.config.max_length = model_config.max_len
+    decoder.config.is_decoder = True
+    decoder.config.add_cross_attention = True
 
     # If specified, truncate the decoder to a smaller number of layers.
     # This is a form of model surgery that allows for creating a smaller,
     # faster decoder by using only the top N layers of a pretrained model.
     if model_config.num_decoder_layers is not None:
-        if decoder_config.model_type == "bert":
+        if decoder.config.model_type == "bert":
             decoder.bert.encoder.layer = decoder.bert.encoder.layer[
                 -model_config.num_decoder_layers :
             ]
-        elif decoder_config.model_type in ("roberta", "xlm-roberta"):
+        elif decoder.config.model_type in ("roberta", "xlm-roberta"):
             decoder.roberta.encoder.layer = decoder.roberta.encoder.layer[
                 -model_config.num_decoder_layers :
             ]
-        elif decoder_config.model_type in ("modernbert"):
+        elif decoder.config.model_type in ("modernbert"):
             decoder.modernbert.encoder.layer = decoder.modernbert.encoder.layer[
                 -model_config.num_decoder_layers :
             ]
         else:
-            raise ValueError(f"Unsupported model_type for layer truncation: {decoder_config.model_type}")
+            raise ValueError(f"Unsupported model_type for layer truncation: {decoder.config.model_type}")
 
-        decoder_config.num_hidden_layers = model_config.num_decoder_layers
+        decoder.config.num_hidden_layers = model_config.num_decoder_layers
 
     # Combine the encoder and decoder configurations into a single VisionEncoderDecoderConfig
     config = VisionEncoderDecoderConfig.from_encoder_decoder_configs(
-        encoder_config, decoder_config
+        encoder.config, decoder.config
     )
     config.tie_word_embeddings = False
     # Create the VisionEncoderDecoderModel with the configured encoder and decoder
