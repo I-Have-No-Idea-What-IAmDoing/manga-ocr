@@ -55,11 +55,14 @@ class TestGetModel(unittest.TestCase):
 
         MockAutoConfig.from_pretrained.side_effect = [encoder_config, decoder_config]
 
-        mock_decoder = MagicMock()
-        mock_decoder.bert.encoder.layer = [1, 2, 3, 4, 5, 6]  # A list of layers
-        MockAutoModelForCausalLM.from_config.return_value = mock_decoder
+        mock_encoder = MagicMock()
+        mock_encoder.config = encoder_config
+        MockAutoModel.from_pretrained.return_value = mock_encoder
 
-        MockAutoModel.from_config.return_value = MagicMock()
+        mock_decoder = MagicMock()
+        mock_decoder.config = decoder_config
+        mock_decoder.bert.encoder.layer = [1, 2, 3, 4, 5, 6]  # A list of layers
+        MockAutoModelForCausalLM.from_pretrained.return_value = mock_decoder
 
         return encoder_config, decoder_config, mock_decoder
 
@@ -82,8 +85,8 @@ class TestGetModel(unittest.TestCase):
         self.assertIsNotNone(processor)
         MockAutoImageProcessor.from_pretrained.assert_called_once_with(config.app.model.encoder_name, use_fast=True)
         MockAutoTokenizer.from_pretrained.assert_called_once_with(config.app.model.decoder_name)
-        self.assertEqual(MockAutoConfig.from_pretrained.call_count, 2)
-        MockAutoModel.from_config.assert_called_once_with(encoder_config)
+        MockAutoModel.from_pretrained.assert_called_once_with(config.app.model.encoder_name)
+        MockAutoModelForCausalLM.from_pretrained.assert_called_once_with(config.app.model.decoder_name)
 
     @patch('manga_ocr_dev.training.get_model.VisionEncoderDecoderModel')
     @patch('manga_ocr_dev.training.get_model.AutoModelForCausalLM')
