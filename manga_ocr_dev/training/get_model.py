@@ -71,18 +71,16 @@ def get_model(model_config: ModelConfig):
     tokenizer = AutoTokenizer.from_pretrained(model_config.decoder_name)
     processor = TrOCRProcessorCustom(feature_extractor, tokenizer)
 
-    # Configure and create the encoder from the specified pre-trained model
-    encoder_config = AutoConfig.from_pretrained(model_config.encoder_name)
-    encoder_config.is_decoder = False
-    encoder_config.add_cross_attention = False
-    encoder = AutoModel.from_config(encoder_config)
+    # Load the pre-trained vision model to be used as the encoder
+    encoder = AutoModel.from_pretrained(model_config.encoder_name)
 
-    # Configure and create the decoder from the specified pre-trained model
+    # Load the pre-trained language model to be used as the decoder
     decoder_config = AutoConfig.from_pretrained(model_config.decoder_name)
-    decoder_config.max_length = model_config.max_len
-    decoder_config.is_decoder = True
     decoder_config.add_cross_attention = True
-    decoder = AutoModelForCausalLM.from_config(decoder_config)
+    decoder = AutoModelForCausalLM.from_pretrained(
+        model_config.decoder_name, config=decoder_config
+    )
+    decoder_config.max_length = model_config.max_len
 
     # If specified, truncate the decoder to a smaller number of layers.
     # This is a form of model surgery that allows for creating a smaller,
@@ -107,7 +105,7 @@ def get_model(model_config: ModelConfig):
 
     # Combine the encoder and decoder configurations into a single VisionEncoderDecoderConfig
     config = VisionEncoderDecoderConfig.from_encoder_decoder_configs(
-        encoder_config, decoder_config
+        encoder.config, decoder.config
     )
     config.tie_word_embeddings = False
     # Create the VisionEncoderDecoderModel with the configured encoder and decoder
