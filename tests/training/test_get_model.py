@@ -46,22 +46,22 @@ class TestGetModel(unittest.TestCase):
         mock_tok.sep_token_id = 102
         MockAutoTokenizer.from_pretrained.return_value = mock_tok
 
-        encoder_config = MagicMock()
-        encoder_config.to_dict.return_value = {'model_type': 'bert'}
+        encoder = MagicMock()
+        encoder.config.to_dict.return_value = {'model_type': 'bert'}
+        MockAutoModel.from_pretrained.return_value = encoder
 
         decoder_config = MagicMock()
         decoder_config.model_type = 'bert'
         decoder_config.to_dict.return_value = {'model_type': 'bert'}
 
-        MockAutoConfig.from_pretrained.side_effect = [encoder_config, decoder_config]
+        MockAutoConfig.from_pretrained.return_value = decoder_config
 
         mock_decoder = MagicMock()
         mock_decoder.bert.encoder.layer = [1, 2, 3, 4, 5, 6]  # A list of layers
-        MockAutoModelForCausalLM.from_config.return_value = mock_decoder
+        mock_decoder.config = decoder_config
+        MockAutoModelForCausalLM.from_pretrained.return_value = mock_decoder
 
-        MockAutoModel.from_config.return_value = MagicMock()
-
-        return encoder_config, decoder_config, mock_decoder
+        return encoder.config, decoder_config, mock_decoder
 
     @patch('manga_ocr_dev.training.get_model.VisionEncoderDecoderModel')
     @patch('manga_ocr_dev.training.get_model.AutoModelForCausalLM')
@@ -71,7 +71,7 @@ class TestGetModel(unittest.TestCase):
     @patch('manga_ocr_dev.training.get_model.AutoImageProcessor')
     def test_get_model(self, MockAutoImageProcessor, MockAutoTokenizer, MockAutoConfig, MockAutoModel, MockAutoModelForCausalLM, MockVLM):
         """Tests that `get_model` correctly constructs a model and processor."""
-        encoder_config, _, _ = self._setup_mocks(MockAutoImageProcessor, MockAutoTokenizer, MockAutoConfig, MockAutoModel, MockAutoModelForCausalLM)
+        _, decoder_config, _ = self._setup_mocks(MockAutoImageProcessor, MockAutoTokenizer, MockAutoConfig, MockAutoModel, MockAutoModelForCausalLM)
 
         config = _TestAppConfig()
         config.app.model.encoder_name = "google/vit-base-patch16-224-in21k"
@@ -82,8 +82,11 @@ class TestGetModel(unittest.TestCase):
         self.assertIsNotNone(processor)
         MockAutoImageProcessor.from_pretrained.assert_called_once_with(config.app.model.encoder_name, use_fast=True)
         MockAutoTokenizer.from_pretrained.assert_called_once_with(config.app.model.decoder_name)
-        self.assertEqual(MockAutoConfig.from_pretrained.call_count, 2)
-        MockAutoModel.from_config.assert_called_once_with(encoder_config)
+        MockAutoModel.from_pretrained.assert_called_once_with(config.app.model.encoder_name)
+        MockAutoModelForCausalLM.from_pretrained.assert_called_once_with(
+            config.app.model.decoder_name, config=decoder_config
+        )
+        self.assertTrue(decoder_config.add_cross_attention)
 
     @patch('manga_ocr_dev.training.get_model.VisionEncoderDecoderModel')
     @patch('manga_ocr_dev.training.get_model.AutoModelForCausalLM')
